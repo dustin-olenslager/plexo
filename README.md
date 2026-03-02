@@ -1,240 +1,101 @@
+<div align="center">
+
 # Plexo
 
-**Self-hosted AI agentic platform.** Plexo runs a persistent AI agent that handles routine work autonomously — managing infrastructure, executing coding tasks in parallel, scanning for opportunities, and learning from every outcome — and interrupts only when a real decision is needed.
+**Your AI agent, running 24/7, on your own server.**
 
-The agent communicates through messaging channels you already use (Telegram, Slack, Discord) and through a web dashboard. A managed hosting tier is available at [getplexo.com](https://getplexo.com) for users who don't want to run their own server.
+Plexo handles routine work autonomously — infrastructure, code, research, ops — and interrupts only when a real decision is needed. It communicates through channels you already use: Telegram, Slack, Discord. It learns from every task it completes.
 
----
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=nextdotjs)](https://nextjs.org)
+[![Docker](https://img.shields.io/badge/self--hosted-Docker-2496ED?logo=docker&logoColor=white)](docker/compose.yml)
 
-## What It Does
+[**Managed hosting →**](https://getplexo.com) · [Docs](docs/) · [Plugin SDK](docs/plugin-sdk.md) · [Architecture](docs/architecture.md)
 
-- **Autonomous task execution** — Send a message, get work done. The agent plans, executes, verifies, and reports back.
-- **One-way-door protection** — Destructive actions (deletions, deploys, schema changes) require an explicit confirmation code before proceeding.
-- **Sprint engine** — Decompose a software goal into parallel tasks running in isolated Docker workers, merged into a single branch.
-- **Proactive scanning** — Monitors GitHub issues, failing builds, and message drops. Creates tasks automatically, gated by confidence.
-- **Connections browser** — Connect GitHub, Linear, Vercel, Stripe, Hetzner, and more. Connected services automatically register tools the agent can call.
-- **Plugin system** — Extend every part of the platform: new tools, dashboard cards, messaging channels, cron jobs, MCP servers.
-- **Semantic memory** — Hybrid BM25 + vector search over past tasks, incidents, and learned patterns. Cross-project learning out of the box.
-- **Recursive self-improvement** — Weekly analysis of execution metrics. Proposes targeted changes, shadow tests them, deploys with a regression guard.
+</div>
 
 ---
 
-## Stack
+## The idea
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 15 (App Router) |
-| API | Express 5 |
-| Database | PostgreSQL 16 + pgvector |
-| ORM | Drizzle |
-| Cache / Queue | Redis (Valkey) |
-| Auth | Auth.js v5 |
-| Reverse proxy | Caddy |
-| Runtime | Docker / Docker Compose |
-| Language | TypeScript (strict) |
-| Package manager | pnpm workspaces |
+Most AI tools are chat interfaces. You ask, they answer, you do the work.
+
+Plexo inverts that. You describe what you want. The agent plans it, executes it step by step, verifies each step actually worked, and tells you when it's done. Destructive actions — deletions, deployments, schema migrations — pause for an explicit confirmation code before proceeding. Everything that runs is logged, costed, and scored.
+
+The agent doesn't just respond to you. It watches your GitHub repos for failing builds and open issues, picks up tasks you drop in a message, and proposes what to work on next. Every week it analyzes its own performance and proposes targeted improvements — shadow tested before they ever touch production.
+
+You stay in control. The agent does the work.
 
 ---
 
-## Self-Hosting
+## What it runs
 
-**Requirement:** A server with Docker and Docker Compose installed. No terminal commands required after initial setup.
+| | |
+|---|---|
+| **Tasks** | Coding, deployment, research, ops — planned, executed, and verified end to end |
+| **Sprints** | Decompose a goal into parallel tasks across isolated Docker workers, merged automatically |
+| **Scanners** | GitHub issues, failing builds, message drops — turned into tasks with confidence gating |
+| **Memory** | Hybrid vector + BM25 search over every past task. Cross-project pattern learning. |
+| **Connections** | GitHub, Linear, Vercel, Stripe, Hetzner, Notion, PostHog, and more — each unlocks tools the agent can call |
+| **Plugins** | New tools, dashboard cards, channels, crons, MCP servers — all isolated, all hot-swappable |
+| **RSI** | Weekly anomaly detection → proposals → shadow testing → regression-guarded deploy |
 
-### 1. Clone and configure
+---
+
+## Self-host in under 20 minutes
 
 ```bash
 git clone https://github.com/dustin-olenslager/plexo
 cd plexo
-cp .env.example .env
-```
-
-Edit `.env`:
-
-```bash
-# Generate with: openssl rand -hex 32
-POSTGRES_PASSWORD=
-
-# Your public domain (with https://)
-PUBLIC_URL=https://plexo.yourdomain.com
-PUBLIC_DOMAIN=plexo.yourdomain.com
-
-# Generate with: openssl rand -hex 64
-SESSION_SECRET=
-
-# Anthropic API key — console.anthropic.com
-ANTHROPIC_API_KEY=
-
-# Optional AI fallbacks
-OPENAI_API_KEY=
-GEMINI_API_KEY=
-
-# GitHub OAuth — github.com/settings/applications/new
-GITHUB_CLIENT_ID=
-GITHUB_CLIENT_SECRET=
-
-# Tune to your server resources
-MAX_SPRINT_WORKERS=5
-
-# Weekly AI spend cap — tasks pause at this limit
-API_COST_CEILING_USD=10.00
-```
-
-### 2. Start
-
-```bash
+cp .env.example .env   # fill in 5 values (see below)
 docker compose -f docker/compose.yml up -d
 ```
 
-### 3. Finish setup in the browser
+Then open your domain. A browser wizard handles the rest: admin account, API key, first channel, agent personality. No terminal after that.
 
-Navigate to `https://plexo.yourdomain.com`. The first-run wizard walks through:
-
-1. Creating an admin account
-2. Adding an AI provider key (tested inline)
-3. Connecting a messaging channel (Telegram, Slack, or Discord)
-4. Setting agent name and personality
-5. Launch
-
-**Target: under 20 minutes from clone to first agent response.** Every design decision is evaluated against this constraint.
-
----
-
-## Monorepo Structure
-
-```
-plexo/
-├── apps/
-│   ├── web/                    # Next.js 15 dashboard
-│   └── api/                    # Express API server
-├── packages/
-│   ├── agent/                  # Agent runtime — core execution logic
-│   ├── sdk/                    # Plugin SDK — public API surface
-│   ├── db/                     # Drizzle schema, migrations, client
-│   ├── queue/                  # Task queue operations
-│   └── ui/                     # Shared shadcn/ui components
-├── plugins/
-│   └── core/                   # First-party plugins
-│       ├── github-ops/
-│       ├── telegram-channel/
-│       ├── slack-channel/
-│       ├── devops-skill/
-│       ├── cron-manager/
-│       ├── product-skill/
-│       └── research-skill/
-├── docker/
-│   ├── compose.yml
-│   └── worker/                 # Sprint worker Docker image
-├── docs/
-│   ├── architecture.md
-│   ├── plugin-sdk.md
-│   ├── self-hosting.md
-│   └── plugin-development.md
-├── scripts/
-│   ├── setup.ts
-│   └── health-check.ts
-├── AGENTS.md
-├── CHANGELOG.md
-└── .env.example
-```
-
----
-
-## Development
+<details>
+<summary><strong>The 5 values you need</strong></summary>
 
 ```bash
-pnpm install
-pnpm dev              # start all apps in dev mode
+# openssl rand -hex 32
+POSTGRES_PASSWORD=
 
-pnpm test             # unit tests (Vitest)
-pnpm test:integration # integration tests (requires Docker)
-pnpm test:e2e         # Playwright E2E (requires running stack)
-pnpm typecheck        # tsc --noEmit across all packages
-pnpm db:migrate       # run pending migrations
-pnpm db:rollback      # roll back one migration
+# Your domain, with https://
+PUBLIC_URL=https://plexo.yourdomain.com
+PUBLIC_DOMAIN=plexo.yourdomain.com
+
+# openssl rand -hex 64
+SESSION_SECRET=
+
+# console.anthropic.com
+ANTHROPIC_API_KEY=
 ```
+
+Everything else in `.env.example` is optional (OpenAI/Gemini fallbacks, GitHub OAuth, sprint worker count, cost ceiling).
+
+</details>
 
 ---
 
-## Architecture
+## Execution protocol
 
-See [`docs/architecture.md`](docs/architecture.md) for the full component diagram and data flow documentation. Read it before making architectural decisions.
+Every task follows five steps. No shortcuts.
 
 ```
-Telegram / Slack / Discord / Webchat
-              │
-              ▼
-         apps/api (Express)
-         ├── HTTP routes, Auth, Rate limiting
-         └── SSE event bus
-              │
-         packages/agent
-         ├── Task queue + execution protocol
-         ├── Sprint engine + worker pool
-         ├── Scanners + confidence gating
-         └── Memory (pgvector hybrid search)
-              │
-         ┌────┴────┐
-         │         │
-  packages/db   packages/sdk
-  (Drizzle)     (Plugin API)
-         │         │
-    PostgreSQL  plugins/core/*
-    + pgvector
+PLAN → the agent writes a structured plan and sends it to you before touching anything
+CONFIRM → any destructive step (deletion, deploy, schema change) pauses for a 6-char code
+EXECUTE → steps run in sequence, max 4 tool calls before a mandatory verification pause
+VERIFY → post-condition checked after each step, not just the exit code
+COMPLETE → quality scored, work ledger written, memory entry created, you get notified
 ```
 
----
+Safety limits are constants in source — not configuration, not overridable:
 
-## Plugin Development
-
-Plugins extend every part of Plexo:
-
-| Type | What it adds |
-|------|-------------|
-| `skill` | Context injected into agent system prompt + callable tools |
-| `channel` | New messaging channel (Telegram, Slack, etc.) |
-| `tool` | Individual callable tool |
-| `card` | Dashboard card component |
-| `mcp-server` | Model Context Protocol server integration |
-| `theme` | Dashboard theme |
-
-Plugins run in isolated Node.js worker threads. A plugin crash never affects the core process. See [`docs/plugin-sdk.md`](docs/plugin-sdk.md) for the full SDK reference.
-
-Quick example — registering a tool:
-
-```typescript
-import { sdk } from '@plexo/sdk'
-
-sdk.agent.registerTool(
-  'github_create_pr',
-  'Create a pull request on GitHub.',
-  { /* JSON Schema */ },
-  async (input, context) => {
-    const token = sdk.settings.get('github_token')
-    // ... call GitHub API
-    return { success: true, output: { url: pr.html_url } }
-  }
-)
-```
-
----
-
-## Agent Execution Protocol
-
-Every task follows this protocol without exception:
-
-1. **PLAN** — Agent produces a structured execution plan with steps, one-way door identification, confidence score, and risks. Plan is sent to you before execution starts.
-2. **CONFIRM** — Any step identified as a one-way door (deletion, deploy, schema migration, external publish) pauses and requests a 6-character confirmation code with a 10-minute expiry.
-3. **EXECUTE** — Steps run in sequence. Max 4 consecutive tool calls before a mandatory verification pause. No `--force` on git. No deletion without a confirmed code.
-4. **VERIFY** — After each step, the agent confirms the post-condition was actually met, not just that the tool returned success.
-5. **COMPLETE** — Quality score calculated, work ledger written, memory entry created, notification sent.
-
-Safety limits are constants in code — not configuration:
-
-```typescript
+```ts
 export const SAFETY_LIMITS = {
   maxConsecutiveToolCalls: 4,
-  maxWallClockMs: 2 * 60 * 60 * 1000,  // 2 hours
-  maxRetries: 3,
+  maxWallClockMs: 2 * 60 * 60 * 1000,
   noForcePush: true,
   noDeletionWithoutConfirmation: true,
   noCredentialsInLogs: true,
@@ -243,49 +104,107 @@ export const SAFETY_LIMITS = {
 
 ---
 
-## Sprint Engine
+## Sprint engine
 
-Sprints decompose a software goal into parallel tasks executed by isolated Docker workers:
+Send one message. Get a full software sprint.
 
 ```
-You: /sprint "Add OAuth login to the dashboard"
+/sprint "Add OAuth login to the dashboard"
 
-Plexo:
-  → Planner analyzes repo context
-  → Emits first task batch (discovery phase)
-  → Workers clone repo, execute tasks in parallel
-  → Merge queue serializes completed branches
-  → Reconciler sweeps for build errors every 5 min
-  → Planner iterates until done
-  → Post-sprint: FEATURES.json diff, DECISIONS.md draft sent for your review
+→ Planner reads repo context (file tree, recent commits, SPEC.md, AGENTS.md)
+→ Emits discovery tasks — learning the codebase before speculating
+→ Workers clone repo, execute tasks in parallel (up to 5 concurrent containers)
+→ Merge queue serializes completed branches with conflict-fix injection
+→ Reconciler sweeps build health every 5 minutes, auto-injecting fix tasks
+→ Planner iterates until the goal is met
+→ Post-sprint: FEATURES.json diff + DECISIONS.md draft sent for your review
 ```
 
-Workers are fully isolated containers with a hard 40-tool-call limit and 30-minute timeout. They know nothing about the project except what the planner writes in the task description.
+Workers are fully isolated containers with a hard 40-tool-call limit. They know nothing about the project except what the planner writes in their task description.
 
 ---
 
-## Connections
+## Stack
 
-Plexo ships with built-in support for:
+```
+Next.js 15 (App Router) · Express 5 · PostgreSQL 16 + pgvector
+Drizzle ORM · Auth.js v5 · Redis (Valkey) · Caddy · Docker
+TypeScript strict · pnpm workspaces
+```
 
-| Service | Category |
-|---------|----------|
-| GitHub, Linear, Vercel, Netlify, Hetzner | Developer |
-| Slack, Discord, Telegram | Communication |
-| Notion, Google Drive | Productivity |
-| Stripe | Finance |
-| PostHog | Analytics |
-| Mailchimp | Marketing |
-| AWS S3 | Storage |
-
-OAuth2 services connect with a single button click. API key services use auto-rendered forms from the service registry — no hardcoded forms. Connected services automatically register their tools with the agent for your workspace.
+```
+plexo/
+├── apps/web            Next.js dashboard
+├── apps/api            Express API + SSE event bus
+├── packages/agent      Core execution runtime
+├── packages/sdk        Plugin API (stable, semver-versioned)
+├── packages/db         Drizzle schema + migrations
+├── packages/queue      Task queue operations
+├── packages/ui         Shared components (shadcn/ui)
+├── plugins/core/       First-party plugins
+│   ├── github-ops      GitHub tools + Pending PRs card
+│   ├── telegram-channel
+│   ├── slack-channel
+│   ├── devops-skill    Docker + Hetzner tools
+│   ├── cron-manager    Visual cron + CRUD tools
+│   ├── product-skill   PM-mode context
+│   └── research-skill  Evidence-based research mode
+└── docker/
+    ├── compose.yml
+    └── worker/         Sprint worker image + harness
+```
 
 ---
 
-## Health Check
+## Plugin system
+
+Plugins run in isolated Node.js worker threads. A plugin crash never reaches the core process.
+
+```ts
+import { sdk } from '@plexo/sdk'
+
+// Add a tool the agent can call
+sdk.agent.registerTool('stripe_list_customers', 'List Stripe customers', schema, async (input) => {
+  const key = sdk.settings.get('secret_key')
+  const res = await fetch('https://api.stripe.com/v1/customers', {
+    headers: { Authorization: `Bearer ${key}` },
+  })
+  return { success: true, output: await res.json() }
+})
+
+// Inject context into every agent session
+sdk.agent.injectContext(`## Stripe\nWhen billing questions arise, check Stripe first.`)
+
+// Register a dashboard card
+sdk.dashboard.registerCard('revenue', { title: 'Revenue', defaultSize: { w: 4, h: 3 }, ... })
+```
+
+Plugin types: `skill` · `channel` · `tool` · `card` · `mcp-server` · `theme`
+
+Third-party plugins publish to `registry.plexo.dev`. Marketplace connections appear in the connections browser automatically after install.
+
+---
+
+## Development
 
 ```bash
-curl https://plexo.yourdomain.com/health
+pnpm dev               # all apps, watch mode
+pnpm test              # unit tests (Vitest, TDD)
+pnpm test:integration  # DB + queue tests (requires Docker)
+pnpm test:e2e          # Playwright (requires running stack)
+pnpm typecheck         # tsc --noEmit across all packages
+pnpm db:migrate        # run pending migrations
+pnpm db:rollback       # back one migration
+```
+
+Read [`AGENTS.md`](AGENTS.md) before starting. Read [`docs/architecture.md`](docs/architecture.md) before touching package boundaries.
+
+---
+
+## Health
+
+```
+GET /health  →  200 ok  |  503 degraded
 ```
 
 ```json
@@ -293,26 +212,22 @@ curl https://plexo.yourdomain.com/health
   "status": "ok",
   "services": {
     "postgres": { "ok": true, "latencyMs": 2 },
-    "redis": { "ok": true, "latencyMs": 1 },
-    "anthropic": { "ok": true, "latencyMs": 312 }
+    "redis":    { "ok": true, "latencyMs": 1 },
+    "anthropic": { "ok": true, "latencyMs": 289 }
   },
   "version": "0.1.0",
-  "uptime": 3600
+  "uptime": 86400
 }
 ```
 
 ---
 
-## Managed Hosting
+## Managed hosting
 
-Don't want to run your own server? [getplexo.com](https://getplexo.com) — fully isolated instance per account, managed AI credits available.
+Don't want to run your own server? [**getplexo.com**](https://getplexo.com) — fully isolated instance per account, no Docker required, managed AI credits available. Each tenant gets a separate Postgres, separate Redis, separate containers. Isolation is architectural, not policy.
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
-
----
-
-*Plexo · getplexo.com · [plexo.dev](https://plexo.dev)*
+MIT — [LICENSE](LICENSE)
