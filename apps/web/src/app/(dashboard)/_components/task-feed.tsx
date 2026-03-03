@@ -1,5 +1,7 @@
 'use server'
 
+import { getWorkspaceId } from '@web/lib/workspace'
+
 interface Task {
     id: string
     type: string
@@ -45,7 +47,7 @@ function timeAgo(iso: string): string {
 }
 
 export async function TaskFeed() {
-    const workspaceId = process.env.DEFAULT_WORKSPACE_ID ?? 'demo'
+    const workspaceId = (await getWorkspaceId()) ?? ''
     const tasks = await fetchRecent(workspaceId)
 
     if (tasks.length === 0) {

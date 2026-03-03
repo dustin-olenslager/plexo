@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { getWorkspaceId } from '@web/lib/workspace'
 
 interface ImprovementEntry {
     id: string
@@ -42,7 +43,7 @@ async function fetchData(workspaceId: string) {
 }
 
 export default async function InsightsPage() {
-    const workspaceId = process.env.DEV_WORKSPACE_ID ?? '00000000-0000-0000-0000-000000000000'
+    const workspaceId = (await getWorkspaceId()) ?? ''
     const { improvements, preferences } = await fetchData(workspaceId)
 
     const prefEntries: PrefEntry[] = Object.entries(preferences).map(([key, value]) => ({ key, value }))

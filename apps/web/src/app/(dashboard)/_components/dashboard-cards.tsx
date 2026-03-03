@@ -1,5 +1,6 @@
 'use server'
 
+import { getWorkspaceId } from '@web/lib/workspace'
 import {
     Activity,
     Zap,
@@ -56,7 +57,7 @@ async function fetchSummary(workspaceId: string): Promise<DashboardSummary | nul
 
 export async function DashboardCards() {
     // Phase 3: workspace ID from session. For now use env default.
-    const workspaceId = process.env.DEFAULT_WORKSPACE_ID ?? 'demo'
+    const workspaceId = (await getWorkspaceId()) ?? 'demo'
     const data = await fetchSummary(workspaceId)
 
     const running = data?.agent.activeTasks ?? 0

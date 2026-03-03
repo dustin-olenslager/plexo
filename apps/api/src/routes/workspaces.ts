@@ -4,14 +4,18 @@ import { workspaces } from '@plexo/db'
 
 export const workspacesRouter: RouterType = Router()
 
-// GET /api/workspaces — list workspaces
-workspacesRouter.get('/', async (_req, res) => {
+// GET /api/workspaces — list workspaces, optionally filter by ownerId
+workspacesRouter.get('/', async (req, res) => {
+    const { ownerId } = req.query as Record<string, string>
     try {
-        const rows = await db
+        const query = db
             .select({ id: workspaces.id, name: workspaces.name, createdAt: workspaces.createdAt })
             .from(workspaces)
-            .orderBy(desc(workspaces.createdAt))
-            .limit(50)
+
+        const rows = await (ownerId
+            ? query.where(eq(workspaces.ownerId, ownerId)).orderBy(desc(workspaces.createdAt)).limit(10)
+            : query.orderBy(desc(workspaces.createdAt)).limit(50)
+        )
 
         res.json({ items: rows, total: rows.length })
     } catch (err) {
