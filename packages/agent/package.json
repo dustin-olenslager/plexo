@@ -16,7 +16,8 @@
         "./github/client": "./src/github/client.ts",
         "./memory/store": "./src/memory/store.ts",
         "./memory/preferences": "./src/memory/preferences.ts",
-        "./memory/self-improvement": "./src/memory/self-improvement.ts"
+        "./memory/self-improvement": "./src/memory/self-improvement.ts",
+        "./memory/prompt-improvement": "./src/memory/prompt-improvement.ts"
     },
     "scripts": {
         "typecheck": "tsc --noEmit",
