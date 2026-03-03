@@ -14,7 +14,18 @@ export function QuickSend() {
         setStatus('sending')
         try {
             const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-            const workspaceId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? 'demo'
+
+            // Resolve workspaceId — env var preferred, else fetch first available workspace
+            let workspaceId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE
+            if (!workspaceId || workspaceId === 'demo') {
+                const wsRes = await fetch(`${apiUrl}/api/workspaces?limit=1`)
+                if (wsRes.ok) {
+                    const wsData = await wsRes.json() as { items?: { id: string }[] }
+                    workspaceId = wsData.items?.[0]?.id
+                }
+            }
+
+            if (!workspaceId) throw new Error('No workspace found')
 
             const res = await fetch(`${apiUrl}/api/tasks`, {
                 method: 'POST',
@@ -24,6 +35,7 @@ export function QuickSend() {
                     type: 'automation',
                     source: 'dashboard',
                     context: { description: text.trim() },
+                    priority: 5,
                 }),
             })
 

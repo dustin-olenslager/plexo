@@ -89,26 +89,41 @@ authRouter.post('/verify-password', async (req, res) => {
 
 // POST /api/auth/workspace — create a workspace (used by setup wizard)
 authRouter.post('/workspace', async (req, res) => {
-    const { name } = req.body as { name?: string }
+    const { name, ownerId: bodyOwnerId } = req.body as { name?: string; ownerId?: string }
     if (!name?.trim()) {
         res.status(400).json({ error: { code: 'MISSING_NAME', message: 'name required' } })
         return
     }
 
     try {
-        // In a full auth flow this would be scoped to the authenticated user.
-        // For setup wizard / dev, we create standalone.
+        // Resolve owner: explicit body param → first registered user (setup wizard case)
+        let resolvedOwnerId = bodyOwnerId
+        if (!resolvedOwnerId) {
+            const [firstUser] = await db
+                .select({ id: users.id })
+                .from(users)
+                .limit(1)
+            if (!firstUser) {
+                res.status(400).json({
+                    error: { code: 'NO_USERS', message: 'Create a user account before setup' },
+                })
+                return
+            }
+            resolvedOwnerId = firstUser.id
+        }
+
         const [ws] = await db.insert(workspaces).values({
             name: name.trim(),
-            ownerId: null as unknown as string, // nullable until user links account
+            ownerId: resolvedOwnerId,
             settings: {},
         }).returning({ workspaceId: workspaces.id })
 
-        logger.info({ name: name.trim() }, 'Workspace created via setup wizard')
+        logger.info({ name: name.trim(), ownerId: resolvedOwnerId }, 'Workspace created')
         res.status(201).json({ workspaceId: ws!.workspaceId, name: name.trim() })
     } catch (err) {
         logger.error({ err }, 'POST /api/auth/workspace failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create workspace' } })
     }
 })
+
 
