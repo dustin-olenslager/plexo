@@ -11,8 +11,8 @@ Plexo runs a persistent agent that handles real work autonomously — and interr
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=nextdotjs)](https://nextjs.org)
 [![Docker](https://img.shields.io/badge/self--hosted-Docker-2496ED?logo=docker&logoColor=white)](docker/compose.yml)
 [![Build](https://img.shields.io/badge/typecheck-passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
-[![Tests](https://img.shields.io/badge/tests-30%20passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
-[![Phase](https://img.shields.io/badge/phase-3%20complete-6366f1)](https://github.com/dustin-olenslager/plexo#roadmap)
+[![Tests](https://img.shields.io/badge/unit%2FE2E-38%20passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
+[![Phase](https://img.shields.io/badge/phase-4%20complete-6366f1)](https://github.com/dustin-olenslager/plexo#roadmap)
 
 [**Managed hosting →**](https://getplexo.com) · [Docs](docs/) · [Plugin SDK](docs/plugin-sdk.md) · [Architecture](docs/architecture.md)
 
@@ -154,7 +154,7 @@ One-way door operations (schema migrations, public API changes, destructive shel
 | Channel | Status | Notes |
 |---------|--------|-------|
 | **Telegram** | ✅ Phase 3 | Webhook, secret validation, message→task, chat reply |
-| **Slack** | 🔜 Phase 4 | Events API, OAuth app install |
+| **Slack** | ✅ Phase 4 | Events API, HMAC signature verification, message→task, thread reply |
 | **Discord** | 🔜 Phase 5 | Slash commands, DM |
 | **Dashboard** | ✅ Phase 3 | QuickSend widget, task feed, live cards |
 | **API** | ✅ Phase 3 | REST — `POST /api/tasks` |
@@ -180,10 +180,16 @@ GET    /api/dashboard/summary                All dashboard card data (one reques
 GET    /api/dashboard/activity               Recent task feed
 POST   /api/channels/telegram/webhook        Telegram message ingestion
 GET    /api/channels/telegram/info           Telegram adapter status
+POST   /api/channels/slack/events            Slack Events API (URL challenge + message events)
+GET    /api/channels/slack/info              Slack adapter status
+GET    /api/approvals                        List pending one-way door decisions (workspaceId)
+GET    /api/approvals/:id                    Get decision by ID
+POST   /api/approvals/:id/approve            Approve a destructive operation
+POST   /api/approvals/:id/reject             Reject a destructive operation
 GET    /api/oauth/anthropic/start            Begin Anthropic OAuth PKCE flow
-GET    /api/oauth/anthropic/callback         Exchange code, store tokens
+GET    /api/oauth/anthropic/callback         Exchange code, store tokens (encrypted)
 GET    /api/oauth/anthropic/info             OAuth app metadata
-GET    /api/sse                              Server-Sent Events (real-time task progress)
+GET    /api/sse                              Server-Sent Events (real-time task progress + OWD events)
 POST   /api/auth/register                    Register user + workspace
 POST   /api/auth/login                       Verify credentials
 ```
@@ -217,18 +223,19 @@ Plugins are loaded at runtime from the `plugins/` directory. No restart needed a
 ```bash
 pnpm test:unit         # 24 tests, no network/DB — Vitest, <1s
 pnpm test:integration  # 6 tests, real Postgres — queue semantics
-pnpm test:e2e          # Playwright critical paths (Phase 4)
+pnpm test:e2e          # 14 Playwright E2E tests — API health, task API, auth UI, dashboard render
 pnpm typecheck         # tsc --noEmit across all packages
 ```
 
 Unit test coverage: errors, agent constants, Anthropic OAuth (PKCE URL, headers, token refresh).
 Integration coverage: queue push/list/complete/block/cancel/priority ordering.
+E2E coverage: API health (Postgres+Redis), task API edge cases, OAuth metadata, one-way door API, login UI, dashboard render with live data.
 
 ---
 
 ## Roadmap
 
-> Updated with every push. Last updated: 2026-03-03 @ `427d83d`
+> Updated with every push. Last updated: 2026-03-03 @ phase-4
 
 ### ✅ Phase 1 — Foundation (`dffedb9`)
 - [x] pnpm workspace monorepo, Turborepo pipeline
@@ -262,13 +269,17 @@ Integration coverage: queue push/list/complete/block/cancel/priority ordering.
 - [x] QuickSend widget — client-side task submission from dashboard
 - [x] Lazy DB client — no `DATABASE_URL` throw at import, enables unit test isolation
 
-### 🔜 Phase 4 — Channels + one-way doors
-- [ ] Slack channel adapter (Events API, OAuth app install)
-- [ ] One-way door confirmation flow (destructive ops held pending approval via channel or dashboard)
-- [ ] Anthropic OAuth tokens persisted encrypted to `installed_connections` table
-- [ ] Token encryption/decryption via AES-256-GCM with per-workspace key
-- [ ] Playwright E2E — login, register, task creation, SSE receive, Telegram echo
-- [ ] Cost write-back from executor to `api_cost_tracking` table
+### ✅ Phase 4 — Channels + one-way doors
+- [x] Slack channel adapter — Events API, HMAC signature verification (replay-safe), message→task, thread reply
+- [x] One-way door service — Redis-backed pending decisions, `requestApproval / waitForDecision / resolveDecision`
+- [x] OWD REST API — list/get/approve/reject, SSE events on resolution
+- [x] Anthropic OAuth tokens persisted encrypted (AES-256-GCM) to `installed_connections` table
+- [x] Per-workspace key derivation from root secret — credentials isolated by workspace
+- [x] Auto-refresh on token retrieve when expiring within 60s
+- [x] Playwright E2E — 14 tests, chromium, API + browser, `E2E_SKIP_BROWSER=true` for CI
+- [x] Cost write-back from executor to `api_cost_tracking` — weekly upsert, `alerted_80` flag
+- [x] `slack` + `discord` added to `task_source` DB enum (migration applied)
+- [x] Dashboard UUID guard on `/summary` and `/activity` routes
 
 ### 🗓 Phase 5 — Sprint engine
 - [ ] Sprint planner — multi-task parallel execution with dependency graph
