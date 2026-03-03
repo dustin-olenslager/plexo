@@ -161,3 +161,103 @@ function isRetryableProviderError(err: unknown): boolean {
         msg.includes('too many requests')
     )
 }
+
+// ── Default smoke-test model IDs per provider ─────────────────────────────────
+
+const DEFAULT_TEST_MODELS: Record<ProviderKey, string> = {
+    openrouter: 'anthropic/claude-haiku-4-5',
+    anthropic: 'claude-haiku-4-5',
+    openai: 'gpt-4o-mini',
+    google: 'gemini-1.5-flash',
+    mistral: 'mistral-small-latest',
+    groq: 'llama-3.1-8b-instant',
+    xai: 'grok-2',
+    deepseek: 'deepseek-chat',
+    ollama: 'llama3.2',
+}
+
+// Map provider → env var name (used to temporarily inject a user-supplied key)
+const PROVIDER_ENV_KEY: Partial<Record<ProviderKey, string>> = {
+    openrouter: 'OPENROUTER_API_KEY',
+    anthropic: 'ANTHROPIC_API_KEY',
+    openai: 'OPENAI_API_KEY',
+    google: 'GOOGLE_GENERATIVE_AI_API_KEY',
+    mistral: 'MISTRAL_API_KEY',
+    groq: 'GROQ_API_KEY',
+    xai: 'XAI_API_KEY',
+    deepseek: 'DEEPSEEK_API_KEY',
+}
+
+function buildTestModel(providerKey: ProviderKey, modelId: string, baseUrl?: string): AnyLanguageModel {
+    switch (providerKey) {
+        case 'openrouter': return createOpenRouter({})(modelId)
+        case 'anthropic': return anthropic(modelId)
+        case 'openai': return openai(modelId)
+        case 'google': return google(modelId)
+        case 'mistral': return mistral(modelId)
+        case 'groq': return groq(modelId)
+        case 'xai': return xai(modelId)
+        case 'deepseek': return deepseek(modelId)
+        case 'ollama': {
+            const base = (baseUrl ?? 'http://localhost:11434') + '/v1'
+            return createOpenAICompatible({ name: 'ollama', baseURL: base })(modelId)
+        }
+        default: {
+            const exhaustive: never = providerKey
+            throw new Error(`Unknown provider: ${String(exhaustive)}`)
+        }
+    }
+}
+
+export interface ProviderTestResult {
+    ok: boolean
+    message: string
+    latencyMs: number
+    model: string
+}
+
+/**
+ * Smoke-test a provider by sending a tiny prompt.
+ * If apiKey is provided it is temporarily injected into process.env for the
+ * duration of this call only, then immediately restored.
+ */
+export async function testProvider(
+    providerKey: ProviderKey,
+    opts: { apiKey?: string; baseUrl?: string; model?: string },
+    timeoutMs = 10_000,
+): Promise<ProviderTestResult> {
+    const { generateText: gt } = await import('ai')
+    const modelId = opts.model ?? DEFAULT_TEST_MODELS[providerKey]
+    const envKey = PROVIDER_ENV_KEY[providerKey]
+
+    // Temporarily override env key
+    let savedKey: string | undefined
+    if (opts.apiKey && envKey) {
+        savedKey = process.env[envKey]
+        process.env[envKey] = opts.apiKey
+    }
+
+    const start = Date.now()
+    try {
+        const model = buildTestModel(providerKey, modelId, opts.baseUrl)
+        const ac = new AbortController()
+        const timer = setTimeout(() => ac.abort(), timeoutMs)
+        const result = await gt({
+            model,
+            prompt: 'Reply with the single word "ok".',
+            maxOutputTokens: 10,
+            abortSignal: ac.signal,
+        })
+        clearTimeout(timer)
+        const ok = result.text.trim().length > 0
+        return { ok, message: ok ? 'Connected — model responded' : 'Empty response', latencyMs: Date.now() - start, model: modelId }
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message.slice(0, 200) : 'Unknown error'
+        return { ok: false, message, latencyMs: Date.now() - start, model: modelId }
+    } finally {
+        if (envKey) {
+            if (savedKey === undefined) delete process.env[envKey]
+            else process.env[envKey] = savedKey
+        }
+    }
+}
