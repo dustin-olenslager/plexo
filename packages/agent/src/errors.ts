@@ -1,0 +1,26 @@
+import type { ErrorCategory } from './types.js'
+
+export class PlexoError extends Error {
+    constructor(
+        message: string,
+        public readonly code: string,
+        public readonly category: ErrorCategory,
+        public readonly statusCode: number,
+        public readonly detail?: unknown,
+    ) {
+        super(message)
+        this.name = 'PlexoError'
+    }
+}
+
+export class NotImplementedError extends PlexoError {
+    constructor(method: string) {
+        super(
+            `${method} is not yet implemented`,
+            'NOT_IMPLEMENTED',
+            'system',
+            501,
+        )
+        this.name = 'NotImplementedError'
+    }
+}

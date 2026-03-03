@@ -1,0 +1,27 @@
+{
+    "name": "@plexo/agent",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "exports": {
+        ".": "./src/index.ts",
+        "./constants": "./src/constants.ts",
+        "./types": "./src/types.ts"
+    },
+    "scripts": {
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run",
+        "test:watch": "vitest"
+    },
+    "dependencies": {
+        "@plexo/db": "workspace:*",
+        "@plexo/queue": "workspace:*",
+        "ulid": "^2.3",
+        "pino": "^9"
+    },
+    "devDependencies": {
+        "typescript": "^5.7",
+        "@types/node": "^22",
+        "vitest": "^3"
+    }
+}

@@ -1,0 +1,30 @@
+{
+    "name": "plexo",
+    "private": true,
+    "packageManager": "pnpm@10.30.3",
+    "engines": {
+        "node": ">=22"
+    },
+    "scripts": {
+        "dev": "turbo dev",
+        "build": "turbo build",
+        "typecheck": "turbo typecheck",
+        "test": "turbo test",
+        "test:integration": "turbo test:integration",
+        "test:e2e": "turbo test:e2e",
+        "lint": "turbo lint",
+        "db:generate": "pnpm --filter @plexo/db db:generate",
+        "db:migrate": "pnpm --filter @plexo/db db:migrate",
+        "db:rollback": "pnpm --filter @plexo/db db:rollback",
+        "db:studio": "pnpm --filter @plexo/db db:studio",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "clean": "turbo clean && rm -rf node_modules"
+    },
+    "devDependencies": {
+        "turbo": "^2",
+        "typescript": "^5.7",
+        "prettier": "^3",
+        "@types/node": "^22"
+    }
+}

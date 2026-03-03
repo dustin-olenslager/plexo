@@ -1,0 +1,29 @@
+# Environment — never commit real values
+.env
+.env.local
+.env.*.local
+
+# Local Docker overrides — personal customizations stay local
+docker/compose.override.yml
+docker/compose.*.override.yml
+
+# Runtime
+node_modules/
+.next/
+dist/
+*.tsbuildinfo
+.turbo/
+
+# Secrets that might be generated locally
+*.pem
+*.key
+*.p12
+docker/caddy/data/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
