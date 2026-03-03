@@ -72,33 +72,41 @@ plugins/core/*     → packages/sdk only (never packages/db or packages/agent)
 | 2026-03-03 | Pino over Winston | 10x faster, structured JSON native, built-in redaction |
 | 2026-03-03 | Turborepo over Nx | Simpler config, faster cold starts, Vercel-maintained |
 
-## Current State — Phase 1 Complete
+## Current State — Phase 2 Complete
 
-### What's live
-- Full monorepo scaffold: 7 packages, 2 apps, 7 plugin stubs
-- Database schema: 21 tables defined in Drizzle, ready for migration
-- Auth.js v5: credentials + GitHub OAuth configured
-- API server: Express 5 with `/health`, SSE, request tracing, structured logging
-- Dashboard: Next.js 15 with sidebar, 6-card grid, login/register pages
-- Docker Compose: Postgres 16+pgvector, Valkey, Caddy reverse proxy
-- `pnpm typecheck` passes 7/7 packages, 0 errors
+### What's verified live (smoke tested locally)
+- DB migration applied: 20 tables + pgvector 0.8.2 on Postgres 16
+- `GET /health` → Postgres + Redis latency, Anthropic non-critical
+- `POST /api/auth/register` → bcrypt(12), workspace created, UUID returned
+- `POST /api/auth/verify-password` → constant-time on user-not-found
+- `POST /api/auth/register` (duplicate) → 409 EMAIL_TAKEN
+- `GET /api/oauth/anthropic/info` → client ID, scopes
+- `GET /api/oauth/anthropic/start` → PKCE S256 URL to claude.ai/oauth/authorize
+- SSE `/api/sse?workspaceId=x` → connected event + heartbeat
+- Agent queue loop starts on boot, polls every 2s
 
-### What's stubbed (throws NotImplementedError)
-- All agent operations: pushTask, claimTask, completeTask, blockTask, sendMessage, startSprint, storeMemory, searchMemory
-- Plugin SDK runtime: all methods log warnings and return no-ops
-- Dashboard data: all cards show placeholder content
-- API routes: `/api/tasks`, `/api/sprints`, `/api/connections/registry` return empty arrays
-- Registration endpoint: form exists but `/api/auth/register` is not implemented
+### What's implemented (not yet E2E tested — requires real Anthropic key)
+- Planner: Claude → structured ExecutionPlan (JSON schema enforced)
+- Executor: multi-turn tool loop (read_file, write_file, shell, task_complete)
+- Cost ceiling enforcement (per-task + configurable env var)
+- Wall clock + consecutive tool call safety limits
+- Anthropic OAuth: PKCE flow, token exchange, auto-refresh on 60s pre-expiry
+- AnthropicCredential union (api_key | oauth_token) — both handled transparently
 
-### What needs Docker stack to verify
-- `pnpm db:migrate` on fresh Postgres
-- End-to-end login flow
-- `/health` with real service pings
+### What's stubbed (next phase)
+- Channel adapters: Telegram, Slack, Discord (framework exists, no real bots)
+- One-way door confirmation UI (auto-approved in Phase 2)
+- OAuth token persistence (in-memory PKCE store, not Redis-backed yet)
+- Dashboard cards: still placeholder data
+- Unit tests: TDD infrastructure not yet set up
 
-### Phase 2 scope (next)
-- Agent execution loop: plan → confirm → execute → verify → complete
-- Real task queue processing (claim + run)
-- Channel adapter framework (inbound/outbound message routing)
-- Live `/health` checks against Postgres, Redis, AI provider
-- Real credentials registration (bcrypt password hashing, DB insert)
-- First unit tests (Vitest, TDD)
+### Phase 3 scope (next)
+- Telegram + Slack channel adapters (real message routing)
+- One-way door confirmation flow via channel/dashboard
+- Persist Anthropic OAuth tokens to installed_connections (encrypted)
+- Move PKCE store to Redis with TTL
+- Vitest unit tests: planner, executor, queue, health
+- Live dashboard cards with real DB queries
+- API routes for tasks/sprints with pagination
+- Cost tracking to api_cost_tracking table
+

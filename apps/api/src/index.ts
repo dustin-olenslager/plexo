@@ -65,10 +65,18 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
     })
 })
 
+import { startAgentLoop, stopAgentLoop } from './agent-loop.js'
+
 // ── Start ────────────────────────────────────────────────────
 
-app.listen(port, '0.0.0.0', () => {
+const server = app.listen(port, '0.0.0.0', () => {
     logger.info({ port }, 'Plexo API server started')
+    startAgentLoop()
+})
+
+process.on('SIGTERM', () => {
+    stopAgentLoop()
+    server.close(() => process.exit(0))
 })
 
 // ── Process Error Handling ───────────────────────────────────

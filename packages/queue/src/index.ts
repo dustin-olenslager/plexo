@@ -1,6 +1,5 @@
-import { db } from '@plexo/db'
-import { tasks } from '@plexo/db/schema'
-import { eq, and, sql, asc, inArray } from 'drizzle-orm'
+import { db, eq, and, sql, asc, inArray } from '@plexo/db'
+import { tasks } from '@plexo/db'
 import { ulid } from 'ulid'
 
 // ── Types ────────────────────────────────────────────────────
@@ -123,3 +122,5 @@ export async function list(filter: ListFilter = {}): Promise<(typeof tasks.$infe
 
     return query
 }
+// ── Aliased exports for agent-loop compatibility ─────────────
+export { claim as claimTask, complete as completeTask, block as blockTask, push as pushTask }

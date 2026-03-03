@@ -6,18 +6,20 @@ export const SAFETY_LIMITS = {
     maxConsecutiveToolCalls: 4,
     maxWallClockMs: 2 * 60 * 60 * 1000, // 2 hours
     maxRetries: 3,
+    MAX_PLAN_STEPS: 20,
     noForcePush: true,
     noDeletionWithoutConfirmation: true,
     noCredentialsInLogs: true,
 } as const
 
 export const MODEL_ROUTING = {
-    planning: 'claude-sonnet-4-6',
-    codeGeneration: 'claude-sonnet-4-6',
-    verification: 'claude-sonnet-4-6',
-    summarization: 'claude-haiku-4-5-20251001',
-    classification: 'claude-haiku-4-5-20251001',
-    logAnalysis: 'claude-haiku-4-5-20251001',
+    default: 'claude-opus-4-5',
+    planning: 'claude-opus-4-5',
+    codeGeneration: 'claude-sonnet-4-5',
+    verification: 'claude-sonnet-4-5',
+    summarization: 'claude-haiku-4-5',
+    classification: 'claude-haiku-4-5',
+    logAnalysis: 'claude-haiku-4-5',
 } as const
 
 export const QUALITY_RUBRICS = {
