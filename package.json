@@ -10,7 +10,9 @@
         "build": "turbo build",
         "typecheck": "turbo typecheck",
         "test": "turbo test",
-        "test:integration": "turbo test:integration",
+        "test:unit": "vitest run tests/unit",
+        "test:unit:watch": "vitest tests/unit",
+        "test:integration": "DATABASE_URL=postgresql://plexo:plexo-dev-local-only@localhost:5432/plexo vitest run tests/integration --config vitest.integration.config.ts",
         "test:e2e": "turbo test:e2e",
         "lint": "turbo lint",
         "db:generate": "pnpm --filter @plexo/db db:generate",
@@ -25,6 +27,7 @@
         "turbo": "^2",
         "typescript": "^5.7",
         "prettier": "^3",
-        "@types/node": "^22"
+        "@types/node": "^22",
+        "vitest": "^3"
     }
 }
