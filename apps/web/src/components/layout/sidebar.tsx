@@ -6,6 +6,7 @@ import {
     LayoutDashboard,
     MessageSquare,
     CheckSquare,
+    Zap,
     Store,
     Settings,
     FileText,
@@ -15,6 +16,7 @@ const NAV = [
     { label: 'Home', href: '/', icon: LayoutDashboard },
     { label: 'Conversations', href: '/conversations', icon: MessageSquare },
     { label: 'Tasks', href: '/tasks', icon: CheckSquare },
+    { label: 'Sprints', href: '/sprints', icon: Zap },
     { label: 'Marketplace', href: '/marketplace', icon: Store },
     { label: 'Settings', href: '/settings', icon: Settings },
     { label: 'Logs', href: '/logs', icon: FileText },
@@ -46,14 +48,14 @@ export function Sidebar() {
                             key={href}
                             href={href}
                             className={`group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors ${isActive
-                                    ? 'bg-zinc-800/80 text-zinc-100'
-                                    : 'text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300'
+                                ? 'bg-zinc-800/80 text-zinc-100'
+                                : 'text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300'
                                 }`}
                         >
                             <Icon
                                 className={`h-4 w-4 shrink-0 ${isActive
-                                        ? 'text-indigo-400'
-                                        : 'text-zinc-600 group-hover:text-zinc-400'
+                                    ? 'text-indigo-400'
+                                    : 'text-zinc-600 group-hover:text-zinc-400'
                                     }`}
                             />
                             {label}

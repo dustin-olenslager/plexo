@@ -11,6 +11,7 @@ import { sprintsRouter } from './routes/sprints.js'
 import { dashboardRouter } from './routes/dashboard.js'
 import { telegramRouter, initTelegramWebhook } from './routes/telegram.js'
 import { slackRouter } from './routes/slack.js'
+import { discordRouter } from './routes/discord.js'
 import { owdRouter } from './routes/approvals.js'
 import { sprintRunnerRouter } from './routes/sprint-runner.js'
 import { traceMiddleware } from './middleware/trace.js'
@@ -41,6 +42,7 @@ app.use('/api/dashboard', dashboardRouter)
 app.use('/api/approvals', owdRouter)
 app.use('/api/channels/telegram', telegramRouter)
 app.use('/api/channels/slack', slackRouter)
+app.use('/api/channels/discord', discordRouter)
 
 app.get('/api/agent/status', (_req, res) => {
     res.json({ status: 'idle', currentTask: null, currentModel: null, sessionCount: 0, lastActivity: null })

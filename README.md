@@ -11,8 +11,8 @@ Plexo runs a persistent agent that handles real work autonomously — and interr
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=nextdotjs)](https://nextjs.org)
 [![Docker](https://img.shields.io/badge/self--hosted-Docker-2496ED?logo=docker&logoColor=white)](docker/compose.yml)
 [![Build](https://img.shields.io/badge/typecheck-passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
-[![Tests](https://img.shields.io/badge/unit%2FE2E-38%20passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
-[![Phase](https://img.shields.io/badge/phase-5%20in%20progress-6366f1)](https://github.com/dustin-olenslager/plexo#roadmap)
+[![Tests](https://img.shields.io/badge/unit%2FE2E-43%20passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
+[![Phase](https://img.shields.io/badge/phase-5%20complete-6366f1)](https://github.com/dustin-olenslager/plexo#roadmap)
 
 [**Managed hosting →**](https://getplexo.com) · [Docs](docs/) · [Plugin SDK](docs/plugin-sdk.md) · [Architecture](docs/architecture.md)
 
@@ -155,7 +155,7 @@ One-way door operations (schema migrations, public API changes, destructive shel
 |---------|--------|-------|
 | **Telegram** | ✅ Phase 3 | Webhook, secret validation, message→task, chat reply |
 | **Slack** | ✅ Phase 4 | Events API, HMAC signature verification, message→task, thread reply |
-| **Discord** | 🔜 Phase 5 | Slash commands, DM |
+| **Discord** | ✅ Phase 5 | Interactions API, Ed25519 signature verification, /task slash command |
 | **Dashboard** | ✅ Phase 3 | QuickSend widget, task feed, live cards |
 | **API** | ✅ Phase 3 | REST — `POST /api/tasks` |
 
@@ -178,7 +178,8 @@ GET    /api/sprints/:id                      Sprint detail + linked tasks
 PATCH  /api/sprints/:id                      Update status
 GET    /api/dashboard/summary                All dashboard card data (one request)
 GET    /api/dashboard/activity               Recent task feed
-POST   /api/channels/telegram/webhook        Telegram message ingestion
+POST   /api/channels/discord/interactions    Discord Interactions (slash commands, ping verification)
+GET    /api/channels/discord/info             Discord adapter status + supported commands
 GET    /api/channels/telegram/info           Telegram adapter status
 POST   /api/channels/slack/events            Slack Events API (URL challenge + message events)
 GET    /api/channels/slack/info              Slack adapter status
@@ -235,7 +236,7 @@ E2E coverage: API health (Postgres+Redis), task API edge cases, OAuth metadata, 
 
 ## Roadmap
 
-> Updated with every push. Last updated: 2026-03-03 @ phase-5-sprint-engine
+> Updated with every push. Last updated: 2026-03-03 @ phase-5-complete
 
 ### ✅ Phase 1 — Foundation (`dffedb9`)
 - [x] pnpm workspace monorepo, Turborepo pipeline
@@ -288,8 +289,11 @@ E2E coverage: API health (Postgres+Redis), task API edge cases, OAuth metadata, 
 - [x] Sprint runner — orchestrates wave execution, branch creation, task queue dispatch, PR creation, sprint status write-back
 - [x] Sprint API — `POST /:id/run` (async), `GET /:id/tasks` (full task tree), `GET /:id/conflicts`
 - [x] Sprint detail page — server component with progress bar, task tree, status badges, scope pills, PR links
-- [ ] Discord channel adapter (slash commands, DM)
-- [ ] Sprint creation UI (dashboard: repo input, request, launch button)
+- [x] Discord adapter — Interactions API, Ed25519 signature verification, /task slash command with deferred response, guild→workspace mapping, `scripts/discord-register-commands.mjs`
+- [x] Sprint list page — server component with status dots, progress bars, task/failure/conflict counts
+- [x] Sprint creation form — client component, repo+request, auto-run toggle
+- [x] Sprints sidebar nav item
+- [x] 19 E2E tests passing (API health, all channel adapters, discord 401, sprints, login UI, dashboard)
 
 ### 🗓 Phase 6 — Memory + self-improvement
 - [ ] pgvector semantic memory — task outcomes indexed and retrieved contextually

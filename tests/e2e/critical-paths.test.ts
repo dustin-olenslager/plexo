@@ -103,6 +103,48 @@ test.describe('Approvals API', () => {
   })
 })
 
+// ── Discord API ───────────────────────────────────────────────────────────────
+
+test.describe('Discord API', () => {
+  test('GET /api/channels/discord/info returns metadata', async ({ request }) => {
+    const res = await request.get(`${API_URL}/api/channels/discord/info`)
+    expect(res.status()).toBe(200)
+    const body = await res.json() as { configured: boolean; supportedCommands: string[] }
+    expect(typeof body.configured).toBe('boolean')
+    expect(body.supportedCommands).toContain('/task')
+  })
+
+  test('POST /api/channels/discord/interactions without signature returns 401', async ({ request }) => {
+    const res = await request.post(`${API_URL}/api/channels/discord/interactions`, {
+      data: { type: 1 },
+    })
+    expect(res.status()).toBe(401)
+  })
+})
+
+// ── Sprint API ────────────────────────────────────────────────────────────────
+
+test.describe('Sprint API', () => {
+  test('GET /api/sprints requires workspaceId', async ({ request }) => {
+    const res = await request.get(`${API_URL}/api/sprints`)
+    expect(res.status()).toBe(400)
+    const body = await res.json() as { error: { code: string } }
+    expect(body.error.code).toBe('MISSING_WORKSPACE')
+  })
+
+  test('GET /api/sprints/:id/tasks returns 404 for unknown sprint', async ({ request }) => {
+    const res = await request.get(`${API_URL}/api/sprints/nonexistent-sprint-id/tasks`)
+    expect(res.status()).toBe(404)
+  })
+
+  test('POST /api/sprints/:id/run returns 404 for unknown sprint', async ({ request }) => {
+    const res = await request.post(`${API_URL}/api/sprints/nonexistent/run`, {
+      data: { workspaceId: '00000000-0000-0000-0000-000000000001' },
+    })
+    expect(res.status()).toBe(404)
+  })
+})
+
 // ── Browser tests (require Next.js on :3000) ──────────────────────────────────
 
 test.describe('Login', () => {
