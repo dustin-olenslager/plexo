@@ -2,9 +2,9 @@
 
 # Plexo
 
-**Your AI agent, running 24/7, on your own server.**
+**An AI agent that handles work for you — development, business ops, research, and anything online.**
 
-Plexo handles routine work autonomously — infrastructure, code, research, ops — and interrupts only when a real decision is needed. It communicates through channels you already use: Telegram, Slack, Discord. It learns from every task it completes.
+Plexo runs 24/7 on your own server. You send it tasks through Telegram, Slack, or Discord. It plans, executes, verifies, and reports back. When something needs your decision, it asks. Everything else, it handles.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
@@ -17,29 +17,69 @@ Plexo handles routine work autonomously — infrastructure, code, research, ops 
 
 ---
 
+## What kind of work
+
+Plexo is not a coding tool. It is an automation agent. The question is: what do you want running in the background while you sleep?
+
+**Development**
+- Write and ship code — plan, execute, test, open a PR, done
+- Run a full parallel sprint: one goal → multiple workers → merged result
+- Monitor failing builds and open a fix PR automatically
+- Manage deployments, rollbacks, infrastructure
+
+**Business ops**
+- Watch your Stripe dashboard and alert on churn, failed charges, or MRR drops
+- Pull weekly reports from PostHog, Notion, Linear, and summarize them
+- Monitor uptime, SSL expiry, DNS records — notify before customers notice
+- Send structured updates to Slack on a schedule
+
+**Research**
+- Drop a question, get a sourced, structured answer
+- Track topics and surface new developments
+- Synthesize documents, compare options, produce recommendations
+
+**Online tasks**
+- Fill forms, collect data, interact with web services
+- Automate anything with an API via the connections browser
+- Drop a task in Telegram at 11pm, find it done by morning
+
+**Personal automation**
+- Recurring tasks on a schedule — daily, weekly, on-event
+- Monitor things you care about and notify you when they change
+- Build your own tools with the plugin SDK
+
+---
+
 ## The idea
 
 Most AI tools are chat interfaces. You ask, they answer, you do the work.
 
 Plexo inverts that. You describe what you want. The agent plans it, executes it step by step, verifies each step actually worked, and tells you when it's done. Destructive actions — deletions, deployments, schema migrations — pause for an explicit confirmation code before proceeding. Everything that runs is logged, costed, and scored.
 
-The agent doesn't just respond to you. It watches your GitHub repos for failing builds and open issues, picks up tasks you drop in a message, and proposes what to work on next. Every week it analyzes its own performance and proposes targeted improvements — shadow tested before they ever touch production.
+The agent doesn't just respond to you. It watches your GitHub repos for failing builds and open issues, picks up tasks you drop in a message, and runs scheduled work on any cadence you set. Every week it analyzes its own performance and proposes targeted improvements — shadow tested before they ever touch production.
 
 You stay in control. The agent does the work.
 
 ---
 
-## What it runs
+## Connections
 
-| | |
-|---|---|
-| **Tasks** | Coding, deployment, research, ops — planned, executed, and verified end to end |
-| **Sprints** | Decompose a goal into parallel tasks across isolated Docker workers, merged automatically |
-| **Scanners** | GitHub issues, failing builds, message drops — turned into tasks with confidence gating |
-| **Memory** | Hybrid vector + BM25 search over every past task. Cross-project pattern learning. |
-| **Connections** | GitHub, Linear, Vercel, Stripe, Hetzner, Notion, PostHog, and more — each unlocks tools the agent can call |
-| **Plugins** | New tools, dashboard cards, channels, crons, MCP servers — all isolated, all hot-swappable |
-| **RSI** | Weekly anomaly detection → proposals → shadow testing → regression-guarded deploy |
+Connect the services you already use. Each connection unlocks tools the agent can call.
+
+| Service | What it unlocks |
+|---------|----------------|
+| GitHub | Open PRs, create issues, monitor builds |
+| Stripe | Revenue monitoring, customer alerts |
+| Notion | Read/write pages and databases |
+| Linear | Issue management, project tracking |
+| PostHog | Analytics queries, funnel reports |
+| Telegram / Slack / Discord | Send messages, receive tasks |
+| Vercel / Netlify | Trigger deploys, check status |
+| Google Drive | Create and read files |
+| Hetzner | Server management |
+| AWS S3 | File storage operations |
+| Mailchimp | Campaign management |
+| + marketplace | Install more from registry.plexo.dev |
 
 ---
 
@@ -78,15 +118,15 @@ Everything else in `.env.example` is optional (OpenAI/Gemini fallbacks, GitHub O
 
 ---
 
-## Execution protocol
+## How it works
 
 Every task follows five steps. No shortcuts.
 
 ```
-PLAN → the agent writes a structured plan and sends it to you before touching anything
-CONFIRM → any destructive step (deletion, deploy, schema change) pauses for a 6-char code
-EXECUTE → steps run in sequence, max 4 tool calls before a mandatory verification pause
-VERIFY → post-condition checked after each step, not just the exit code
+PLAN     → structured plan written and sent to you before anything executes
+CONFIRM  → destructive actions (deletion, deploy, schema change) pause for a 6-char code
+EXECUTE  → steps run in sequence, mandatory verification pause every 4 tool calls
+VERIFY   → post-condition checked after each step — not just the exit code
 COMPLETE → quality scored, work ledger written, memory entry created, you get notified
 ```
 
@@ -104,9 +144,9 @@ export const SAFETY_LIMITS = {
 
 ---
 
-## Sprint engine
+## Sprint engine (parallel code execution)
 
-Send one message. Get a full software sprint.
+For software goals that need parallel work:
 
 ```
 /sprint "Add OAuth login to the dashboard"
@@ -115,12 +155,10 @@ Send one message. Get a full software sprint.
 → Emits discovery tasks — learning the codebase before speculating
 → Workers clone repo, execute tasks in parallel (up to 5 concurrent containers)
 → Merge queue serializes completed branches with conflict-fix injection
-→ Reconciler sweeps build health every 5 minutes, auto-injecting fix tasks
+→ Reconciler sweeps build health every 5 minutes
 → Planner iterates until the goal is met
 → Post-sprint: FEATURES.json diff + DECISIONS.md draft sent for your review
 ```
-
-Workers are fully isolated containers with a hard 40-tool-call limit. They know nothing about the project except what the planner writes in their task description.
 
 ---
 
@@ -207,24 +245,11 @@ Read [`AGENTS.md`](AGENTS.md) before starting. Read [`docs/architecture.md`](doc
 GET /health  →  200 ok  |  503 degraded
 ```
 
-```json
-{
-  "status": "ok",
-  "services": {
-    "postgres": { "ok": true, "latencyMs": 2 },
-    "redis":    { "ok": true, "latencyMs": 1 },
-    "anthropic": { "ok": true, "latencyMs": 289 }
-  },
-  "version": "0.1.0",
-  "uptime": 86400
-}
-```
-
 ---
 
 ## Managed hosting
 
-Don't want to run your own server? [**getplexo.com**](https://getplexo.com) — fully isolated instance per account, no Docker required, managed AI credits available. Each tenant gets a separate Postgres, separate Redis, separate containers. Isolation is architectural, not policy.
+Don't want to run your own server? [**getplexo.com**](https://getplexo.com) — fully isolated instance per account, no Docker required, managed AI credits available.
 
 ---
 
