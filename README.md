@@ -12,7 +12,7 @@ Plexo runs a persistent agent that handles real work autonomously — and interr
 [![Docker](https://img.shields.io/badge/self--hosted-Docker-2496ED?logo=docker&logoColor=white)](docker/compose.yml)
 [![Build](https://img.shields.io/badge/typecheck-passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
 [![Tests](https://img.shields.io/badge/unit%2FE2E-38%20passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
-[![Phase](https://img.shields.io/badge/phase-4%20complete-6366f1)](https://github.com/dustin-olenslager/plexo#roadmap)
+[![Phase](https://img.shields.io/badge/phase-5%20in%20progress-6366f1)](https://github.com/dustin-olenslager/plexo#roadmap)
 
 [**Managed hosting →**](https://getplexo.com) · [Docs](docs/) · [Plugin SDK](docs/plugin-sdk.md) · [Architecture](docs/architecture.md)
 
@@ -235,7 +235,7 @@ E2E coverage: API health (Postgres+Redis), task API edge cases, OAuth metadata, 
 
 ## Roadmap
 
-> Updated with every push. Last updated: 2026-03-03 @ phase-4
+> Updated with every push. Last updated: 2026-03-03 @ phase-5-sprint-engine
 
 ### ✅ Phase 1 — Foundation (`dffedb9`)
 - [x] pnpm workspace monorepo, Turborepo pipeline
@@ -281,11 +281,15 @@ E2E coverage: API health (Postgres+Redis), task API edge cases, OAuth metadata, 
 - [x] `slack` + `discord` added to `task_source` DB enum (migration applied)
 - [x] Dashboard UUID guard on `/summary` and `/activity` routes
 
-### 🗓 Phase 5 — Sprint engine
-- [ ] Sprint planner — multi-task parallel execution with dependency graph
-- [ ] GitHub integration — PR creation, branch management, CI status polling
-- [ ] Conflict detection and reconciliation across parallel task branches
-- [ ] Sprint progress dashboard — live task tree, conflict log, quality scores
+### ✅ Phase 5 — Sprint engine (in progress)
+- [x] GitHub API client — branch CRUD, PR creation/merge, CI check polling, compare for conflict detection
+- [x] Sprint planner — Claude decomposes repo+request into ≤8 parallel SprintTasks with dependency ordering (topological wave execution)
+- [x] Conflict detection — static (scope overlap pre-execution) + dynamic (GitHub compare post-execution)
+- [x] Sprint runner — orchestrates wave execution, branch creation, task queue dispatch, PR creation, sprint status write-back
+- [x] Sprint API — `POST /:id/run` (async), `GET /:id/tasks` (full task tree), `GET /:id/conflicts`
+- [x] Sprint detail page — server component with progress bar, task tree, status badges, scope pills, PR links
+- [ ] Discord channel adapter (slash commands, DM)
+- [ ] Sprint creation UI (dashboard: repo input, request, launch button)
 
 ### 🗓 Phase 6 — Memory + self-improvement
 - [ ] pgvector semantic memory — task outcomes indexed and retrieved contextually

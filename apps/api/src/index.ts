@@ -12,6 +12,7 @@ import { dashboardRouter } from './routes/dashboard.js'
 import { telegramRouter, initTelegramWebhook } from './routes/telegram.js'
 import { slackRouter } from './routes/slack.js'
 import { owdRouter } from './routes/approvals.js'
+import { sprintRunnerRouter } from './routes/sprint-runner.js'
 import { traceMiddleware } from './middleware/trace.js'
 import { startAgentLoop, stopAgentLoop } from './agent-loop.js'
 
@@ -35,6 +36,7 @@ app.use('/api/auth', authRouter)
 app.use('/api/oauth', oauthRouter)
 app.use('/api/tasks', tasksRouter)
 app.use('/api/sprints', sprintsRouter)
+app.use('/api/sprints', sprintRunnerRouter)
 app.use('/api/dashboard', dashboardRouter)
 app.use('/api/approvals', owdRouter)
 app.use('/api/channels/telegram', telegramRouter)
