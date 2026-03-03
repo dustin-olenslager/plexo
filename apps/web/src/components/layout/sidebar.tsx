@@ -20,8 +20,8 @@ const NAV = [
     { label: 'Sprints', href: '/sprints', icon: Zap },
     { label: 'Insights', href: '/insights', icon: Brain },
     { label: 'Marketplace', href: '/marketplace', icon: Store },
-    { label: 'Settings', href: '/settings', icon: Settings },
     { label: 'Logs', href: '/logs', icon: FileText },
+    { label: 'Settings', href: '/settings', icon: Settings },
 ] as const
 
 export function Sidebar() {

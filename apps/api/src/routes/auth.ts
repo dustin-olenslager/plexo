@@ -86,3 +86,29 @@ authRouter.post('/verify-password', async (req, res) => {
 
     res.json({ id: user.id, email: user.email, name: user.name })
 })
+
+// POST /api/auth/workspace — create a workspace (used by setup wizard)
+authRouter.post('/workspace', async (req, res) => {
+    const { name } = req.body as { name?: string }
+    if (!name?.trim()) {
+        res.status(400).json({ error: { code: 'MISSING_NAME', message: 'name required' } })
+        return
+    }
+
+    try {
+        // In a full auth flow this would be scoped to the authenticated user.
+        // For setup wizard / dev, we create standalone.
+        const [ws] = await db.insert(workspaces).values({
+            name: name.trim(),
+            ownerId: null as unknown as string, // nullable until user links account
+            settings: {},
+        }).returning({ workspaceId: workspaces.id })
+
+        logger.info({ name: name.trim() }, 'Workspace created via setup wizard')
+        res.status(201).json({ workspaceId: ws!.workspaceId, name: name.trim() })
+    } catch (err) {
+        logger.error({ err }, 'POST /api/auth/workspace failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to create workspace' } })
+    }
+})
+

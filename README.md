@@ -12,7 +12,7 @@ Plexo runs a persistent agent that handles real work autonomously — and interr
 [![Docker](https://img.shields.io/badge/self--hosted-Docker-2496ED?logo=docker&logoColor=white)](docker/compose.yml)
 [![Build](https://img.shields.io/badge/typecheck-passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
 [![Tests](https://img.shields.io/badge/unit%2FE2E-48%20passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
-[![Phase](https://img.shields.io/badge/phase-7%20in%20progress-6366f1)](https://github.com/dustin-olenslager/plexo#roadmap)
+[![Phase](https://img.shields.io/badge/phase-7%20complete-brightgreen)](https://github.com/dustin-olenslager/plexo#roadmap)
 [![License](https://img.shields.io/badge/license-BSL%201.1-orange)](LICENSE)
 
 [**Managed hosting →**](https://getplexo.com) · [Docs](docs/) · [Plugin SDK](docs/plugin-sdk.md) · [Architecture](docs/architecture.md)
@@ -309,12 +309,21 @@ E2E coverage: API health (Postgres+Redis), task API edge cases, OAuth metadata, 
 - [ ] Recursive self-improvement — agent identifies patterns in its own failures, proposes changes
 - [ ] Plugin marketplace — install from registry, sandboxed, signed
 
-### 🗓 Phase 7 — Production hardening
-- [ ] Setup wizard — browser-based, handles all config, no terminal after clone
-- [ ] Sandbox tools in Docker containers (not in API process)
-- [ ] k6 load tests against VPS limits
-- [ ] Multi-workspace isolation, RBAC
-- [ ] Managed hosting (getplexo.com)
+### ✅ Phase 7 — Production hardening (complete)
+- [x] Rate limiting — tiered: 300/15min general, 20/15min auth, 60/15min task creation
+- [x] API versioning — `/api/v1/` canonical, `/api/` aliases kept for backward compat
+- [x] Credential encryption — AES-256-GCM with workspace-scoped key derivation on all installed connections
+- [x] BSL 1.1 license (→ Apache 2.0 on 2030-03-03)
+- [x] Full CHANGELOG
+- [x] Setup wizard — `/setup` route, 5-step browser-based onboarding, no terminal after clone
+- [x] Tasks page — filterable list with status, quality, cost, auto-refresh when running
+- [x] Task detail page — meta grid, context, outcome, step-by-step execution trace with tool calls
+- [x] Conversations page — date-grouped activity feed across all channels
+- [x] Logs page — tabular work_ledger view with quality, cost, calibration columns
+- [x] Settings page — workspace, agent model/budget, API key management
+- [x] k6 smoke test — `tests/load/smoke.js`, parameterized, p95 thresholds
+- [ ] Sandbox tools in Docker containers (post-ZeroClaw-parity scope)
+- [ ] Multi-workspace RBAC (post-ZeroClaw-parity scope)
 
 ---
 

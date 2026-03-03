@@ -37,7 +37,7 @@ export default function HomePage() {
 
             {/* Version */}
             <p className="mt-6 text-center text-[10px] text-zinc-700">
-                v0.2.0 (dev:local)
+                {process.env.NEXT_PUBLIC_APP_VERSION ?? 'v0.7.0'} · dev
             </p>
         </div>
     )
