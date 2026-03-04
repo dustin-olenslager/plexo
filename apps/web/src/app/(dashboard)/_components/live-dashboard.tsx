@@ -46,6 +46,14 @@ interface DashboardSummary {
     }
 }
 
+interface ChannelHealth {
+    id: string
+    name: string
+    type: string
+    status: string
+    lastActivityAt: string | null
+}
+
 interface Task {
     id: string
     type: string
@@ -64,6 +72,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 const WS_ID = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
 const POLL_MS = 15_000
 const ACTIVITY_POLL_MS = 10_000
+const CHANNEL_POLL_MS = 30_000
 
 const STATUS_COLORS: Record<string, string> = {
     complete: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
@@ -87,6 +96,7 @@ function timeAgo(iso: string): string {
 export function LiveDashboard() {
     const [summary, setSummary] = useState<DashboardSummary | null>(null)
     const [tasks, setTasks] = useState<Task[]>([])
+    const [channels, setChannels] = useState<ChannelHealth[]>([])
     const [refreshing, setRefreshing] = useState(false)
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
     const esRef = useRef<EventSource | null>(null)
@@ -113,17 +123,29 @@ export function LiveDashboard() {
         } catch { /* silent */ }
     }, [])
 
+    const fetchChannels = useCallback(async () => {
+        if (!WS_ID) return
+        try {
+            const res = await fetch(`${API_BASE}/api/channels?workspaceId=${WS_ID}`)
+            if (res.ok) {
+                const d = await res.json() as { items: ChannelHealth[] }
+                setChannels(d.items ?? [])
+            }
+        } catch { /* silent */ }
+    }, [])
+
     const manualRefresh = useCallback(async () => {
         setRefreshing(true)
-        await Promise.all([fetchSummary(), fetchActivity()])
+        await Promise.all([fetchSummary(), fetchActivity(), fetchChannels()])
         setRefreshing(false)
-    }, [fetchSummary, fetchActivity])
+    }, [fetchSummary, fetchActivity, fetchChannels])
 
     // Initial load
     useEffect(() => {
         void fetchSummary()
         void fetchActivity()
-    }, [fetchSummary, fetchActivity])
+        void fetchChannels()
+    }, [fetchSummary, fetchActivity, fetchChannels])
 
     // Poll summary every 15s
     useEffect(() => {
@@ -136,6 +158,12 @@ export function LiveDashboard() {
         const t = setInterval(() => void fetchActivity(), ACTIVITY_POLL_MS)
         return () => clearInterval(t)
     }, [fetchActivity])
+
+    // Poll channel health every 30s
+    useEffect(() => {
+        const t = setInterval(() => void fetchChannels(), CHANNEL_POLL_MS)
+        return () => clearInterval(t)
+    }, [fetchChannels])
 
     // SSE for real-time task updates
     useEffect(() => {
@@ -215,13 +243,13 @@ export function LiveDashboard() {
         {
             id: 'channels',
             title: 'Channels',
-            subtitle: summary?.agent.connectedClients ? `${summary.agent.connectedClients} live` : 'Monitoring',
+            subtitle: channels.length > 0 ? `${channels.filter(c => c.status === 'active').length} active` : 'Monitoring',
             icon: MessageSquare,
             accent: 'from-blue-500 to-indigo-600',
-            dot: (summary?.agent.connectedClients ?? 0) > 0 ? 'bg-blue-400 animate-pulse' : 'bg-zinc-600',
-            content: summary?.agent.connectedClients
-                ? `${summary.agent.connectedClients} live connection${summary.agent.connectedClients !== 1 ? 's' : ''}`
-                : <Link href="/settings/channels" className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 transition-colors">Add a channel <ArrowRight className="h-3 w-3" /></Link>,
+            dot: channels.some(c => c.status === 'active') ? 'bg-blue-400 animate-pulse' : 'bg-zinc-600',
+            content: channels.length === 0
+                ? <Link href="/settings/channels" className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 transition-colors">Add a channel <ArrowRight className="h-3 w-3" /></Link>
+                : channels.map(c => c.name).join(' · '),
         },
         {
             id: 'cost',

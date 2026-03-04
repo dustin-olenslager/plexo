@@ -180,6 +180,40 @@ export default function ConnectionsPage() {
 
     async function handleInstall() {
         if (!selected || !WS_ID) return
+
+        // OAuth2 providers: open a popup to the provider OAuth start URL
+        if (selected.authType === 'oauth2') {
+            const oauthUrl = `${API_BASE}/api/oauth/${selected.id}/start?workspaceId=${WS_ID}`
+            const popup = window.open(oauthUrl, 'plexo_oauth', 'width=600,height=700,left=200,top=100')
+            if (!popup) {
+                setError('Popup blocked — please allow popups for this site.')
+                return
+            }
+            setInstalling(true)
+            const handleMessage = (ev: MessageEvent) => {
+                if (ev.data?.type !== 'oauth_callback') return
+                window.removeEventListener('message', handleMessage)
+                setInstalling(false)
+                if (ev.data.ok) {
+                    void fetchData()
+                    setActiveTab('tools')
+                } else {
+                    setError(`OAuth failed: ${String(ev.data.error ?? 'unknown')}`)
+                }
+            }
+            window.addEventListener('message', handleMessage)
+            // Clean up if user closes popup without completing
+            const pollClosed = setInterval(() => {
+                if (popup.closed) {
+                    clearInterval(pollClosed)
+                    window.removeEventListener('message', handleMessage)
+                    setInstalling(false)
+                }
+            }, 500)
+            return
+        }
+
+        // API key / webhook: send credentials directly
         setInstalling(true)
         try {
             const res = await fetch(`${API_BASE}/api/connections/install`, {
@@ -478,8 +512,8 @@ export default function ConnectionsPage() {
                                     {/* OAuth2 notice */}
                                     {!isConnected && selected.authType === 'oauth2' && (
                                         <div className="rounded-lg border border-blue-800/40 bg-blue-950/20 px-3 py-3 text-xs text-blue-400">
-                                            <p className="font-semibold mb-1">OAuth2 — redirect flow</p>
-                                            <p className="text-blue-500">Clicking Connect will install this connection in your workspace. A full OAuth redirect flow requires provider app credentials and a callback URL configured in the API.</p>
+                                            <p className="font-semibold mb-1">OAuth2 — secure redirect flow</p>
+                                            <p className="text-blue-400">Clicking Connect will open a popup to authenticate with {selected.name}. Requires <code className="text-blue-300">{selected.id.toUpperCase().replace('-', '_')}_CLIENT_ID</code> set in the API environment.</p>
                                         </div>
                                     )}
 
