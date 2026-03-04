@@ -1,5 +1,6 @@
 import { Router, type Router as RouterType } from 'express'
 import { db, sql } from '@plexo/db'
+import { workspaces } from '@plexo/db'
 import { createClient } from 'redis'
 import { logger } from '../logger.js'
 import { workerStats } from '@plexo/agent/persistent-pool'
@@ -39,7 +40,22 @@ async function pingRedis(): Promise<{ ok: boolean; latencyMs: number }> {
 }
 
 async function pingAnthropic(): Promise<{ ok: boolean; latencyMs: number }> {
-    const key = process.env.ANTHROPIC_API_KEY
+    // Check env var first, then fall back to any workspace's stored key
+    let key = process.env.ANTHROPIC_API_KEY
+    if (!key || key === 'placeholder') {
+        try {
+            const rows = await db.select({ settings: workspaces.settings }).from(workspaces).limit(5)
+            for (const row of rows) {
+                const providers = (row.settings as {
+                    aiProviders?: { providers?: Record<string, { apiKey?: string }> }
+                } | null)?.aiProviders?.providers ?? {}
+                for (const p of Object.values(providers)) {
+                    if (p.apiKey) { key = p.apiKey; break }
+                }
+                if (key) break
+            }
+        } catch { /* non-fatal */ }
+    }
     if (!key || key === 'placeholder') {
         return { ok: false, latencyMs: 0 }
     }
