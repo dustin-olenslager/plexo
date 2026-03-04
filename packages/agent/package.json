@@ -38,6 +38,7 @@
         "@openrouter/ai-sdk-provider": "^2.2.3",
         "@plexo/db": "workspace:*",
         "@plexo/queue": "workspace:*",
+        "@plexo/sdk": "workspace:*",
         "ai": "^6.0.111",
         "bcrypt": "^5.1",
         "ollama-ai-provider": "^1.2.0",

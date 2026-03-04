@@ -81,12 +81,11 @@ export const sprintTaskStatusEnum = pgEnum('sprint_task_status', [
 ])
 
 export const pluginTypeEnum = pgEnum('plugin_type', [
+    'agent',
     'skill',
     'channel',
     'tool',
-    'card',
     'mcp-server',
-    'theme',
 ])
 
 export const memoryTypeEnum = pgEnum('memory_type', [
@@ -324,11 +323,18 @@ export const plugins = pgTable('plugins', {
     workspaceId: uuid('workspace_id')
         .notNull()
         .references(() => workspaces.id, { onDelete: 'cascade' }),
+    // Scoped package name — must match @scope/name format (§3.1)
     name: text('name').notNull(),
     version: text('version').notNull(),
     type: pluginTypeEnum('type').notNull(),
-    manifest: jsonb('manifest').notNull(),
+    // Kapsel spec version this manifest targets (e.g. '0.2.0')
+    kapselVersion: text('kapsel_version').notNull().default('0.2.0'),
+    // Relative path to the entry point (§3.1)
+    entry: text('entry').notNull(),
+    // Full kapsel.json contents (validated on install per §3.3)
+    kapselManifest: jsonb('kapsel_manifest').notNull(),
     enabled: boolean('enabled').default(false).notNull(),
+    // Extension-private settings storage (injected as sdk.storage via Redis)
     settings: jsonb('settings').default('{}').notNull(),
     installedAt: timestamp('installed_at', { mode: 'date' }).defaultNow().notNull(),
 }, (table) => [

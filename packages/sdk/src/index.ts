@@ -1,12 +1,63 @@
-import { createStubSDK } from './stub.js'
-
-export * from './sdk.js'
-export * from './types.js'
-export { createStubSDK }
-
 /**
- * Default SDK instance. In production, the plugin loader replaces this
- * with a real implementation that communicates via postMessage to the main thread.
- * In development and testing, this stub is used.
+ * @plexo/sdk — Kapsel-compatible extension SDK types
+ *
+ * Plexo is a Kapsel Standard-compliant host (kapsel: "0.2.0").
+ * This package re-exports the Kapsel protocol types so extensions
+ * targeting Plexo use the same contract as any other Kapsel host.
+ *
+ * Extensions should import from '@plexo/sdk' in their kapsel.json entry point:
+ *   import type { KapselSDK } from '@plexo/sdk'
+ *   export async function activate(sdk: KapselSDK): Promise<void> { ... }
+ *
+ * Host compliance: Standard (target)
+ * Spec version: 0.2.0
  */
-export const sdk = createStubSDK()
+
+// Manifest types (§3 of the spec)
+export type {
+    KapselManifest,
+    ExtensionType,
+    CapabilityToken,
+    HostComplianceLevel,
+    MCPServerConfig,
+    AgentHints,
+    ResourceHints,
+    JSONSchema,
+} from './types/manifest.js'
+
+// SDK interface (Appendix A)
+export type {
+    KapselSDK,
+    HostInfo,
+    MemoryEntry,
+    ConnectionCredentials,
+    ScheduleRegistration,
+    WidgetRegistration,
+    ToolRegistration,
+    ToolSummary,
+    InvokeContext,
+    NotificationLevel,
+    TaskCreateOptions,
+    TaskFilter,
+} from './types/sdk.js'
+
+// Message protocol (§6)
+export type {
+    KapselMessage,
+    KapselError,
+    ErrorCode,
+    MessageType,
+} from './types/messages.js'
+
+// Agent contract (§8)
+export type {
+    AgentExtension,
+    Plan,
+    PlanStep,
+    StepResult,
+    ShouldActivateResult,
+} from './types/agent.js'
+
+// Manifest validation (used by host on install, §3.3)
+export { validateManifest } from './validation/manifest.js'
+export type { ValidationResult, ValidationError } from './validation/manifest.js'

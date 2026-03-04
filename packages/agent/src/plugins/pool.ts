@@ -1,27 +1,43 @@
 /**
- * Plugin sandbox pool
+ * Kapsel sandbox pool
  *
- * Wraps worker_threads execution with a timeout and structured error handling.
- * Each tool call gets a fresh worker (no pool re-use yet — Phase 14 target).
- * Workers are killed after TIMEOUT_MS regardless of state.
+ * Executes extension tool handlers in isolated worker_threads.
+ * Implements the Isolation Contract (§5) — one worker per invocation,
+ * auto-terminated on timeout or completion.
+ *
+ * Timeout priority:
+ *   1. SandboxInput.timeoutMs (from manifest.resourceHints.maxInvocationMs or tool hints.timeoutMs)
+ *   2. DEFAULT_TIMEOUT_MS (10s)
+ *
+ * The worker receives SandboxInput as workerData and replies with
+ * { ok: boolean; result?: unknown; error?: string } via postMessage.
  */
 import { Worker } from 'worker_threads'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import pino from 'pino'
 
-const logger = pino({ name: 'plugin-sandbox' })
-const TIMEOUT_MS = 10_000 // 10s max per plugin tool call
+const logger = pino({ name: 'kapsel-sandbox' })
+const DEFAULT_TIMEOUT_MS = 10_000
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
 
 export interface SandboxInput {
+    /** Kapsel scoped extension name e.g. @acme/stripe-monitor */
     pluginName: string
+    /** Tool name as declared in kapsel.json tools[] */
     toolName: string
+    /** Invocation arguments (validated against parameters schema before reaching here) */
     args: Record<string, unknown>
+    /** Capabilities from manifest.capabilities[] — enforced inside worker */
     permissions: string[]
+    /** Extension settings (injected as sdk.storage snapshot) */
     settings: Record<string, unknown>
+    /** Relative entry point from kapsel.json — resolved by worker */
+    entry: string
+    /** Hard timeout in ms (§5.3) */
+    timeoutMs?: number
 }
 
 export interface SandboxResult {
@@ -34,9 +50,9 @@ export interface SandboxResult {
 
 export async function runInSandbox(input: SandboxInput): Promise<SandboxResult> {
     const start = Date.now()
+    const timeout = input.timeoutMs ?? DEFAULT_TIMEOUT_MS
 
     return new Promise((resolve) => {
-        // Worker script path — compiled to dist/plugins/sandbox-worker.js
         const workerPath = join(__dir, 'sandbox-worker.js')
 
         let worker: Worker
@@ -53,14 +69,14 @@ export async function runInSandbox(input: SandboxInput): Promise<SandboxResult> 
 
         const timer = setTimeout(() => {
             void worker.terminate()
-            logger.warn({ plugin: input.pluginName, tool: input.toolName }, 'Plugin worker timed out')
+            logger.warn({ ext: input.pluginName, tool: input.toolName, timeout }, 'Kapsel worker timed out (§5.4)')
             resolve({
                 ok: false,
-                error: `Plugin tool timed out after ${TIMEOUT_MS}ms`,
+                error: `Extension tool timed out after ${timeout}ms`,
                 timedOut: true,
                 durationMs: Date.now() - start,
             })
-        }, TIMEOUT_MS)
+        }, timeout)
 
         worker.once('message', (msg: { ok: boolean; result?: unknown; error?: string }) => {
             clearTimeout(timer)
@@ -70,7 +86,7 @@ export async function runInSandbox(input: SandboxInput): Promise<SandboxResult> 
 
         worker.once('error', (err) => {
             clearTimeout(timer)
-            logger.error({ err, plugin: input.pluginName }, 'Plugin worker error')
+            logger.error({ err, ext: input.pluginName }, 'Kapsel worker runtime error')
             resolve({
                 ok: false,
                 error: err.message,

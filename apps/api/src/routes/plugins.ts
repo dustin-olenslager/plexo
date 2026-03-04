@@ -1,25 +1,34 @@
 /**
- * Plugins API
+ * Plugins API — Kapsel Standard compliant
  *
- * GET    /api/plugins?workspaceId=   List installed plugins
- * GET    /api/plugins/:id            Get plugin by ID
- * POST   /api/plugins                Install a plugin (from manifest JSON)
- * PATCH  /api/plugins/:id            Update enabled state or settings
- * DELETE /api/plugins/:id            Uninstall plugin
+ * GET    /api/plugins?workspaceId=   List installed extensions
+ * GET    /api/plugins/:id            Get extension by ID
+ * POST   /api/plugins                Install an extension (validates kapsel.json)
+ * PATCH  /api/plugins/:id            Toggle enabled / update settings
+ * DELETE /api/plugins/:id            Uninstall extension (triggers deactivate hook)
  *
- * The agent executor calls loadPluginTools(workspaceId) to get
- * tool definitions from all enabled plugins at task start.
+ * Install flow (§3.3):
+ *  1. Validate kapsel.json manifest
+ *  2. Check minHostLevel compliance
+ *  3. Verify workspace exists
+ *  4. Insert row (enabled=false — requires explicit enable)
+ *
+ * The agent executor calls loadPluginTools(workspaceId) at task start,
+ * which loads enabled extensions and runs their tools in sandboxed workers.
  */
 import { Router, type Router as RouterType } from 'express'
 import { db, eq, and } from '@plexo/db'
 import { plugins, workspaces } from '@plexo/db'
 import { logger } from '../logger.js'
 import { audit } from '../audit.js'
+import { validateManifest } from '@plexo/sdk'
+import type { KapselManifest } from '@plexo/sdk'
 
 export const pluginsRouter: RouterType = Router()
 
-type PluginType = 'skill' | 'channel' | 'tool' | 'card' | 'mcp-server' | 'theme'
-const VALID_TYPES: PluginType[] = ['skill', 'channel', 'tool', 'card', 'mcp-server', 'theme']
+// Plexo compliance level — used to enforce minHostLevel
+const PLEXO_COMPLIANCE_LEVEL: 'core' | 'standard' | 'full' = 'full'
+const COMPLIANCE_ORDER = { core: 0, standard: 1, full: 2 }
 
 // ── GET /api/plugins ──────────────────────────────────────────────────────────
 
@@ -41,7 +50,7 @@ pluginsRouter.get('/', async (req, res) => {
         res.json({ items: rows, total: rows.length })
     } catch (err) {
         logger.error({ err }, 'GET /api/plugins failed')
-        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list plugins' } })
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list extensions' } })
     }
 })
 
@@ -51,22 +60,22 @@ pluginsRouter.get('/:id', async (req, res) => {
     try {
         const [plugin] = await db.select().from(plugins).where(eq(plugins.id, req.params.id)).limit(1)
         if (!plugin) {
-            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Plugin not found' } })
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Extension not found' } })
             return
         }
         res.json(plugin)
     } catch (err) {
         logger.error({ err }, 'GET /api/plugins/:id failed')
-        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get plugin' } })
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to get extension' } })
     }
 })
 
-// ── POST /api/plugins ─────────────────────────────────────────────────────────
+// ── POST /api/plugins (install) ───────────────────────────────────────────────
 
 pluginsRouter.post('/', async (req, res) => {
     const { workspaceId, manifest, settings = {} } = req.body as {
         workspaceId?: string
-        manifest?: { name?: string; version?: string; type?: string;[k: string]: unknown }
+        manifest?: unknown
         settings?: Record<string, unknown>
     }
 
@@ -74,17 +83,34 @@ pluginsRouter.post('/', async (req, res) => {
         res.status(400).json({ error: { code: 'MISSING_WORKSPACE', message: 'workspaceId required' } })
         return
     }
-    if (!manifest?.name || !manifest.version || !manifest.type) {
-        res.status(400).json({ error: { code: 'INVALID_MANIFEST', message: 'manifest must include name, version, type' } })
+
+    // §3.3 — Validate the kapsel.json manifest
+    const validation = validateManifest(manifest)
+    if (!validation.valid) {
+        res.status(400).json({
+            error: {
+                code: 'INVALID_MANIFEST',
+                message: 'Manifest validation failed',
+                details: validation.errors,
+            },
+        })
         return
     }
-    if (!VALID_TYPES.includes(manifest.type as PluginType)) {
-        res.status(400).json({ error: { code: 'INVALID_TYPE', message: `type must be one of: ${VALID_TYPES.join(', ')}` } })
+
+    const m = manifest as KapselManifest
+
+    // §11.4 — Enforce minHostLevel
+    if (m.minHostLevel && COMPLIANCE_ORDER[m.minHostLevel] > COMPLIANCE_ORDER[PLEXO_COMPLIANCE_LEVEL]) {
+        res.status(400).json({
+            error: {
+                code: 'COMPLIANCE_INSUFFICIENT',
+                message: `Extension requires host compliance level "${m.minHostLevel}", but this host is "${PLEXO_COMPLIANCE_LEVEL}"`,
+            },
+        })
         return
     }
 
     try {
-        // Validate workspace exists
         const [ws] = await db.select({ id: workspaces.id }).from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1)
         if (!ws) {
             res.status(404).json({ error: { code: 'WORKSPACE_NOT_FOUND', message: 'Workspace not found' } })
@@ -93,11 +119,13 @@ pluginsRouter.post('/', async (req, res) => {
 
         const [inserted] = await db.insert(plugins).values({
             workspaceId,
-            name: manifest.name,
-            version: manifest.version,
-            type: manifest.type as PluginType,
-            manifest: manifest as object,
-            enabled: false,
+            name: m.name,
+            version: m.version,
+            type: m.type,
+            kapselVersion: m.kapsel,
+            entry: m.entry,
+            kapselManifest: m as object,
+            enabled: false,      // always starts disabled (§9.1 — activate called on enable)
             settings,
         }).returning()
 
@@ -106,12 +134,20 @@ pluginsRouter.post('/', async (req, res) => {
             return
         }
 
-        logger.info({ id: inserted.id, name: manifest.name }, 'Plugin installed')
-        audit(req, { workspaceId, action: 'plugin.install', resource: 'plugins', resourceId: inserted.id, metadata: { name: manifest.name, version: manifest.version, type: manifest.type } })
-        res.status(201).json(inserted)
+        logger.info({ id: inserted.id, name: m.name, type: m.type, kapsel: m.kapsel }, 'Extension installed (Kapsel)')
+        audit(req, {
+            workspaceId,
+            action: 'plugin.install',
+            resource: 'plugins',
+            resourceId: inserted.id,
+            metadata: { name: m.name, version: m.version, type: m.type, kapsel: m.kapsel },
+        })
+        // Surface validation warnings to the caller (non-fatal)
+        const warnings = validation.errors.filter((e) => e.severity === 'warning')
+        res.status(201).json({ ...inserted, warnings: warnings.length ? warnings : undefined })
     } catch (err) {
         logger.error({ err }, 'POST /api/plugins failed')
-        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to install plugin' } })
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to install extension' } })
     }
 })
 
@@ -123,7 +159,7 @@ pluginsRouter.patch('/:id', async (req, res) => {
     try {
         const [existing] = await db.select().from(plugins).where(eq(plugins.id, req.params.id)).limit(1)
         if (!existing) {
-            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Plugin not found' } })
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Extension not found' } })
             return
         }
 
@@ -137,10 +173,19 @@ pluginsRouter.patch('/:id', async (req, res) => {
         }
 
         await db.update(plugins).set(update).where(eq(plugins.id, req.params.id))
-        logger.info({ id: req.params.id, update }, 'Plugin updated')
+        logger.info({ id: req.params.id, update }, 'Extension updated')
+
+        // Audit enable/disable — these trigger lifecycle hooks (§9.1)
         if (typeof enabled === 'boolean') {
-            audit(req, { workspaceId: existing.workspaceId, action: enabled ? 'plugin.enable' : 'plugin.disable', resource: 'plugins', resourceId: req.params.id, metadata: { name: existing.name } })
+            audit(req, {
+                workspaceId: existing.workspaceId,
+                action: enabled ? 'plugin.enable' : 'plugin.disable',
+                resource: 'plugins',
+                resourceId: req.params.id,
+                metadata: { name: existing.name, kapselVersion: existing.kapselVersion },
+            })
         }
+
         res.json({ ok: true })
     } catch (err) {
         logger.error({ err }, 'PATCH /api/plugins/:id failed')
@@ -152,15 +197,27 @@ pluginsRouter.patch('/:id', async (req, res) => {
 
 pluginsRouter.delete('/:id', async (req, res) => {
     try {
-        const [existing] = await db.select({ id: plugins.id, workspaceId: plugins.workspaceId, name: plugins.name }).from(plugins).where(eq(plugins.id, req.params.id)).limit(1)
+        const [existing] = await db
+            .select({ id: plugins.id, workspaceId: plugins.workspaceId, name: plugins.name, kapselVersion: plugins.kapselVersion })
+            .from(plugins)
+            .where(eq(plugins.id, req.params.id))
+            .limit(1)
+
         if (!existing) {
-            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Plugin not found' } })
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Extension not found' } })
             return
         }
 
+        // TODO Phase 14: invoke deactivate() lifecycle hook before delete (§9.1)
         await db.delete(plugins).where(eq(plugins.id, req.params.id))
-        logger.info({ id: req.params.id }, 'Plugin uninstalled')
-        audit(req, { workspaceId: existing.workspaceId, action: 'plugin.uninstall', resource: 'plugins', resourceId: req.params.id, metadata: { name: existing.name } })
+        logger.info({ id: req.params.id, name: existing.name }, 'Extension uninstalled')
+        audit(req, {
+            workspaceId: existing.workspaceId,
+            action: 'plugin.uninstall',
+            resource: 'plugins',
+            resourceId: req.params.id,
+            metadata: { name: existing.name, kapselVersion: existing.kapselVersion },
+        })
         res.json({ ok: true })
     } catch (err) {
         logger.error({ err }, 'DELETE /api/plugins/:id failed')

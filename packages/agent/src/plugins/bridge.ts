@@ -1,14 +1,21 @@
 /**
- * Plugin Tool Bridge
+ * Kapsel Plugin Tool Bridge — Kapsel Full compliant host
  *
- * Loads enabled plugins for a workspace from the DB, reads their manifest
- * tool definitions, and returns Vercel AI SDK tool objects that the executor
- * can merge into its static tool set.
+ * Loads enabled Kapsel extensions for a workspace. For each extension,
+ * runs its entry point in a sandbox worker which calls activate(sdk).
+ * The host SDK captures registerTool() registrations, which are then
+ * converted into Vercel AI SDK tool objects.
  *
- * Tool naming: plugin__{pluginName}__{toolName}  e.g. plugin__jira__create_issue
+ * Tool key format: plugin__{scope}_{name}__{toolName}
+ *   e.g. @acme/stripe-monitor → plugin__acme_stripe-monitor__stripe_get_mrr
  *
- * Phase 13: plugin tool execution runs in an isolated worker_threads sandbox
- * with a 10-second timeout. Permission set from manifest.permissions[].
+ * The activation model (§9.1):
+ *   1. Host instantiates SDK with extension's capabilities + settings
+ *   2. Host calls activate(sdk) on the extension entry point in a worker
+ *   3. Extension calls sdk.registerTool() / sdk.registerSchedule() etc.
+ *   4. Host collects registrations and builds the ToolSet
+ *
+ * Non-fatal — returns empty ToolSet if any step fails.
  */
 import { tool } from 'ai'
 import { z } from 'zod'
@@ -17,116 +24,138 @@ import { plugins } from '@plexo/db'
 import type { ToolSet } from '../connections/bridge.js'
 import { runInSandbox } from './pool.js'
 import pino from 'pino'
+import type { KapselManifest, JSONSchema } from '@plexo/sdk'
+import type { ToolRegistration } from '@plexo/sdk'
 
-const logger = pino({ name: 'plugin-bridge' })
+const logger = pino({ name: 'kapsel-bridge' })
 
-interface PluginToolDef {
-    name: string
-    description: string
-    parameters?: {
-        type: 'object'
-        properties?: Record<string, { type: string; description?: string }>
-        required?: string[]
-    }
+const DEFAULT_TIMEOUT_MS = 10_000
+
+/** Derive a stable tool key from a scoped extension name + tool name */
+function toolKey(extensionName: string, toolName: string): string {
+    const sanitized = extensionName.replace(/^@/, '').replace('/', '_')
+    return `plugin__${sanitized}__${toolName}`
 }
 
-interface PluginManifest {
-    name: string
-    version: string
-    type: string
-    permissions?: string[]
-    tools?: PluginToolDef[]
+/** Build a flat zod input schema from a Kapsel JSONSchema parameters object */
+function buildZodShape(
+    properties: Record<string, JSONSchema> = {},
+    required: string[] = [],
+): Record<string, z.ZodTypeAny> {
+    const reqSet = new Set(required)
+    const shape: Record<string, z.ZodTypeAny> = {}
+    for (const [key, def] of Object.entries(properties)) {
+        const base = (() => {
+            switch (def.type) {
+                case 'number':
+                case 'integer': return z.number()
+                case 'boolean': return z.boolean()
+                case 'array': return z.array(z.unknown())
+                case 'object': return z.record(z.unknown())
+                default: return z.string()
+            }
+        })()
+        shape[key] = reqSet.has(key) ? base : base.optional()
+    }
+    return shape
 }
 
 /**
- * Load all enabled plugin tool definitions for a given workspace.
- * Returns an AI SDK ToolSet keyed by `plugin__{name}__{toolName}`.
+ * Load enabled Kapsel extensions, activate them in sandboxed workers,
+ * and return an AI SDK ToolSet with all registered tools.
  */
 export async function loadPluginTools(workspaceId: string): Promise<ToolSet> {
     const toolSet: ToolSet = {}
 
     try {
-        const enabledPlugins = await db
+        const enabledExtensions = await db
             .select()
             .from(plugins)
-            .where(
-                and(
-                    eq(plugins.workspaceId, workspaceId),
-                    eq(plugins.enabled, true),
-                ),
-            )
+            .where(and(eq(plugins.workspaceId, workspaceId), eq(plugins.enabled, true)))
 
-        for (const plugin of enabledPlugins) {
-            const manifest = plugin.manifest as PluginManifest
-            const rawTools = manifest.tools ?? []
-            const permissions = manifest.permissions ?? []
-            const settings = plugin.settings as Record<string, unknown>
+        for (const ext of enabledExtensions) {
+            const manifest = ext.kapselManifest as KapselManifest
+            const capabilities = manifest.capabilities ?? []
+            const settings = ext.settings as Record<string, unknown>
+            const timeoutMs = manifest.resourceHints?.maxInvocationMs ?? DEFAULT_TIMEOUT_MS
 
-            for (const toolDef of rawTools) {
-                const toolKey = `plugin__${plugin.name}__${toolDef.name}`
+            // Activate the extension in a worker — it calls sdk.registerTool() etc.
+            // The worker returns the list of registered tools.
+            const activationResult = await runInSandbox({
+                pluginName: ext.name,
+                toolName: '__activate__',   // sentinel: worker runs activate() not a tool
+                args: {},
+                permissions: capabilities,
+                settings,
+                entry: ext.entry,
+                timeoutMs: Math.min(timeoutMs, 30_000), // activation capped at 30s
+            })
 
-                // Build a flat zod schema from the manifest parameters
-                const props = toolDef.parameters?.properties ?? {}
-                const required = new Set(toolDef.parameters?.required ?? [])
-                const zodShape: Record<string, z.ZodTypeAny> = {}
+            if (!activationResult.ok) {
+                logger.warn(
+                    { ext: ext.name, error: activationResult.error },
+                    'Kapsel extension activation failed — skipping',
+                )
+                continue
+            }
 
-                for (const [key, def] of Object.entries(props)) {
-                    const base = (() => {
-                        switch (def.type) {
-                            case 'number': return z.number()
-                            case 'boolean': return z.boolean()
-                            case 'array': return z.array(z.unknown())
-                            default: return z.string()
-                        }
-                    })()
-                    zodShape[key] = required.has(key) ? base : base.optional()
-                }
+            // Worker returns { registeredTools: ToolRegistration[] }
+            const registeredTools = (activationResult.result as { registeredTools?: ToolRegistration[] })?.registeredTools ?? []
+
+            for (const toolDef of registeredTools) {
+                const key = toolKey(ext.name, toolDef.name)
+                const params = toolDef.parameters as JSONSchema | undefined
+                const props = params?.properties ?? {}
+                const required = params?.required ?? []
+                const zodShape = buildZodShape(props, required)
 
                 const inputSchema = Object.keys(zodShape).length > 0
                     ? z.object(zodShape)
                     : z.object({}).passthrough()
 
-                const pluginName = plugin.name
-                const pluginVersion = plugin.version
+                const extName = ext.name
+                const extVersion = ext.version
                 const toolName = toolDef.name
+                const toolTimeout = toolDef.hints?.timeoutMs ?? timeoutMs
+                const entry = ext.entry
 
-                toolSet[toolKey] = tool({
-                    description: `[Plugin: ${pluginName} v${pluginVersion}] ${toolDef.description}`,
+                toolSet[key] = tool({
+                    description: `[${extName} v${extVersion}] ${toolDef.description}`,
                     inputSchema,
                     execute: async (args) => {
-                        const sandboxResult = await runInSandbox({
-                            pluginName,
+                        const result = await runInSandbox({
+                            pluginName: extName,
                             toolName,
                             args: args as Record<string, unknown>,
-                            permissions,
+                            permissions: capabilities,
                             settings,
+                            entry,
+                            timeoutMs: toolTimeout,
                         })
 
-                        if (!sandboxResult.ok) {
+                        if (!result.ok) {
                             logger.warn(
-                                { plugin: pluginName, tool: toolName, error: sandboxResult.error, timedOut: sandboxResult.timedOut },
-                                'Plugin sandbox execution failed',
+                                { ext: extName, tool: toolName, error: result.error, timedOut: result.timedOut },
+                                'Kapsel extension tool failed',
                             )
                             return {
-                                plugin: pluginName,
+                                extension: extName,
                                 tool: toolName,
-                                status: sandboxResult.timedOut ? 'timeout' : 'error',
-                                error: sandboxResult.error,
-                                durationMs: sandboxResult.durationMs,
+                                status: result.timedOut ? 'timeout' : 'error',
+                                error: result.error,
+                                durationMs: result.durationMs,
                             }
                         }
 
-                        logger.info(
-                            { plugin: pluginName, tool: toolName, durationMs: sandboxResult.durationMs },
-                            'Plugin tool executed in sandbox',
-                        )
-                        return sandboxResult.result
+                        logger.info({ ext: extName, tool: toolName, durationMs: result.durationMs }, 'Kapsel tool executed')
+                        return result.result
                     },
                 })
             }
+
+            logger.info({ ext: ext.name, toolCount: registeredTools.length }, 'Kapsel extension activated')
         }
     } catch (err) {
-        // Non-fatal — agent continues with built-in tools if plugin load fails
         logger.error({ err, workspaceId }, 'loadPluginTools failed — continuing without plugin tools')
     }
 

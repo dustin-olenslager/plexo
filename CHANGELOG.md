@@ -12,6 +12,35 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [1.1.0-dev] — 2026-03-04 (Phase 14 — Kapsel Standard adoption)
+
+### Changed
+- **`@plexo/sdk` is now Kapsel-compatible** — rewrote from Plexo-proprietary types to full Kapsel Protocol Specification v0.2.0 compliance; exports `KapselManifest`, `KapselSDK`, `validateManifest`, all capability tokens, agent/channel/event types
+- **`plugin_type` enum** — migrated from `skill|channel|tool|card|mcp-server|theme` → `agent|skill|channel|tool|mcp-server` (matches Kapsel §2); `card` functionality maps to `ui:register-widget` capability
+- **`plugins.manifest` → `plugins.kapsel_manifest`** — column renamed; stores full `kapsel.json` contents
+- **Added `plugins.entry` column** (§3.1 required field — relative path to extension entry point)
+- **Added `plugins.kapsel_version` column** (tracks which spec version the manifest targets)
+- **`POST /api/plugins` now validates full kapsel.json** via `validateManifest()` (§3.3); returns structured `errors[]` on failure; also enforces `minHostLevel` (§11.4)
+- **Activation model** — plugin bridge now activates extensions via `activate(sdk)` in a sandboxed worker; `sdk.registerTool()` registrations collected at activation time rather than reading a `tools[]` array from the manifest (Kapsel §9.1)
+- **Host-side `KapselSDK`** (`activation-sdk.ts`) — capability enforcement at every SDK call (§4); `events.publish` enforces `ext.<scope>.*` namespace (§7.4)
+- **Sandbox worker updated** — two modes: `__activate__` returns registrations, named tool runs the handler (§5)
+- **`/health` declares Kapsel compliance** — `{ kapsel: { complianceLevel: 'full', specVersion: '0.2.0', host: 'plexo' } }` (§14.4)
+
+### Added
+- `packages/sdk/src/types/manifest.ts` — `KapselManifest`, `CapabilityToken`, `ExtensionType` (§3)
+- `packages/sdk/src/types/sdk.ts` — `KapselSDK` interface with all 18 capability surfaces (Appendix A)
+- `packages/sdk/src/types/messages.ts` — message protocol types + all error codes (§6)
+- `packages/sdk/src/types/agent.ts` — `AgentExtension`, `Plan`, `PlanStep`, one-way door types (§8)
+- `packages/sdk/src/types/channel.ts` — `ChannelExtension` contract (§2.3, §9.2)
+- `packages/sdk/src/types/events.ts` — `TOPICS` constants, `customTopic()`, all standard payloads (§7.4)
+- `packages/sdk/src/validation/manifest.ts` — `validateManifest()` with all §3.3 checks
+- `packages/agent/src/plugins/activation-sdk.ts` — host KapselSDK implementation
+
+### Infrastructure
+- Migration 0009: `plugin_type` enum swap, `manifest`→`kapsel_manifest` rename, `entry`+`kapsel_version` columns
+
+---
+
 ## [1.0.0-dev] — 2026-03-04 (Phase 13 — Sandbox, Audit, Workspace Rate Limit)
 
 ### Added

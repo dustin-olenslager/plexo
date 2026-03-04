@@ -80,5 +80,10 @@ healthRouter.get('/', async (_req, res) => {
         services,
         version: process.env.npm_package_version ?? '0.1.0',
         uptime: Math.floor(process.uptime()),
+        kapsel: {
+            complianceLevel: 'full',
+            specVersion: '0.2.0',
+            host: 'plexo',
+        },
     })
 })
