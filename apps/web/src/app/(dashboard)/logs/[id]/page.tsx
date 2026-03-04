@@ -148,28 +148,44 @@ export default async function LogDetailPage({ params }: { params: { id: string }
                 ))}
             </div>
 
-            {/* Outcome */}
-            {task.outcomeSummary && (
+            {/* Outcome / blocked notice */}
+            {task.outcomeSummary ? (
                 <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
                     <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-2">Outcome</p>
                     <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">{task.outcomeSummary}</p>
                 </div>
-            )}
+            ) : ['blocked', 'failed', 'cancelled'].includes(task.status) ? (
+                <div className="rounded-lg border border-amber-900/40 bg-amber-950/20 p-4">
+                    <p className="text-[10px] text-amber-700 uppercase tracking-wider mb-2">
+                        {task.status === 'blocked' ? 'Blocked — no execution' : task.status === 'failed' ? 'Failed' : 'Cancelled'}
+                    </p>
+                    <p className="text-sm text-amber-400/70 leading-relaxed">
+                        {task.status === 'blocked'
+                            ? 'Agent claimed this task but could not execute — likely no AI provider credential was configured at the time.'
+                            : 'No outcome was recorded.'}
+                    </p>
+                </div>
+            ) : null}
 
             {/* Context */}
             {(description || Object.keys(contextRest).length > 0) && (
                 <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
                     <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Context</p>
                     {description && (
-                        <div className="mb-3">
-                            <p className="text-xs text-zinc-500 mb-1">Description</p>
-                            <p className="text-sm text-zinc-300 whitespace-pre-wrap leading-relaxed">{description}</p>
+                        <div className="mb-4">
+                            <p className="text-xs text-zinc-500 mb-1">Request</p>
+                            <p className="text-sm text-zinc-200 whitespace-pre-wrap leading-relaxed">{description}</p>
                         </div>
                     )}
                     {Object.keys(contextRest).length > 0 && (
-                        <pre className="text-xs text-zinc-500 bg-zinc-950 rounded p-3 overflow-auto max-h-48">
-                            {JSON.stringify(contextRest, null, 2)}
-                        </pre>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {Object.entries(contextRest).map(([k, v]) => (
+                                <div key={k} className="rounded bg-zinc-950 px-2.5 py-2">
+                                    <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-0.5">{k}</p>
+                                    <p className="text-xs text-zinc-400 font-mono truncate">{String(v)}</p>
+                                </div>
+                            ))}
+                        </div>
                     )}
                 </div>
             )}
