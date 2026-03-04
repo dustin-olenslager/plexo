@@ -28,3 +28,7 @@ Thumbs.db
 .vscode/settings.json
 .idea/
 .agents-local.md
+
+# Playwright
+playwright-report/
+test-results/
