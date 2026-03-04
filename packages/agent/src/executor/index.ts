@@ -7,6 +7,8 @@ import { SAFETY_LIMITS } from '../constants.js'
 import { PlexoError } from '../errors.js'
 import { loadConnectionTools } from '../connections/bridge.js'
 import { loadPluginTools } from '../plugins/bridge.js'
+import { assignVariant, recordVariantOutcome } from '../memory/ab-variants.js'
+import { getPromptOverrides } from '../memory/prompt-improvement.js'
 
 import type { ExecutionContext, ExecutionPlan, ExecutionResult, StepResult } from '../types.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
@@ -153,6 +155,23 @@ export async function executeTask(
         }
     } catch { /* non-fatal */ }
 
+    // Phase 15 — A/B variant assignment for recursive self-improvement
+    // Assigns this task to control (A) or challenger (B) prompt at 80/20 split.
+    // Challenger overrides are merged on top of workspace systemPromptExtra.
+    let variantAssignment: Awaited<ReturnType<typeof assignVariant>> = {
+        variant: 'A',
+        challengerId: null,
+        overrides: {},
+    }
+    try {
+        variantAssignment = await assignVariant(ctx.workspaceId)
+    } catch { /* non-fatal */ }
+
+    // Build prompt override suffix from variant (sections keyed by name)
+    const variantExtra = Object.entries(variantAssignment.overrides)
+        .map(([k, v]) => `\n\n[${k.replace(/_/g, ' ')}]\n${v}`)
+        .join('')
+
     const systemPrompt = `${personaPrefix}You are ${agentName}, an autonomous AI agent executing a task.
 
 Task goal: ${plan.goal}
@@ -161,7 +180,7 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
 - Use tools to make progress. Read before writing.
 - When you have completed all steps, call task_complete.
 - Be conservative. If something seems wrong, stop and report it.
-- NEVER output credentials, secrets, or tokens in any tool call or message.${systemPromptExtra}`
+- NEVER output credentials, secrets, or tokens in any tool call or message.${systemPromptExtra}${variantExtra}`
 
     const planSummary = plan.steps
         .map((s) => `Step ${s.stepNumber}: ${s.description}`)
@@ -350,6 +369,14 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
                 outcome: memOutcome,
             }),
         ),
+        // Phase 15 — record which prompt variant was used and evaluate auto-promotion
+        recordVariantOutcome({
+            workspaceId: ctx.workspaceId,
+            taskId: ctx.taskId,
+            variant: variantAssignment.variant,
+            challengerId: variantAssignment.challengerId,
+            qualityScore: finalQuality,
+        }),
     ]).catch(() => { /* memory errors are never fatal */ })
 
     return executionResult
