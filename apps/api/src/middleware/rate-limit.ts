@@ -13,13 +13,16 @@ import { rateLimit } from 'express-rate-limit'
 
 const WINDOW_MS = 15 * 60 * 1000 // 15 minutes
 
+const isLoopback = (ip: string | undefined) =>
+    ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1'
+
 export const generalLimiter = rateLimit({
     windowMs: WINDOW_MS,
     max: 300,
     standardHeaders: 'draft-8',
     legacyHeaders: false,
     message: { error: { code: 'RATE_LIMITED', message: 'Too many requests — try again later' } },
-    skip: (req) => req.path === '/health', // health check exempt
+    skip: (req) => req.path === '/health' || isLoopback(req.ip),
 })
 
 export const authLimiter = rateLimit({
