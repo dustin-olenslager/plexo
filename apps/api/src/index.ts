@@ -34,6 +34,8 @@ import { usersRouter } from './routes/users.js'
 import { membersRouter, invitesRouter } from './routes/members.js'
 import { pluginsRouter } from './routes/plugins.js'
 import { auditRouter } from './routes/audit.js'
+import { registryRouter } from './routes/registry.js'
+import { terminateAll } from '@plexo/agent/persistent-pool'
 
 
 import { debugRouter } from './routes/debug.js'
@@ -86,6 +88,7 @@ v1.use('/users', usersRouter)
 v1.use('/workspaces/:id/members', membersRouter)
 v1.use('/invites', invitesRouter)
 v1.use('/plugins', workspaceRateLimit, pluginsRouter)
+v1.use('/registry', registryRouter)
 v1.use('/audit', auditRouter)
 
 v1.use('/debug', debugRouter)
@@ -126,6 +129,7 @@ const server = app.listen(port, '0.0.0.0', () => {
 
 process.on('SIGTERM', () => {
     stopAgentLoop()
+    terminateAll()
     server.close(() => process.exit(0))
 })
 

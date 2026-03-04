@@ -19,6 +19,7 @@
         "./memory/self-improvement": "./src/memory/self-improvement.ts",
         "./memory/prompt-improvement": "./src/memory/prompt-improvement.ts",
         "./one-way-door": "./src/one-way-door.ts",
+        "./persistent-pool": "./src/plugins/persistent-pool.ts",
         "./providers/registry": "./src/providers/registry.ts"
     },
     "scripts": {

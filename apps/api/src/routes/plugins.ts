@@ -23,6 +23,7 @@ import { logger } from '../logger.js'
 import { audit } from '../audit.js'
 import { validateManifest } from '@plexo/sdk'
 import type { KapselManifest } from '@plexo/sdk'
+import { terminateWorker } from '@plexo/agent/persistent-pool'
 
 export const pluginsRouter: RouterType = Router()
 
@@ -184,6 +185,8 @@ pluginsRouter.patch('/:id', async (req, res) => {
                 resourceId: req.params.id,
                 metadata: { name: existing.name, kapselVersion: existing.kapselVersion },
             })
+            // Terminate the persistent worker on disable so it's re-activated fresh on re-enable
+            if (!enabled) terminateWorker(existing.name)
         }
 
         res.json({ ok: true })
@@ -208,7 +211,8 @@ pluginsRouter.delete('/:id', async (req, res) => {
             return
         }
 
-        // TODO Phase 14: invoke deactivate() lifecycle hook before delete (§9.1)
+        // Terminate persistent worker + delete record
+        terminateWorker(existing.name)
         await db.delete(plugins).where(eq(plugins.id, req.params.id))
         logger.info({ id: req.params.id, name: existing.name }, 'Extension uninstalled')
         audit(req, {

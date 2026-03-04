@@ -1,44 +1,39 @@
 /**
  * Kapsel Plugin Tool Bridge — Kapsel Full compliant host
  *
- * Loads enabled Kapsel extensions for a workspace. For each extension,
- * runs its entry point in a sandbox worker which calls activate(sdk).
- * The host SDK captures registerTool() registrations, which are then
- * converted into Vercel AI SDK tool objects.
+ * Loads enabled Kapsel extensions using the Persistent Worker Pool (§5.4).
+ * Each extension gets one long-lived worker reused across all tool invocations.
  *
- * Tool key format: plugin__{scope}_{name}__{toolName}
+ * Activation model (§9.1):
+ *   1. getWorker() spawns a persistent sandbox worker + runs activate(sdk)
+ *   2. Worker registers tools via sdk.registerTool()
+ *   3. Bridge wraps registrations as Vercel AI SDK ToolSet
+ *   4. Subsequent tool calls use invokeTool() on the same worker
+ *
+ * Tool key format: plugin__{scope}__{toolName}
  *   e.g. @acme/stripe-monitor → plugin__acme_stripe-monitor__stripe_get_mrr
  *
- * The activation model (§9.1):
- *   1. Host instantiates SDK with extension's capabilities + settings
- *   2. Host calls activate(sdk) on the extension entry point in a worker
- *   3. Extension calls sdk.registerTool() / sdk.registerSchedule() etc.
- *   4. Host collects registrations and builds the ToolSet
- *
- * Non-fatal — returns empty ToolSet if any step fails.
+ * Non-fatal: skips broken extensions, continues building ToolSet with the rest.
  */
 import { tool } from 'ai'
 import { z } from 'zod'
 import { db, eq, and } from '@plexo/db'
 import { plugins } from '@plexo/db'
 import type { ToolSet } from '../connections/bridge.js'
-import { runInSandbox } from './pool.js'
+import { getWorker, invokeTool } from './persistent-pool.js'
 import pino from 'pino'
 import type { KapselManifest, JSONSchema } from '@plexo/sdk'
-import type { ToolRegistration } from '@plexo/sdk'
 import { eventBus, TOPICS } from './event-bus.js'
 
 const logger = pino({ name: 'kapsel-bridge' })
 
 const DEFAULT_TIMEOUT_MS = 10_000
 
-/** Derive a stable tool key from a scoped extension name + tool name */
 function toolKey(extensionName: string, toolName: string): string {
     const sanitized = extensionName.replace(/^@/, '').replace('/', '_')
     return `plugin__${sanitized}__${toolName}`
 }
 
-/** Build a flat zod input schema from a Kapsel JSONSchema parameters object */
 function buildZodShape(
     properties: Record<string, JSONSchema> = {},
     required: string[] = [],
@@ -62,8 +57,8 @@ function buildZodShape(
 }
 
 /**
- * Load enabled Kapsel extensions, activate them in sandboxed workers,
- * and return an AI SDK ToolSet with all registered tools.
+ * Load enabled Kapsel extensions via the persistent pool.
+ * Returns an AI SDK ToolSet with all successfully registered tools.
  */
 export async function loadPluginTools(workspaceId: string): Promise<ToolSet> {
     const toolSet: ToolSet = {}
@@ -80,36 +75,27 @@ export async function loadPluginTools(workspaceId: string): Promise<ToolSet> {
             const settings = ext.settings as Record<string, unknown>
             const timeoutMs = manifest.resourceHints?.maxInvocationMs ?? DEFAULT_TIMEOUT_MS
 
-            // Activate the extension in a worker — it calls sdk.registerTool() etc.
-            // The worker returns the list of registered tools.
-            const activationResult = await runInSandbox({
-                pluginName: ext.name,
-                toolName: '__activate__',   // sentinel: worker runs activate() not a tool
-                args: {},
-                permissions: capabilities,
-                settings,
-                entry: ext.entry,
-                timeoutMs: Math.min(timeoutMs, 30_000), // activation capped at 30s
-            })
-
-            if (!activationResult.ok) {
-                logger.warn(
-                    { ext: ext.name, error: activationResult.error },
-                    'Kapsel extension activation failed — skipping',
-                )
+            let handle
+            try {
+                handle = await getWorker({
+                    pluginName: ext.name,
+                    entry: ext.entry,
+                    permissions: capabilities,
+                    settings,
+                    workspaceId,
+                    activateTimeoutMs: Math.min(timeoutMs, 30_000),
+                })
+            } catch (err) {
+                logger.warn({ ext: ext.name, err }, 'Persistent worker activation failed — skipping')
                 eventBus.emitSystem(TOPICS.EXTENSION_CRASHED, {
                     extension: ext.name,
-                    error: activationResult.error,
-                    timedOut: activationResult.timedOut,
+                    error: err instanceof Error ? err.message : String(err),
                     workspaceId,
                 })
                 continue
             }
 
-            // Worker returns { registeredTools: ToolRegistration[] }
-            const registeredTools = (activationResult.result as { registeredTools?: ToolRegistration[] })?.registeredTools ?? []
-
-            for (const toolDef of registeredTools) {
+            for (const toolDef of handle.registeredTools) {
                 const key = toolKey(ext.name, toolDef.name)
                 const params = toolDef.parameters as JSONSchema | undefined
                 const props = params?.properties ?? {}
@@ -124,27 +110,22 @@ export async function loadPluginTools(workspaceId: string): Promise<ToolSet> {
                 const extVersion = ext.version
                 const toolName = toolDef.name
                 const toolTimeout = toolDef.hints?.timeoutMs ?? timeoutMs
-                const entry = ext.entry
+                const workerHandle = handle
 
                 toolSet[key] = tool({
                     description: `[${extName} v${extVersion}] ${toolDef.description}`,
                     inputSchema,
                     execute: async (args) => {
-                        const result = await runInSandbox({
-                            pluginName: extName,
+                        const result = await invokeTool(
+                            workerHandle,
                             toolName,
-                            args: args as Record<string, unknown>,
-                            permissions: capabilities,
-                            settings,
-                            entry,
-                            timeoutMs: toolTimeout,
-                        })
+                            args as Record<string, unknown>,
+                            workspaceId,
+                            toolTimeout,
+                        )
 
                         if (!result.ok) {
-                            logger.warn(
-                                { ext: extName, tool: toolName, error: result.error, timedOut: result.timedOut },
-                                'Kapsel extension tool failed',
-                            )
+                            logger.warn({ ext: extName, tool: toolName, error: result.error, timedOut: result.timedOut }, 'Kapsel tool failed')
                             return {
                                 extension: extName,
                                 tool: toolName,
@@ -160,11 +141,11 @@ export async function loadPluginTools(workspaceId: string): Promise<ToolSet> {
                 })
             }
 
-            logger.info({ ext: ext.name, toolCount: registeredTools.length }, 'Kapsel extension activated')
+            logger.info({ ext: ext.name, toolCount: handle.registeredTools.length }, 'Kapsel extension loaded (persistent worker)')
             eventBus.emitSystem(TOPICS.EXTENSION_ACTIVATED, {
                 extension: ext.name,
                 version: ext.version,
-                toolCount: registeredTools.length,
+                toolCount: handle.registeredTools.length,
                 workspaceId,
             })
         }

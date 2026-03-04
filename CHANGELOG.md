@@ -12,6 +12,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [1.4.0-dev] — 2026-03-04 (Phases 21-23 — Persistent Workers, Event Bus Fan-out, Registry)
+
+### Added
+- `plugins/persistent-pool.ts` — Persistent Worker Pool (§5.4): one long-lived Worker per extension, reused across invocations, crash recovery, per-call hard timeout terminates the worker
+- `routes/registry.ts` — Kapsel Registry API (§12): search, detail, publish (with manifest validation), deprecate
+- `drizzle/0010_kapsel_registry.sql` + `schema.ts` — `kapsel_registry` table
+
+### Changed
+- `plugins/bridge.ts` — uses persistent pool; no more ephemeral worker-per-call
+- `plugins/event-bus.ts` — v2: Redis pub/sub fan-out for multi-container deployments, loop protection
+- `plugins/sandbox-worker.ts` — persistent message protocol (`activate`/`invoke`/`terminate`) + ephemeral fallback
+- `routes/plugins.ts` — `terminateWorker()` on disable/uninstall
+- `apps/api/src/index.ts` — `terminateAll()` on SIGTERM; registry mounted at `/api/v1/registry`
+- `packages/db/src/index.ts` — added `ne`, `ilike` exports
+- `packages/agent/package.json` — added `./persistent-pool` export; `redis@^4`
+
 ## [1.3.0-dev] — 2026-03-04 (Phases 18-20 — Event Bus, OWD Gate, Deploy)
 
 ### Added

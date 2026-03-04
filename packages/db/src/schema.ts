@@ -546,6 +546,44 @@ export const workspaceInvites = pgTable('workspace_invites', {
     index('workspace_invites_workspace_idx').on(table.workspaceId),
 ])
 
+// ── Phase 21 — Kapsel Extension Registry (§12) ──────────────────────────────
+// Public listing of extensions available for installation.
+// Scoped: entries belong to a workspace (org/user namespace).
+
+export const kapselRegistry = pgTable('kapsel_registry', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    /** Scoped package name e.g. @acme/stripe-monitor */
+    name: text('name').notNull().unique(),
+    /** Display name */
+    displayName: text('display_name').notNull(),
+    /** Short description */
+    description: text('description').notNull(),
+    /** Publisher workspace or user handle */
+    publisher: text('publisher').notNull(),
+    /** Latest published version */
+    latestVersion: text('latest_version').notNull(),
+    /** All published versions (ordered newest first) */
+    versions: jsonb('versions').$type<string[]>().default([]).notNull(),
+    /** Full kapsel.json manifest for the latest version */
+    manifest: jsonb('manifest').notNull(),
+    /** Tags for discovery */
+    tags: text('tags').array().default([]).notNull(),
+    /** Install count (approximate, not trusted for billing) */
+    installCount: integer('install_count').default(0).notNull(),
+    /** Deprecated: set by publisher, hidden from search */
+    deprecated: boolean('deprecated').default(false).notNull(),
+    /** SHA-256 of the published bundle (for integrity verification) */
+    checksum: text('checksum'),
+    /** Source repository URL */
+    repositoryUrl: text('repository_url'),
+    publishedAt: timestamp('published_at', { mode: 'date' }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('kapsel_registry_name_idx').on(table.name),
+    index('kapsel_registry_publisher_idx').on(table.publisher),
+    index('kapsel_registry_deprecated_idx').on(table.deprecated),
+])
+
 // ── Phase 13 — Audit log ──────────────────────────────────────────────────────
 
 export const auditLog = pgTable('audit_log', {

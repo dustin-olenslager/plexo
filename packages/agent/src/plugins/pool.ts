@@ -36,6 +36,8 @@ export interface SandboxInput {
     settings: Record<string, unknown>
     /** Relative entry point from kapsel.json — resolved by worker */
     entry: string
+    /** Workspace context for SDK calls */
+    workspaceId?: string
     /** Hard timeout in ms (§5.3) */
     timeoutMs?: number
 }
