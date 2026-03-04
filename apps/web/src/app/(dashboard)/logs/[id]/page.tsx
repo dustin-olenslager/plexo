@@ -1,9 +1,6 @@
-import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
-
-const INTERNAL_API = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'
-const WS_ID = process.env.DEV_WORKSPACE_ID ?? ''
+import { CopyButton } from './copy-button'
 
 interface TaskStep {
     id: string
@@ -21,18 +18,15 @@ interface TaskDetail {
     type: string
     status: string
     source: string
-    project: string | null
     context: Record<string, unknown>
     qualityScore: number | null
-    confidenceScore: number | null
     tokensIn: number | null
     tokensOut: number | null
     costUsd: number | null
     outcomeSummary: string | null
-    createdAt: string
+    createdAt: string | null
     claimedAt: string | null
     completedAt: string | null
-    steps: TaskStep[]
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -43,23 +37,9 @@ const STATUS_STYLES: Record<string, string> = {
     failed: 'bg-red-950 text-red-400 border-red-800',
 }
 
-async function fetchTask(id: string): Promise<TaskDetail | null> {
-    if (!WS_ID) return null
-    try {
-        const res = await fetch(`${INTERNAL_API}/api/tasks/${encodeURIComponent(id)}`, { cache: 'no-store' })
-        if (!res.ok) return null
-        const data = await res.json() as { task: TaskDetail; steps: TaskStep[] }
-        return { ...data.task, steps: data.steps ?? [] }
-    } catch {
-        return null
-    }
-}
-
-function fmt(iso: string | null): string {
+function fmt(iso: string | null | undefined): string {
     if (!iso) return '—'
-    return new Date(iso).toLocaleString([], {
-        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit'
-    })
+    return new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 function elapsed(start: string | null, end: string | null): string {
@@ -69,52 +49,98 @@ function elapsed(start: string | null, end: string | null): string {
     return ms < 60_000 ? `${(ms / 1000).toFixed(2)}s` : `${(ms / 60_000).toFixed(2)}m`
 }
 
+async function fetchTask(id: string): Promise<{ task: TaskDetail; steps: TaskStep[] } | null> {
+    const INTERNAL = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'
+    try {
+        const res = await fetch(`${INTERNAL}/api/tasks/${encodeURIComponent(id)}`, { cache: 'no-store' })
+        if (!res.ok) return null
+        const data = await res.json() as { task?: TaskDetail; steps?: TaskStep[] }
+        if (!data.task) return null
+        return { task: data.task, steps: data.steps ?? [] }
+    } catch { return null }
+}
+
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 export default async function LogDetailPage({ params }: { params: { id: string } }) {
-    const task = await fetchTask(params.id)
-    if (!task) notFound()
+    const result = await fetchTask(params.id)
 
-    const description = (task.context?.description ?? task.context?.prompt ?? task.context?.message ?? '') as string
+    if (!result) {
+        return (
+            <div className="flex flex-col gap-4 max-w-4xl">
+                <Link href="/logs" className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors w-fit">
+                    <ArrowLeft size={12} /> Back to logs
+                </Link>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-6 py-12 text-center">
+                    <p className="text-sm text-zinc-400 font-medium mb-1">Task not found</p>
+                    <p className="text-xs text-zinc-600 font-mono">{params.id}</p>
+                </div>
+            </div>
+        )
+    }
+
+    const { task, steps } = result
+    const context = (task.context ?? {}) as Record<string, unknown>
+    const description = (context.description ?? context.prompt ?? context.message ?? '') as string
     const contextRest = Object.fromEntries(
-        Object.entries(task.context).filter(([k]) => !['description', 'prompt', 'message'].includes(k))
+        Object.entries(context).filter(([k]) => !['description', 'prompt', 'message'].includes(k))
     )
+
+    const exportText = [
+        `Task: ${task.id}`,
+        `Status: ${task.status}  Type: ${task.type}  Source: ${task.source}`,
+        `Created: ${fmt(task.createdAt)}`,
+        `Completed: ${fmt(task.completedAt)}`,
+        `Duration: ${elapsed(task.claimedAt ?? task.createdAt, task.completedAt)}`,
+        task.tokensIn != null ? `Tokens: ${task.tokensIn + (task.tokensOut ?? 0)}` : '',
+        task.costUsd != null ? `Cost: $${task.costUsd.toFixed(5)}` : '',
+        task.qualityScore != null ? `Quality: ${Math.round(task.qualityScore * 100)}%` : '',
+        description ? `\nDescription:\n${description}` : '',
+        task.outcomeSummary ? `\nOutcome:\n${task.outcomeSummary}` : '',
+        Object.keys(contextRest).length > 0 ? `\nContext:\n${JSON.stringify(contextRest, null, 2)}` : '',
+        steps.length > 0
+            ? `\nSteps (${steps.length}):\n${steps.map(s =>
+                `  [${s.stepNumber}] ${s.model ?? ''} ${s.tokensIn != null ? `${s.tokensIn + (s.tokensOut ?? 0)}tok` : ''}\n  ${s.outcome ?? ''}`
+            ).join('\n')}`
+            : '',
+    ].filter(Boolean).join('\n')
 
     return (
         <div className="flex flex-col gap-6 max-w-4xl">
-            {/* Back */}
-            <Link href="/logs" className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors w-fit">
-                <ArrowLeft size={12} /> Back to logs
-            </Link>
-
-            {/* Header */}
-            <div className="flex items-start justify-between gap-4">
-                <div>
-                    <div className="flex items-center gap-3 mb-1">
-                        <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium capitalize ${STATUS_STYLES[task.status] ?? 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>
-                            {task.status}
-                        </span>
-                        <span className="font-mono text-xs text-zinc-500">{task.id}</span>
-                    </div>
-                    <p className="text-lg font-semibold text-zinc-100 leading-snug">
-                        {description?.slice(0, 200) || `${task.type} task`}
-                    </p>
-                </div>
+            {/* Back + copy */}
+            <div className="flex items-center justify-between">
+                <Link href="/logs" className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+                    <ArrowLeft size={12} /> Back to logs
+                </Link>
+                <CopyButton text={exportText} label="Copy log" />
             </div>
 
-            {/* Metrics row */}
+            {/* Header */}
+            <div>
+                <div className="flex items-center gap-3 mb-2">
+                    <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium capitalize ${STATUS_STYLES[task.status] ?? 'bg-zinc-800 text-zinc-500 border-zinc-700'}`}>
+                        {task.status}
+                    </span>
+                    <span className="font-mono text-xs text-zinc-500">{task.id}</span>
+                </div>
+                <p className="text-lg font-semibold text-zinc-100 leading-snug">
+                    {description?.slice(0, 200) || `${task.type} task`}
+                </p>
+            </div>
+
+            {/* Metrics */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                    { label: 'Source', value: task.source, mono: false },
-                    { label: 'Type', value: task.type, mono: false },
-                    { label: 'Duration', value: elapsed(task.claimedAt ?? task.createdAt, task.completedAt), mono: true },
-                    { label: 'Tokens', value: task.tokensIn != null ? `${(task.tokensIn + (task.tokensOut ?? 0)).toLocaleString()}` : '—', mono: true },
-                    { label: 'Cost', value: task.costUsd != null ? `$${task.costUsd.toFixed(5)}` : '—', mono: true },
-                    { label: 'Quality', value: task.qualityScore != null ? `${Math.round(task.qualityScore * 100)}%` : '—', mono: true },
-                    { label: 'Created', value: fmt(task.createdAt), mono: false },
-                    { label: 'Completed', value: fmt(task.completedAt), mono: false },
-                ].map(({ label, value, mono }) => (
+                {([
+                    ['Source', task.source, false],
+                    ['Type', task.type, false],
+                    ['Duration', elapsed(task.claimedAt ?? task.createdAt, task.completedAt), true],
+                    ['Tokens', task.tokensIn != null ? (task.tokensIn + (task.tokensOut ?? 0)).toLocaleString() : '—', true],
+                    ['Cost', task.costUsd != null ? `$${task.costUsd.toFixed(5)}` : '—', true],
+                    ['Quality', task.qualityScore != null ? `${Math.round(task.qualityScore * 100)}%` : '—', true],
+                    ['Created', fmt(task.createdAt), false],
+                    ['Completed', fmt(task.completedAt), false],
+                ] as [string, string, boolean][]).map(([label, value, mono]) => (
                     <div key={label} className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2.5">
                         <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">{label}</p>
                         <p className={`text-sm text-zinc-300 truncate capitalize ${mono ? 'font-mono' : ''}`}>{value}</p>
@@ -122,7 +148,7 @@ export default async function LogDetailPage({ params }: { params: { id: string }
                 ))}
             </div>
 
-            {/* Outcome summary */}
+            {/* Outcome */}
             {task.outcomeSummary && (
                 <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
                     <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-2">Outcome</p>
@@ -141,7 +167,7 @@ export default async function LogDetailPage({ params }: { params: { id: string }
                         </div>
                     )}
                     {Object.keys(contextRest).length > 0 && (
-                        <pre className="text-xs text-zinc-500 bg-zinc-950 rounded p-3 overflow-auto">
+                        <pre className="text-xs text-zinc-500 bg-zinc-950 rounded p-3 overflow-auto max-h-48">
                             {JSON.stringify(contextRest, null, 2)}
                         </pre>
                     )}
@@ -149,31 +175,30 @@ export default async function LogDetailPage({ params }: { params: { id: string }
             )}
 
             {/* Steps */}
-            {task.steps.length > 0 && (
+            {steps.length > 0 && (
                 <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
-                    <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">
-                        Execution steps ({task.steps.length})
-                    </p>
+                    <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-3">Execution steps ({steps.length})</p>
                     <ol className="flex flex-col gap-3">
-                        {task.steps.map((step) => {
-                            const toolCalls = Array.isArray(step.toolCalls) ? step.toolCalls as Array<{ name?: string }> : []
+                        {steps.map((step) => {
+                            const toolCalls = Array.isArray(step.toolCalls)
+                                ? (step.toolCalls as Array<{ name?: string }>)
+                                : []
                             return (
                                 <li key={step.id} className="flex gap-3">
                                     <span className="shrink-0 flex h-5 w-5 items-center justify-center rounded-full border border-zinc-700 bg-zinc-800 text-[10px] font-mono text-zinc-400">
                                         {step.stepNumber}
                                     </span>
                                     <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-1">
+                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                                             {step.model && <span className="text-[10px] font-mono text-zinc-600">{step.model}</span>}
                                             {step.tokensIn != null && (
                                                 <span className="text-[10px] text-zinc-700">
                                                     {(step.tokensIn + (step.tokensOut ?? 0)).toLocaleString()} tok
                                                 </span>
                                             )}
-                                            {toolCalls.length > 0 && (
-                                                <span className="text-[10px] text-violet-600">
-                                                    {toolCalls.map((t) => t.name).filter(Boolean).join(', ')}
-                                                </span>
+                                            {toolCalls.map((t, i) => t.name
+                                                ? <span key={i} className="text-[10px] text-violet-600 bg-violet-950/40 rounded px-1">{t.name}</span>
+                                                : null
                                             )}
                                         </div>
                                         {step.outcome && (
