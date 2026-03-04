@@ -8,24 +8,38 @@ import {
     ShieldCheck,
     Mail,
     Clock,
-    ChevronRight,
-    Save,
+    Link2,
+    Copy,
     Check,
     AlertCircle,
+    UserPlus,
+    Trash2,
+    Crown,
+    Eye,
+    X,
 } from 'lucide-react'
+import { useWorkspace } from '@web/context/workspace'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type UserRole = 'admin' | 'member'
+type MemberRole = 'owner' | 'admin' | 'member' | 'viewer'
 
-interface User {
+interface Member {
     id: string
-    email: string
+    userId: string
+    role: MemberRole
+    joinedAt: string
     name: string | null
-    role: UserRole
-    createdAt: string
+    email: string
+}
+
+interface Invite {
+    token: string
+    inviteUrl: string
+    expiresAt: string
+    role: MemberRole
 }
 
 function timeAgo(iso: string): string {
@@ -37,75 +51,213 @@ function timeAgo(iso: string): string {
     return new Date(iso).toLocaleDateString()
 }
 
-function RoleBadge({ role }: { role: UserRole }) {
-    return (
-        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${role === 'admin'
-                ? 'border-amber-800/50 bg-amber-950/30 text-amber-400'
-                : 'border-zinc-700 bg-zinc-800/50 text-zinc-500'
-            }`}>
-            {role === 'admin' ? <ShieldCheck className="h-3 w-3" /> : <Shield className="h-3 w-3" />}
-            {role}
-        </span>
-    )
-}
-
 function initials(name: string | null, email: string): string {
     if (name) return name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
     return email[0].toUpperCase()
 }
 
+function RoleBadge({ role }: { role: MemberRole }) {
+    const styles: Record<MemberRole, string> = {
+        owner: 'border-yellow-700/50 bg-yellow-950/30 text-yellow-400',
+        admin: 'border-amber-700/50 bg-amber-950/30 text-amber-400',
+        member: 'border-zinc-700 bg-zinc-800/50 text-zinc-400',
+        viewer: 'border-zinc-800 bg-zinc-900 text-zinc-600',
+    }
+    const icons: Record<MemberRole, React.ReactNode> = {
+        owner: <Crown className="h-3 w-3" />,
+        admin: <ShieldCheck className="h-3 w-3" />,
+        member: <Shield className="h-3 w-3" />,
+        viewer: <Eye className="h-3 w-3" />,
+    }
+    return (
+        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${styles[role]}`}>
+            {icons[role]}{role}
+        </span>
+    )
+}
+
+// ── Invite panel ──────────────────────────────────────────────────────────────
+
+function InvitePanel({ workspaceId, onClose }: { workspaceId: string; onClose: () => void }) {
+    const [role, setRole] = useState<MemberRole>('member')
+    const [email, setEmail] = useState('')
+    const [creating, setCreating] = useState(false)
+    const [invite, setInvite] = useState<Invite | null>(null)
+    const [copied, setCopied] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+
+    async function createInvite() {
+        setCreating(true)
+        setError(null)
+        try {
+            // Use first available user as invitedByUserId (placeholder until auth is wired)
+            const usersRes = await fetch(`${API_BASE}/api/users`)
+            const usersData = await usersRes.json() as { items: { id: string }[] }
+            const fallbackUserId = usersData.items?.[0]?.id ?? '00000000-0000-0000-0000-000000000001'
+
+            const res = await fetch(`${API_BASE}/api/workspaces/${workspaceId}/members/invite`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email || undefined, role, invitedByUserId: fallbackUserId }),
+            })
+            if (res.ok) {
+                const data = await res.json() as Invite
+                setInvite(data)
+            } else {
+                const d = await res.json() as { error?: { message?: string } }
+                setError(d.error?.message ?? 'Failed to create invite')
+            }
+        } catch {
+            setError('Network error')
+        } finally {
+            setCreating(false)
+        }
+    }
+
+    function copyLink() {
+        if (!invite) return
+        void navigator.clipboard.writeText(invite.inviteUrl)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+    }
+
+    const roles: MemberRole[] = ['viewer', 'member', 'admin']
+
+    return (
+        <div className="rounded-xl border border-zinc-700/50 bg-zinc-900 p-5 flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm font-medium text-zinc-200">
+                    <Link2 className="h-4 w-4 text-indigo-400" />
+                    Create invite link
+                </div>
+                <button onClick={onClose} className="text-zinc-600 hover:text-zinc-400 transition-colors">
+                    <X className="h-4 w-4" />
+                </button>
+            </div>
+
+            {!invite ? (
+                <>
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-medium text-zinc-400">Email (optional — leave blank for open link)</label>
+                        <input
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="colleague@example.com"
+                            className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                        />
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-medium text-zinc-400">Role</label>
+                        <div className="flex gap-2">
+                            {roles.map((r) => (
+                                <button
+                                    key={r}
+                                    onClick={() => setRole(r)}
+                                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs capitalize transition-all ${role === r
+                                        ? 'border-indigo-500/50 bg-indigo-600/10 text-indigo-300'
+                                        : 'border-zinc-800 text-zinc-500 hover:border-zinc-700'
+                                        }`}
+                                >
+                                    <RoleBadge role={r} />
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {error && (
+                        <div className="flex items-center gap-2 rounded-lg border border-red-800/40 bg-red-950/20 px-3 py-2 text-xs text-red-400">
+                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />{error}
+                        </div>
+                    )}
+
+                    <button
+                        onClick={() => void createInvite()}
+                        disabled={creating}
+                        className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                    >
+                        {creating ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Link2 className="h-3.5 w-3.5" />}
+                        Generate link
+                    </button>
+                </>
+            ) : (
+                <div className="flex flex-col gap-3">
+                    <p className="text-xs text-zinc-500">
+                        Expires {timeAgo(invite.expiresAt)} — share this link with your teammate
+                    </p>
+                    <div className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2">
+                        <span className="flex-1 truncate font-mono text-xs text-zinc-400">{invite.inviteUrl}</span>
+                        <button onClick={copyLink} className="shrink-0 text-zinc-500 hover:text-zinc-300 transition-colors">
+                            {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                        </button>
+                    </div>
+                    <button
+                        onClick={() => setInvite(null)}
+                        className="text-xs text-zinc-600 hover:text-zinc-400 text-left transition-colors"
+                    >
+                        Create another
+                    </button>
+                </div>
+            )}
+        </div>
+    )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function UsersPage() {
-    const [users, setUsers] = useState<User[]>([])
+    const { workspaceId: ctxWorkspaceId } = useWorkspace()
+    const WS_ID = ctxWorkspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
+
+    const [members, setMembers] = useState<Member[]>([])
     const [loading, setLoading] = useState(true)
-    const [selected, setSelected] = useState<User | null>(null)
-    const [editName, setEditName] = useState('')
-    const [editRole, setEditRole] = useState<UserRole>('member')
+    const [selected, setSelected] = useState<Member | null>(null)
+    const [editRole, setEditRole] = useState<MemberRole>('member')
     const [saving, setSaving] = useState(false)
     const [saved, setSaved] = useState(false)
+    const [removing, setRemoving] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [showInvite, setShowInvite] = useState(false)
 
-    const fetchUsers = useCallback(async () => {
+    const fetchMembers = useCallback(async () => {
+        if (!WS_ID) return
         setLoading(true)
         try {
-            const res = await fetch(`${API_BASE}/api/users`)
+            const res = await fetch(`${API_BASE}/api/workspaces/${WS_ID}/members`)
             if (res.ok) {
-                const data = await res.json() as { items: User[] }
-                setUsers(data.items ?? [])
+                const data = await res.json() as { items: Member[] }
+                setMembers(data.items ?? [])
             }
         } finally {
             setLoading(false)
         }
-    }, [])
+    }, [WS_ID])
 
-    useEffect(() => { void fetchUsers() }, [fetchUsers])
+    useEffect(() => { void fetchMembers() }, [fetchMembers])
 
-    function selectUser(user: User) {
-        setSelected(user)
-        setEditName(user.name ?? '')
-        setEditRole(user.role)
+    function selectMember(m: Member) {
+        setSelected(m)
+        setEditRole(m.role)
         setError(null)
         setSaved(false)
     }
 
-    async function handleSave() {
-        if (!selected) return
+    async function handleSaveRole() {
+        if (!selected || !WS_ID) return
         setSaving(true)
         setError(null)
         try {
-            const res = await fetch(`${API_BASE}/api/users/${selected.id}`, {
+            const res = await fetch(`${API_BASE}/api/workspaces/${WS_ID}/members/${selected.userId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: editName || undefined, role: editRole }),
+                body: JSON.stringify({ role: editRole }),
             })
             if (res.ok) {
                 setSaved(true)
                 setTimeout(() => setSaved(false), 2000)
-                setUsers((prev) => prev.map((u) =>
-                    u.id === selected.id ? { ...u, name: editName || null, role: editRole } : u
-                ))
-                setSelected((s) => s ? { ...s, name: editName || null, role: editRole } : s)
+                setMembers((prev) => prev.map((m) => m.userId === selected.userId ? { ...m, role: editRole } : m))
+                setSelected((s) => s ? { ...s, role: editRole } : s)
             } else {
                 const d = await res.json() as { error?: { message?: string } }
                 setError(d.error?.message ?? 'Save failed')
@@ -115,86 +267,118 @@ export default function UsersPage() {
         }
     }
 
-    const adminCount = users.filter((u) => u.role === 'admin').length
+    async function handleRemove() {
+        if (!selected || !WS_ID) return
+        if (!confirm(`Remove ${selected.name ?? selected.email} from this workspace?`)) return
+        setRemoving(true)
+        try {
+            const res = await fetch(`${API_BASE}/api/workspaces/${WS_ID}/members/${selected.userId}`, { method: 'DELETE' })
+            if (res.ok) {
+                setMembers((prev) => prev.filter((m) => m.userId !== selected.userId))
+                setSelected(null)
+            } else {
+                const d = await res.json() as { error?: { message?: string } }
+                setError(d.error?.message ?? 'Remove failed')
+            }
+        } finally {
+            setRemoving(false)
+        }
+    }
+
+    const ownerCount = members.filter((m) => m.role === 'owner').length
+
+    if (!WS_ID) {
+        return (
+            <div className="flex items-center justify-center py-20 text-sm text-zinc-500">
+                No workspace selected. Choose a workspace from the sidebar.
+            </div>
+        )
+    }
 
     return (
-        <div className="flex flex-col gap-6 h-full">
+        <div className="flex flex-col gap-6">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-xl font-bold text-zinc-50">Users</h1>
+                    <h1 className="text-xl font-bold text-zinc-50">Members</h1>
                     <p className="mt-0.5 text-sm text-zinc-500">
-                        {users.length} user{users.length !== 1 ? 's' : ''} · {adminCount} admin{adminCount !== 1 ? 's' : ''}
+                        {members.length} member{members.length !== 1 ? 's' : ''} in this workspace
                     </p>
                 </div>
-                <button
-                    onClick={() => void fetchUsers()}
-                    disabled={loading}
-                    className="rounded-lg border border-zinc-800 bg-zinc-900 p-2 text-zinc-500 hover:text-zinc-300 transition-colors"
-                >
-                    <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setShowInvite((v) => !v)}
+                        className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors"
+                    >
+                        <UserPlus className="h-3.5 w-3.5" />
+                        Invite
+                    </button>
+                    <button
+                        onClick={() => void fetchMembers()}
+                        disabled={loading}
+                        className="rounded-lg border border-zinc-800 bg-zinc-900 p-2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                    >
+                        <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+                    </button>
+                </div>
             </div>
 
-            {/* Two-panel */}
+            {/* Invite panel */}
+            {showInvite && <InvitePanel workspaceId={WS_ID} onClose={() => setShowInvite(false)} />}
+
+            {/* Two-panel layout */}
             <div className="flex gap-4 flex-1 min-h-0">
-                {/* Left — user list */}
+                {/* Left — member list */}
                 <div className="w-[260px] shrink-0 flex flex-col gap-1 overflow-y-auto">
                     {loading ? (
                         <div className="flex items-center justify-center py-12 text-sm text-zinc-600">
                             <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Loading…
                         </div>
-                    ) : users.length === 0 ? (
+                    ) : members.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-12 gap-2 text-sm text-zinc-600">
                             <Users className="h-6 w-6 text-zinc-700" />
-                            No users found
+                            No members yet
                         </div>
-                    ) : users.map((user) => {
-                        const active = selected?.id === user.id
+                    ) : members.map((m) => {
+                        const active = selected?.userId === m.userId
                         return (
                             <button
-                                key={user.id}
-                                onClick={() => selectUser(user)}
+                                key={m.userId}
+                                onClick={() => selectMember(m)}
                                 className={`text-left rounded-xl border p-3 transition-all ${active
-                                        ? 'border-indigo-500/50 bg-zinc-900'
-                                        : 'border-zinc-800 bg-zinc-900/40 hover:border-zinc-700'
+                                    ? 'border-indigo-500/50 bg-zinc-900'
+                                    : 'border-zinc-800 bg-zinc-900/40 hover:border-zinc-700'
                                     }`}
                             >
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2.5">
-                                        {/* Avatar */}
-                                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600/20 text-xs font-bold text-indigo-400 shrink-0">
-                                            {initials(user.name, user.email)}
-                                        </div>
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-medium text-zinc-200 truncate max-w-[130px]">
-                                                {user.name ?? user.email.split('@')[0]}
-                                            </p>
-                                            <p className="text-[10px] text-zinc-600 truncate max-w-[130px]">{user.email}</p>
-                                        </div>
+                                <div className="flex items-center gap-2.5">
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600/20 text-xs font-bold text-indigo-400 shrink-0">
+                                        {initials(m.name, m.email)}
                                     </div>
-                                    <div className="flex items-center gap-1.5 shrink-0">
-                                        <RoleBadge role={user.role} />
-                                        {active && <ChevronRight className="h-3.5 w-3.5 text-zinc-600" />}
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-medium text-zinc-200 truncate">
+                                            {m.name ?? m.email.split('@')[0]}
+                                        </p>
+                                        <p className="text-[10px] text-zinc-600 truncate">{m.email}</p>
                                     </div>
+                                    <RoleBadge role={m.role} />
                                 </div>
                             </button>
                         )
                     })}
                 </div>
 
-                {/* Right — user detail / edit */}
+                {/* Right — member detail */}
                 <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-y-auto">
                     {!selected ? (
-                        <div className="flex h-full items-center justify-center">
+                        <div className="flex h-full items-center justify-center py-20">
                             <div className="text-center">
                                 <Users className="mx-auto mb-3 h-8 w-8 text-zinc-700" />
-                                <p className="text-sm text-zinc-500">Select a user to view details</p>
+                                <p className="text-sm text-zinc-500">Select a member to manage their access</p>
                             </div>
                         </div>
                     ) : (
                         <div className="p-5 flex flex-col gap-5">
-                            {/* User header */}
+                            {/* Member header */}
                             <div className="flex items-center gap-4 pb-4 border-b border-zinc-800">
                                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600/20 text-xl font-bold text-indigo-400">
                                     {initials(selected.name, selected.email)}
@@ -209,77 +393,77 @@ export default function UsersPage() {
                                     </div>
                                     <div className="flex items-center gap-1.5 mt-0.5">
                                         <Clock className="h-3.5 w-3.5 text-zinc-600" />
-                                        <span className="text-xs text-zinc-600">Joined {timeAgo(selected.createdAt)}</span>
+                                        <span className="text-xs text-zinc-600">Joined {timeAgo(selected.joinedAt)}</span>
                                     </div>
                                 </div>
-                                <div className="ml-auto">
-                                    <RoleBadge role={selected.role} />
-                                </div>
+                                <div className="ml-auto"><RoleBadge role={selected.role} /></div>
                             </div>
 
-                            {/* Edit fields */}
-                            <div className="flex flex-col gap-4">
+                            {/* Role editor */}
+                            {selected.role !== 'owner' && (
                                 <div className="flex flex-col gap-1.5">
-                                    <label className="text-sm font-medium text-zinc-300">Display name</label>
-                                    <input
-                                        type="text"
-                                        value={editName}
-                                        onChange={(e) => setEditName(e.target.value)}
-                                        placeholder={selected.email.split('@')[0]}
-                                        className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
-                                    />
-                                </div>
-
-                                <div className="flex flex-col gap-1.5">
-                                    <label className="text-sm font-medium text-zinc-300">Role</label>
-                                    <div className="flex gap-2">
-                                        {(['member', 'admin'] as UserRole[]).map((r) => (
+                                    <label className="text-sm font-medium text-zinc-300">Workspace role</label>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {(['viewer', 'member', 'admin'] as MemberRole[]).map((r) => (
                                             <button
                                                 key={r}
                                                 onClick={() => setEditRole(r)}
                                                 className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all ${editRole === r
-                                                        ? 'border-indigo-500/50 bg-indigo-600/10 text-indigo-300'
-                                                        : 'border-zinc-800 text-zinc-500 hover:border-zinc-700'
+                                                    ? 'border-indigo-500/50 bg-indigo-600/10 text-indigo-300'
+                                                    : 'border-zinc-800 text-zinc-500 hover:border-zinc-700'
                                                     }`}
                                             >
-                                                {r === 'admin' ? <ShieldCheck className="h-4 w-4" /> : <Shield className="h-4 w-4" />}
-                                                <span className="capitalize">{r}</span>
+                                                <RoleBadge role={r} />
                                             </button>
                                         ))}
                                     </div>
-                                    {editRole === 'admin' && (
-                                        <p className="text-xs text-amber-500/80">Admins can manage workspace settings, users, and channels.</p>
-                                    )}
+                                    <p className="text-xs text-zinc-600">
+                                        {editRole === 'admin' && 'Can manage workspace settings, channels, and members.'}
+                                        {editRole === 'member' && 'Can create tasks and view all workspace data.'}
+                                        {editRole === 'viewer' && 'Read-only access to workspace data.'}
+                                    </p>
                                 </div>
-                            </div>
+                            )}
 
-                            {/* User ID */}
+                            {selected.role === 'owner' && (
+                                <div className="rounded-lg border border-yellow-800/30 bg-yellow-950/10 px-3 py-2.5 text-xs text-yellow-500/80">
+                                    Workspace owner — role cannot be changed here. Transfer ownership in Settings &gt; Workspace.
+                                </div>
+                            )}
+
+                            {/* Member ID */}
                             <div className="rounded-lg bg-zinc-950 px-3 py-2 flex items-center justify-between">
                                 <span className="text-xs text-zinc-600">User ID</span>
-                                <span className="font-mono text-[11px] text-zinc-500">{selected.id}</span>
+                                <span className="font-mono text-[11px] text-zinc-500">{selected.userId}</span>
                             </div>
 
                             {error && (
                                 <div className="flex items-center gap-2 rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2.5 text-sm text-red-400">
-                                    <AlertCircle className="h-4 w-4 shrink-0" />
-                                    {error}
+                                    <AlertCircle className="h-4 w-4 shrink-0" />{error}
                                 </div>
                             )}
 
                             <div className="flex items-center gap-2 pt-1">
-                                <button
-                                    onClick={() => void handleSave()}
-                                    disabled={saving}
-                                    className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
-                                >
-                                    {saving
-                                        ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                        : saved
-                                            ? <Check className="h-3.5 w-3.5 text-emerald-400" />
-                                            : <Save className="h-3.5 w-3.5" />
-                                    }
-                                    {saved ? 'Saved' : 'Save changes'}
-                                </button>
+                                {selected.role !== 'owner' && (
+                                    <>
+                                        <button
+                                            onClick={() => void handleSaveRole()}
+                                            disabled={saving || editRole === selected.role}
+                                            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                                        >
+                                            {saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : saved ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : null}
+                                            {saved ? 'Saved' : 'Save role'}
+                                        </button>
+                                        <button
+                                            onClick={() => void handleRemove()}
+                                            disabled={removing || ownerCount === members.length}
+                                            className="flex items-center gap-1.5 rounded-lg border border-red-800/40 bg-red-950/20 px-3 py-2 text-sm text-red-400 hover:bg-red-950/40 disabled:opacity-50 transition-colors"
+                                        >
+                                            {removing ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                            Remove
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
                     )}

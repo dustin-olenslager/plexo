@@ -12,6 +12,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [0.8.0-dev] — 2026-03-04 (Phase 11 — Workspace membership + invites)
+
+### Added
+- **`workspace_members` table** — join table with `(workspace_id, user_id)` unique composite; roles: owner / admin / member / viewer; migration 0007 DDL + backfill (existing workspace owners inserted as `owner` role)
+- **`workspace_invites` table** — stores invite tokens (48-char hex), optional target email, role, 7-day expiry; tracks `used_at` / `used_by_user_id`
+- **`GET /api/workspaces/:id/members`** — lists members with user name + email joined from `users`
+- **`POST /api/workspaces/:id/members`** — adds existing user by email (upserts role on conflict)
+- **`PATCH /api/workspaces/:id/members/:userId`** — updates role (owner not assignable via API)
+- **`DELETE /api/workspaces/:id/members/:userId`** — removes member; prevents removing workspace owner
+- **`POST /api/workspaces/:id/members/invite`** — generates a 7-day invite link; returns `{ token, inviteUrl, expiresAt }`
+- **`GET /api/invites/:token`** — returns invite metadata (workspace name, role, expiry); 404/410 on invalid/used/expired
+- **`POST /api/invites/:token/accept`** — marks invite used and upserts member; requires `userId`
+- **`/invite/[token]` page** — self-contained accept flow: shows workspace name + role, one-click join, redirects to dashboard on success
+- **Settings → Members page** — replaced global user list with workspace-scoped member list; per-member role selector (viewer/member/admin), remove button, inline invite panel with link copy
+- **E2E tests (+4)** — members list returns items, POST requires email, GET invite 404 on unknown token, POST accept requires userId (37/37 passing)
+
+### Changed
+- Settings → Users renamed to **Members** (workspace-scoped view)
+- All dashboard pages now read workspace from `WorkspaceContext` instead of build-time `NEXT_PUBLIC_DEFAULT_WORKSPACE` constant (11 files refactored)
+
+---
+
 ## [0.7.0-dev] — 2026-03-04 (Phase 7C — Workspace management)
 
 ### Added

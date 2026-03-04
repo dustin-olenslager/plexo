@@ -21,6 +21,8 @@ import { aiProvidersRouter } from './routes/ai-providers.js'
 import { channelsRouter } from './routes/channels.js'
 import { cronRouter } from './routes/cron.js'
 import { usersRouter } from './routes/users.js'
+import { membersRouter, invitesRouter } from './routes/members.js'
+
 import { debugRouter } from './routes/debug.js'
 import { chatRouter } from './routes/chat.js'
 import { traceMiddleware } from './middleware/trace.js'
@@ -67,6 +69,8 @@ v1.use('/settings/ai-providers', aiProvidersRouter)
 v1.use('/channels', channelsRouter)
 v1.use('/cron', cronRouter)
 v1.use('/users', usersRouter)
+v1.use('/workspaces/:id/members', membersRouter)
+v1.use('/invites', invitesRouter)
 v1.use('/debug', debugRouter)
 v1.use('/chat', chatRouter)
 

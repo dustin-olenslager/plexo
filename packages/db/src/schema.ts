@@ -18,6 +18,7 @@ import { sql } from 'drizzle-orm'
 // ── Enums ────────────────────────────────────────────────────────
 
 export const userRoleEnum = pgEnum('user_role', ['admin', 'member'])
+export const memberRoleEnum = pgEnum('member_role', ['owner', 'admin', 'member', 'viewer'])
 
 export const channelTypeEnum = pgEnum('channel_type', [
     'telegram',
@@ -500,3 +501,41 @@ export const agentImprovementLog = pgTable('agent_improvement_log', {
     index('agent_improvement_log_workspace_idx').on(table.workspaceId),
 ])
 
+// ── Phase 11 — Workspace membership + invites ─────────────────────────────────
+
+export const workspaceMembers = pgTable('workspace_members', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+        .notNull()
+        .references(() => users.id, { onDelete: 'cascade' }),
+    role: memberRoleEnum('role').default('member').notNull(),
+    invitedByUserId: uuid('invited_by_user_id').references(() => users.id),
+    joinedAt: timestamp('joined_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    uniqueIndex('workspace_members_workspace_user_idx').on(table.workspaceId, table.userId),
+    index('workspace_members_workspace_idx').on(table.workspaceId),
+    index('workspace_members_user_idx').on(table.userId),
+])
+
+export const workspaceInvites = pgTable('workspace_invites', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    token: text('token').notNull().unique(),
+    invitedEmail: text('invited_email'),
+    role: memberRoleEnum('role').default('member').notNull(),
+    invitedByUserId: uuid('invited_by_user_id')
+        .notNull()
+        .references(() => users.id),
+    expiresAt: timestamp('expires_at', { mode: 'date' }).notNull(),
+    usedAt: timestamp('used_at', { mode: 'date' }),
+    usedByUserId: uuid('used_by_user_id').references(() => users.id),
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    uniqueIndex('workspace_invites_token_idx').on(table.token),
+    index('workspace_invites_workspace_idx').on(table.workspaceId),
+])

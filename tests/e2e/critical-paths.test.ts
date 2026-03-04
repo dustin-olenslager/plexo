@@ -304,3 +304,47 @@ test.describe('Dashboard', () => {
     await expect(page.locator('input[type="email"], input[name="email"]')).toBeVisible()
   })
 })
+
+// ── Members API ───────────────────────────────────────────────────────────────
+
+test.describe('Members API', () => {
+  const FAKE_WS_ID = '00000000-0000-0000-0000-000000000001'
+
+  test('GET /api/workspaces/:id/members returns items array', async ({ request }) => {
+    // Use the first real workspace if available
+    const wsRes = await request.get(`${API_URL}/api/workspaces`)
+    if (!wsRes.ok) return // skip if no workspaces
+    const wsData = await wsRes.json() as { items: { id: string }[] }
+    if (!wsData.items?.length) return
+    const wsId = wsData.items[0].id
+
+    const res = await request.get(`${API_URL}/api/workspaces/${wsId}/members`)
+    expect(res.status()).toBe(200)
+    const body = await res.json() as { items: unknown[]; total: number }
+    expect(Array.isArray(body.items)).toBe(true)
+    expect(body.items.length).toBeGreaterThan(0) // backfill ensures at least owner
+  })
+
+  test('POST /api/workspaces/:id/members requires email', async ({ request }) => {
+    const res = await request.post(`${API_URL}/api/workspaces/${FAKE_WS_ID}/members`, {
+      data: { role: 'member' },
+    })
+    expect(res.status()).toBe(400)
+    const body = await res.json() as { error: { code: string } }
+    expect(body.error.code).toBe('MISSING_EMAIL')
+  })
+
+  test('GET /api/invites/:token returns 404 for unknown token', async ({ request }) => {
+    const res = await request.get(`${API_URL}/api/invites/notarealtoken`)
+    expect(res.status()).toBe(404)
+  })
+
+  test('POST /api/invites/:token/accept requires userId', async ({ request }) => {
+    const res = await request.post(`${API_URL}/api/invites/notarealtoken/accept`, {
+      data: {},
+    })
+    expect(res.status()).toBe(400)
+    const body = await res.json() as { error: { code: string } }
+    expect(body.error.code).toBe('MISSING_USER')
+  })
+})
