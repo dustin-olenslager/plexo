@@ -57,14 +57,20 @@ function IntegrationCard({
     const [open, setOpen] = useState(false)
     const [creds, setCreds] = useState<Record<string, string>>({})
     const [pending, startTransition] = useTransition()
+    const [installError, setInstallError] = useState<string | null>(null)
 
     const hasSetupFields = (item.setup_fields ?? []).length > 0
 
     async function handleInstall() {
+        setInstallError(null)
         startTransition(async () => {
-            await onInstall(item, creds)
-            setOpen(false)
-            setCreds({})
+            try {
+                await onInstall(item, creds)
+                setOpen(false)
+                setCreds({})
+            } catch (err: unknown) {
+                setInstallError(err instanceof Error ? err.message : 'Install failed')
+            }
         })
     }
 
@@ -147,6 +153,9 @@ function IntegrationCard({
                             ))}
                         </div>
                     )}
+                    {installError && (
+                        <p className="mt-2 text-[11px] text-red-400">{installError}</p>
+                    )}
                     <button
                         onClick={hasSetupFields ? (open ? handleInstall : () => setOpen(true)) : handleInstall}
                         disabled={pending}
@@ -192,6 +201,9 @@ export default function MarketplaceClient({
         if (res.ok) {
             const data = await res.json() as { id: string }
             setInstalled((prev) => [...prev, { id: data.id, registryId: item.id, name: item.name, status: 'active' }])
+        } else {
+            const err = await res.json().catch(() => ({}))
+            throw new Error((err as { error?: { message?: string } }).error?.message ?? 'Install failed')
         }
     }
 

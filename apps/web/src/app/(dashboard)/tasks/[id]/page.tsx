@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { CheckCircle, Clock, XCircle, Loader2, ChevronLeft, Terminal } from 'lucide-react'
 import Link from 'next/link'
+import { CancelButton } from './_cancel-button'
 
 interface TaskStep {
     id: string
@@ -57,16 +58,21 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
 
     return (
         <div className="flex flex-col gap-6 max-w-4xl">
-            <div className="flex items-center gap-3">
-                <Link href="/tasks" className="text-zinc-500 hover:text-zinc-300 transition-colors">
-                    <ChevronLeft className="h-4 w-4" />
-                </Link>
-                <div className="flex items-center gap-2">
-                    {icon}
-                    <h1 className="text-lg font-bold text-zinc-50 font-mono">{task.id.slice(0, 8)}…</h1>
-                    <span className="rounded bg-zinc-800 px-2 py-0.5 text-[10px] capitalize text-zinc-400">{task.type}</span>
-                    <span className="rounded bg-zinc-800/50 px-2 py-0.5 text-[10px] text-zinc-500">{task.source}</span>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <Link href="/tasks" className="text-zinc-500 hover:text-zinc-300 transition-colors">
+                        <ChevronLeft className="h-4 w-4" />
+                    </Link>
+                    <div className="flex items-center gap-2">
+                        {icon}
+                        <h1 className="text-lg font-bold text-zinc-50 font-mono">{task.id.slice(0, 8)}…</h1>
+                        <span className="rounded bg-zinc-800 px-2 py-0.5 text-[10px] capitalize text-zinc-400">{task.type}</span>
+                        <span className="rounded bg-zinc-800/50 px-2 py-0.5 text-[10px] text-zinc-500">{task.source}</span>
+                    </div>
                 </div>
+                {(task.status === 'pending' || task.status === 'running') && (
+                    <CancelButton taskId={task.id} />
+                )}
             </div>
 
             {/* Meta grid */}

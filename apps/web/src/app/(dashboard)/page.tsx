@@ -1,10 +1,25 @@
+import { redirect } from 'next/navigation'
 import { LiveDashboard } from './_components/live-dashboard'
 import { QuickSend } from './_components/quick-send'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export default function HomePage() {
+async function isFirstRun(): Promise<boolean> {
+    const apiBase = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'
+    try {
+        const res = await fetch(`${apiBase}/api/workspaces`, { cache: 'no-store', signal: AbortSignal.timeout(2000) })
+        if (!res.ok) return false
+        const data = await res.json() as { items?: unknown[] }
+        return (data.items?.length ?? 0) === 0
+    } catch {
+        return false // API unreachable — let dashboard render and fail gracefully
+    }
+}
+
+export default async function HomePage() {
+    if (await isFirstRun()) redirect('/setup')
+
     return (
         <div>
             {/* Header */}
