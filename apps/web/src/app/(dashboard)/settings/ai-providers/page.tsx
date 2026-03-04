@@ -240,7 +240,7 @@ export default function AIProvidersPage() {
         setTesting(true)
         updateState(selectedProvider, { testResult: null })
         try {
-            const res = await fetch('/api/settings/ai-providers/test', {
+            const res = await fetch(`${API_BASE}/api/settings/ai-providers/test`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

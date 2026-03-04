@@ -49,10 +49,32 @@ export function emit(event: AgentEvent): void {
             }
         }
     }
+    notifyInternal(event)
 }
 
 export function connectedCount(): number {
     let total = 0
     for (const workspace of clients.values()) total += workspace.size
     return total
+}
+
+// ── Internal event bus (for non-SSE subscribers like Telegram adapter) ────────
+
+type InternalHandler = (event: AgentEvent) => void
+const internalHandlers: InternalHandler[] = []
+
+/** Register a handler that receives every emitted event (all workspaces) */
+export function onAgentEvent(handler: InternalHandler): () => void {
+    internalHandlers.push(handler)
+    return () => {
+        const i = internalHandlers.indexOf(handler)
+        if (i !== -1) internalHandlers.splice(i, 1)
+    }
+}
+
+/** Call this inside emit/emitToWorkspace after broadcasting to SSE clients */
+function notifyInternal(event: AgentEvent): void {
+    for (const h of internalHandlers) {
+        try { h(event) } catch { /* non-fatal */ }
+    }
 }

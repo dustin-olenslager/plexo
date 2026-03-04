@@ -2,28 +2,26 @@
  * Telegram channel adapter.
  *
  * Architecture:
- * - Production: receives messages via webhook (registered at startup via PUBLIC_URL)
- * - Local dev: falls back to long polling (getUpdates loop)
- * - Each message creates a task in the queue and acknowledges via reply
+ * - Production: webhook (registered via PUBLIC_URL at startup)
+ * - Local dev: long polling (getUpdates loop, no public URL needed)
  *
- * Setup:
- * - Set TELEGRAM_BOT_TOKEN env var (or connect via Channels UI)
- * - Set TELEGRAM_WEBHOOK_SECRET for webhook request validation (prod only)
- * - Webhook URL: ${PUBLIC_URL}/api/channels/telegram/webhook
+ * Message routing:
+ * - Conversational messages → direct AI reply (no task queued)
+ * - Task requests → queued, agent executes, replies when done
  */
 
 import { Router, type Router as RouterType, type Request, type Response } from 'express'
 import { pushTask } from '@plexo/queue'
 import { logger } from '../logger.js'
-import { emitToWorkspace } from '../sse-emitter.js'
+import { emitToWorkspace, onAgentEvent } from '../sse-emitter.js'
 import { db, eq } from '@plexo/db'
-import { channels } from '@plexo/db'
+import { channels, workspaces, installedConnections } from '@plexo/db'
 
 export const telegramRouter: RouterType = Router()
 
-const API_BASE = 'https://api.telegram.org/bot'
+const TELEGRAM_API = 'https://api.telegram.org/bot'
+const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
 
-// Resolved at init — may come from env or DB
 let _botToken: string | null = null
 let _webhookSecret: string | null = null
 
@@ -31,31 +29,89 @@ let _webhookSecret: string | null = null
 
 async function sendMessage(chatId: number | string, text: string): Promise<void> {
     if (!_botToken) return
-    await fetch(`${API_BASE}${_botToken}/sendMessage`, {
+    await fetch(`${TELEGRAM_API}${_botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'Markdown' }),
     }).catch((err: Error) => logger.warn({ err }, 'Telegram sendMessage failed'))
 }
 
+async function sendTyping(chatId: number | string): Promise<void> {
+    if (!_botToken) return
+    await fetch(`${TELEGRAM_API}${_botToken}/sendChatAction`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, action: 'typing' }),
+    }).catch(() => null)
+}
+
 async function setWebhook(url: string, secret: string): Promise<void> {
     if (!_botToken) return
-    const res = await fetch(`${API_BASE}${_botToken}/setWebhook`, {
+    const res = await fetch(`${TELEGRAM_API}${_botToken}/setWebhook`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, secret_token: secret }),
     })
     const data = await res.json() as { ok: boolean; description?: string }
-    if (data.ok) {
-        logger.info({ url }, 'Telegram webhook registered')
-    } else {
-        logger.error({ description: data.description }, 'Telegram webhook registration failed')
-    }
+    if (data.ok) logger.info({ url }, 'Telegram webhook registered')
+    else logger.error({ description: data.description }, 'Telegram webhook registration failed')
 }
 
 async function deleteWebhook(): Promise<void> {
     if (!_botToken) return
-    await fetch(`${API_BASE}${_botToken}/deleteWebhook`, { method: 'POST' }).catch(() => null)
+    await fetch(`${TELEGRAM_API}${_botToken}/deleteWebhook`, { method: 'POST' }).catch(() => null)
+}
+
+// ── AI helpers ───────────────────────────────────────────────────────────────
+
+async function resolveApiKey(workspaceId: string): Promise<string | null> {
+    if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY
+    try {
+        const [ws] = await db.select({ settings: workspaces.settings }).from(workspaces)
+            .where(eq(workspaces.id, workspaceId)).limit(1)
+        const providers = (ws?.settings as {
+            aiProviders?: { providers?: Record<string, { apiKey?: string }> }
+        } | null)?.aiProviders?.providers ?? {}
+        for (const p of ['anthropic', ...Object.keys(providers)]) {
+            const k = providers[p]?.apiKey; if (k) return k
+        }
+    } catch { /* ignore */ }
+    try {
+        const rows = await db.select({ credentials: installedConnections.credentials })
+            .from(installedConnections).where(eq(installedConnections.workspaceId, workspaceId))
+        for (const row of rows) {
+            const creds = row.credentials as Record<string, string> | null
+            const k = creds?.api_key ?? creds?.apiKey; if (k) return k
+        }
+    } catch { /* ignore */ }
+    return null
+}
+
+interface ChatMessage { role: 'user' | 'assistant'; content: string }
+
+async function chatWithAI(apiKey: string, messages: ChatMessage[], system?: string): Promise<string | null> {
+    try {
+        const res = await fetch(ANTHROPIC_URL, {
+            method: 'POST',
+            headers: {
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: 'claude-sonnet-4-5',
+                max_tokens: 1024,
+                system: system ?? 'You are Plexo, an AI agent assistant.',
+                messages,
+            }),
+            signal: AbortSignal.timeout(30_000),
+        })
+        const data = await res.json() as { content?: Array<{ text: string }> }
+        return data.content?.[0]?.text ?? null
+    } catch (err) {
+        logger.warn({ err }, 'AI chat call failed')
+        return null
+    }
 }
 
 // ── Workspace resolver ───────────────────────────────────────────────────────
@@ -67,37 +123,52 @@ export function registerTelegramChat(chatId: string, workspaceId: string): void 
 }
 
 async function resolveWorkspace(chatId: string): Promise<string | null> {
-    // 1. In-memory registry (set via registerTelegramChat or previous DB lookup)
     if (CHAT_TO_WORKSPACE.has(chatId)) return CHAT_TO_WORKSPACE.get(chatId)!
-
-    // 2. Env fallback for single-workspace setups
     if (process.env.DEFAULT_WORKSPACE_ID) return process.env.DEFAULT_WORKSPACE_ID
-
-    // 3. Look up first enabled Telegram channel in DB
     try {
         const [ch] = await db.select({ workspaceId: channels.workspaceId })
-            .from(channels)
-            .where(eq(channels.type, 'telegram'))
-            .limit(1)
+            .from(channels).where(eq(channels.type, 'telegram')).limit(1)
         if (ch?.workspaceId) {
             CHAT_TO_WORKSPACE.set(chatId, ch.workspaceId)
             return ch.workspaceId
         }
-    } catch (err) {
-        logger.warn({ err }, 'Telegram workspace DB lookup failed')
-    }
-
+    } catch (err) { logger.warn({ err }, 'Telegram workspace DB lookup failed') }
     return null
 }
 
-// ── Shared message handler ───────────────────────────────────────────────────
+// ── Intent classification ────────────────────────────────────────────────────
+
+const CLASSIFY_SYSTEM = `You are an intent classifier for an AI agent called Plexo.
+Decide if the user's message is a TASK REQUEST or CONVERSATION.
+
+TASK: requires autonomous execution — create, write, fix, research, build, deploy, analyze, automate, schedule, etc.
+CONVERSATION: greetings, status checks, questions about you, small talk, thanks, clarifications.
+
+Reply with ONLY one word: TASK or CONVERSATION.`
+
+async function classifyIntent(apiKey: string, text: string): Promise<'TASK' | 'CONVERSATION'> {
+    const reply = await chatWithAI(apiKey, [{ role: 'user', content: text }], CLASSIFY_SYSTEM)
+    return reply?.trim().toUpperCase().startsWith('TASK') ? 'TASK' : 'CONVERSATION'
+}
+
+// Per-chat conversation history (last 20 messages, in-memory)
+const chatHistory = new Map<string, ChatMessage[]>()
+
+function addToHistory(chatId: string, role: 'user' | 'assistant', content: string): void {
+    const hist = chatHistory.get(chatId) ?? []
+    hist.push({ role, content })
+    if (hist.length > 20) hist.splice(0, hist.length - 20)
+    chatHistory.set(chatId, hist)
+}
+
+// ── Update handler ───────────────────────────────────────────────────────────
 
 interface TelegramUpdate {
     update_id: number
     message?: {
         message_id: number
         from: { id: number; username?: string; first_name?: string }
-        chat: { id: number; type: string; title?: string }
+        chat: { id: number; type: string }
         date: number
         text?: string
     }
@@ -108,25 +179,58 @@ async function handleUpdate(update: TelegramUpdate): Promise<void> {
     if (!msg?.text) return
 
     const chatId = String(msg.chat.id)
-    const workspaceId = await resolveWorkspace(chatId)
+    const text = msg.text.trim()
 
-    if (!workspaceId) {
-        logger.warn({ chatId }, 'Telegram message from unregistered chat — ignored')
+    // /start — always welcome response
+    if (text === '/start') {
         await sendMessage(chatId,
-            '⚠️ This chat is not linked to a Plexo workspace. '
-            + 'Connect via Settings → Channels.')
+            '👋 Hi! I\'m *Plexo*, your AI agent.\n\n'
+            + 'Tell me what you want done — I can research, write, build, automate, and more.\n\n'
+            + 'Just describe the task in plain language.')
         return
     }
 
-    logger.info({ chatId, workspaceId, text: msg.text.slice(0, 80) }, 'Telegram message received')
+    const workspaceId = await resolveWorkspace(chatId)
+    if (!workspaceId) {
+        await sendMessage(chatId, '⚠️ This chat isn\'t linked to a Plexo workspace yet. Connect via Settings → Channels.')
+        return
+    }
 
+    const apiKey = await resolveApiKey(workspaceId)
+    if (!apiKey) {
+        await sendMessage(chatId, '⚠️ No AI provider configured. Add your API key in Settings → AI Providers.')
+        return
+    }
+
+    addToHistory(chatId, 'user', text)
+    await sendTyping(chatId)
+
+    // Classify: is this a task or just conversation?
+    const intent = await classifyIntent(apiKey, text)
+
+    if (intent === 'CONVERSATION') {
+        const history = chatHistory.get(chatId) ?? []
+        const reply = await chatWithAI(
+            apiKey,
+            history,
+            'You are Plexo, a helpful AI agent. Keep replies concise and friendly. '
+            + 'If the user describes something they want done, ask them to confirm so you can execute it as a task.'
+        )
+        const replyText = reply ?? 'Sorry, I couldn\'t reach the AI right now.'
+        addToHistory(chatId, 'assistant', replyText)
+        await sendMessage(chatId, replyText)
+        return
+    }
+
+    // Task — queue and reply when done
+    logger.info({ chatId, workspaceId, text: text.slice(0, 80) }, 'Telegram task queued')
     try {
         const taskId = await pushTask({
             workspaceId,
             type: 'automation',
             source: 'telegram',
             context: {
-                description: msg.text,
+                description: text,
                 channel: 'telegram',
                 chatId,
                 from: msg.from.username ?? msg.from.first_name ?? String(msg.from.id),
@@ -135,14 +239,24 @@ async function handleUpdate(update: TelegramUpdate): Promise<void> {
             priority: 2,
         })
 
-        await sendMessage(chatId, `✅ Task queued (${taskId.slice(0, 8)}…)\n_I'll reply here when it's done._`)
+        await sendMessage(chatId, `⏳ On it… _(${taskId.slice(0, 8)})_`)
 
-        emitToWorkspace(workspaceId, {
-            type: 'task_queued_via_telegram',
-            taskId,
-            chatId,
-            text: msg.text.slice(0, 200),
+        const unsub = onAgentEvent((event) => {
+            if (event.taskId !== taskId) return
+            if (event.type === 'task_complete') {
+                unsub()
+                const result = (event.result as string | undefined) ?? 'Done.'
+                sendMessage(chatId, `✅ ${result}`).catch(() => null)
+                addToHistory(chatId, 'assistant', result)
+            } else if (event.type === 'task_failed' || event.type === 'task_blocked') {
+                unsub()
+                const reason = (event.reason as string | undefined) ?? 'Unknown error'
+                sendMessage(chatId, `❌ ${reason}`).catch(() => null)
+            }
         })
+        setTimeout(() => unsub(), 5 * 60 * 1000)
+
+        emitToWorkspace(workspaceId, { type: 'task_queued_via_telegram', taskId, chatId, text: text.slice(0, 200) })
     } catch (err) {
         logger.error({ err, chatId }, 'Failed to queue Telegram task')
         await sendMessage(chatId, '❌ Failed to queue task. Please try again.')
@@ -158,9 +272,7 @@ telegramRouter.post('/webhook', async (req: Request, res: Response) => {
         res.status(403).json({ error: 'Forbidden' })
         return
     }
-
-    res.json({ ok: true }) // Acknowledge immediately — Telegram needs <1s
-
+    res.json({ ok: true })
     await handleUpdate(req.body as TelegramUpdate)
 })
 
@@ -171,9 +283,7 @@ telegramRouter.get('/info', (_req, res) => {
         configured: !!_botToken,
         webhookSecret: !!_webhookSecret,
         registeredChats: CHAT_TO_WORKSPACE.size,
-        mode: process.env.PUBLIC_URL && !process.env.PUBLIC_URL.includes('localhost')
-            ? 'webhook'
-            : 'polling',
+        mode: process.env.PUBLIC_URL && !process.env.PUBLIC_URL.includes('localhost') ? 'webhook' : 'polling',
     })
 })
 
@@ -184,28 +294,19 @@ let _pollingActive = false
 async function startLongPolling(token: string): Promise<void> {
     if (_pollingActive) return
     _pollingActive = true
-
-    // Clear any existing webhook so polling works
     await deleteWebhook()
     logger.info('Telegram long polling started (local dev mode)')
 
     let offset = 0
-
     while (_pollingActive) {
         try {
             const res = await fetch(
-                `${API_BASE}${token}/getUpdates?timeout=25&offset=${offset}`,
+                `${TELEGRAM_API}${token}/getUpdates?timeout=25&offset=${offset}`,
                 { signal: AbortSignal.timeout(30_000) }
             )
-            if (!res.ok) {
-                await new Promise(r => setTimeout(r, 5000))
-                continue
-            }
+            if (!res.ok) { await new Promise(r => setTimeout(r, 5000)); continue }
             const data = await res.json() as { ok: boolean; result: TelegramUpdate[] }
-            if (!data.ok) {
-                await new Promise(r => setTimeout(r, 5000))
-                continue
-            }
+            if (!data.ok) { await new Promise(r => setTimeout(r, 5000)); continue }
             for (const update of data.result) {
                 offset = update.update_id + 1
                 handleUpdate(update).catch(err => logger.warn({ err }, 'Telegram update handler failed'))
@@ -219,14 +320,11 @@ async function startLongPolling(token: string): Promise<void> {
     }
 }
 
-export function stopTelegramPolling(): void {
-    _pollingActive = false
-}
+export function stopTelegramPolling(): void { _pollingActive = false }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 
 export async function initTelegramWebhook(): Promise<void> {
-    // Prefer env var, fall back to first enabled channel in DB
     const envToken = process.env.TELEGRAM_BOT_TOKEN
     if (envToken) {
         _botToken = envToken
@@ -248,12 +346,10 @@ export async function initTelegramWebhook(): Promise<void> {
 
     const publicUrl = process.env.PUBLIC_URL
     if (publicUrl && !publicUrl.includes('localhost')) {
-        // Production: register webhook
         const secret = _webhookSecret ?? 'plexo-telegram-prod'
         _webhookSecret = secret
         await setWebhook(`${publicUrl}/api/channels/telegram/webhook`, secret)
     } else {
-        // Local dev: long polling
         startLongPolling(_botToken).catch(err => logger.error({ err }, 'Telegram polling crashed'))
     }
 }
