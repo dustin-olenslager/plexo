@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import {
     LayoutDashboard,
     MessageSquare,
+    MessagesSquare,
     CheckSquare,
     FolderOpen,
     Clock,
@@ -42,6 +43,7 @@ const NAV_GROUPS: NavGroup[] = [
         collapsible: false,
         defaultOpen: true,
         items: [
+            { label: 'Chat', href: '/chat', icon: MessagesSquare },
             { label: 'Conversations', href: '/conversations', icon: MessageSquare },
         ],
     },
