@@ -440,6 +440,7 @@ export const installedConnections = pgTable('installed_connections', {
         .references(() => connectionsRegistry.id),
     name: text('name').notNull(),
     credentials: jsonb('credentials').notNull(), // encrypted at rest
+    enabledTools: jsonb('enabled_tools').$type<string[] | null>().default(null), // null = all enabled
     scopesGranted: jsonb('scopes_granted').default('[]').notNull(),
     status: connectionStatusEnum('status').default('active').notNull(),
     lastVerifiedAt: timestamp('last_verified_at', { mode: 'date' }),

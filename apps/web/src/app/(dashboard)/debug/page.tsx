@@ -16,6 +16,8 @@ import {
     ChevronRight,
     Copy,
     Check,
+    Cpu,
+    Play,
 } from 'lucide-react'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -58,8 +60,8 @@ const ROUTE_CHECKS: RouteCheck[] = [
 function ServiceBadge({ name, health }: { name: string; health: ServiceHealth }) {
     return (
         <div className={`flex items-center justify-between rounded-lg border px-3 py-2.5 ${health.ok
-                ? 'border-emerald-800/40 bg-emerald-950/20'
-                : 'border-red-800/40 bg-red-950/20'
+            ? 'border-emerald-800/40 bg-emerald-950/20'
+            : 'border-red-800/40 bg-red-950/20'
             }`}>
             <div className="flex items-center gap-2">
                 {health.ok
@@ -133,6 +135,14 @@ export default function DebugPage() {
     const [sseStatus, setSseStatus] = useState<'connecting' | 'open' | 'closed' | 'error'>('connecting')
     const [sseEvents, setSseEvents] = useState<string[]>([])
     const [envOpen, setEnvOpen] = useState(false)
+    // Snapshot
+    const [snapshot, setSnapshot] = useState<Record<string, unknown> | null>(null)
+    const [snapshotLoading, setSnapshotLoading] = useState(false)
+    // RPC
+    const [rpcMethod, setRpcMethod] = useState('ping')
+    const [rpcParams, setRpcParams] = useState('')
+    const [rpcResult, setRpcResult] = useState<string | null>(null)
+    const [rpcLoading, setRpcLoading] = useState(false)
 
     const fetchHealth = useCallback(async () => {
         setHealthLoading(true)
@@ -169,6 +179,38 @@ export default function DebugPage() {
         )
         setRouteLoading(false)
     }, [])
+
+    const fetchSnapshot = useCallback(async () => {
+        setSnapshotLoading(true)
+        try {
+            const res = await fetch(`${API_BASE}/api/debug/snapshot`)
+            if (res.ok) setSnapshot(await res.json() as Record<string, unknown>)
+        } finally {
+            setSnapshotLoading(false)
+        }
+    }, [])
+
+    async function runRpc() {
+        setRpcLoading(true)
+        setRpcResult(null)
+        try {
+            let params: Record<string, unknown> = {}
+            if (rpcParams.trim()) {
+                try { params = JSON.parse(rpcParams) as Record<string, unknown> } catch { /* ignore bad JSON */ }
+            }
+            const res = await fetch(`${API_BASE}/api/debug/rpc`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ method: rpcMethod, params }),
+            })
+            const json = await res.json() as unknown
+            setRpcResult(JSON.stringify(json, null, 2))
+        } catch (e) {
+            setRpcResult(`Error: ${(e as Error).message}`)
+        } finally {
+            setRpcLoading(false)
+        }
+    }
 
     // Health auto-fetch
     useEffect(() => { void fetchHealth() }, [fetchHealth])
@@ -227,6 +269,29 @@ export default function DebugPage() {
                 </button>
             </div>
 
+            {/* Snapshot panel */}
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                        <Cpu className="h-4 w-4 text-zinc-500" />
+                        <span className="text-sm font-semibold text-zinc-200">Runtime Snapshot</span>
+                    </div>
+                    <button
+                        onClick={() => void fetchSnapshot()}
+                        disabled={snapshotLoading}
+                        className="flex items-center gap-1 text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                    >
+                        <RefreshCw className={`h-3.5 w-3.5 ${snapshotLoading ? 'animate-spin' : ''}`} />
+                        Fetch
+                    </button>
+                </div>
+                {!snapshot ? (
+                    <p className="text-xs text-zinc-600">Click Fetch to load runtime state from /api/debug/snapshot</p>
+                ) : (
+                    <pre className="rounded-lg bg-zinc-950 p-3 text-[11px] font-mono text-zinc-400 overflow-auto max-h-56 whitespace-pre-wrap">{JSON.stringify(snapshot, null, 2)}</pre>
+                )}
+            </div>
+
             <div className="grid grid-cols-2 gap-4 xl:grid-cols-3">
                 {/* Health status card */}
                 <div className="col-span-2 xl:col-span-1 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
@@ -266,10 +331,10 @@ export default function DebugPage() {
                             <span className="text-sm font-semibold text-zinc-200">SSE Stream</span>
                         </div>
                         <div className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${sseStatus === 'open'
-                                ? 'bg-emerald-500/15 text-emerald-400'
-                                : sseStatus === 'connecting'
-                                    ? 'bg-amber-500/15 text-amber-400'
-                                    : 'bg-red-500/15 text-red-400'
+                            ? 'bg-emerald-500/15 text-emerald-400'
+                            : sseStatus === 'connecting'
+                                ? 'bg-amber-500/15 text-amber-400'
+                                : 'bg-red-500/15 text-red-400'
                             }`}>
                             {sseStatus === 'open' ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
                             {sseStatus}
@@ -355,6 +420,46 @@ export default function DebugPage() {
                     </div>
                 )}
             </div>
+
+            {/* RPC console */}
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                    <Terminal className="h-4 w-4 text-zinc-500" />
+                    <span className="text-sm font-semibold text-zinc-200">RPC Console</span>
+                </div>
+                <div className="flex flex-col gap-2">
+                    <div className="flex gap-2">
+                        <select
+                            value={rpcMethod}
+                            onChange={(e) => setRpcMethod(e.target.value)}
+                            className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-300 focus:border-indigo-500 focus:outline-none"
+                        >
+                            {['ping', 'queue.stats', 'memory.list', 'memory.run_improvement', 'agent.status'].map((m) => (
+                                <option key={m} value={m}>{m}</option>
+                            ))}
+                        </select>
+                        <button
+                            onClick={() => void runRpc()}
+                            disabled={rpcLoading}
+                            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
+                        >
+                            <Play className="h-3 w-3" />
+                            {rpcLoading ? 'Running…' : 'Run'}
+                        </button>
+                    </div>
+                    <textarea
+                        value={rpcParams}
+                        onChange={(e) => setRpcParams(e.target.value)}
+                        placeholder='Optional JSON params e.g. {"workspaceId": "..."}'
+                        rows={2}
+                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-mono text-zinc-300 placeholder:text-zinc-700 focus:border-indigo-500 focus:outline-none resize-none"
+                    />
+                    {rpcResult && (
+                        <pre className="rounded-lg bg-zinc-950 p-3 text-[11px] font-mono text-zinc-400 overflow-auto max-h-48 whitespace-pre-wrap">{rpcResult}</pre>
+                    )}
+                </div>
+            </div>
         </div>
     )
 }
+

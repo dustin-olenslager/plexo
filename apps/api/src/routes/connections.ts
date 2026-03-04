@@ -1,12 +1,13 @@
 /**
  * Connections & marketplace API
  *
- * GET  /api/connections/registry              All available integrations
- * GET  /api/connections/registry/:id          Single integration detail
- * GET  /api/connections/installed?workspaceId Installed connections for a workspace
- * POST /api/connections/install               Install a connection
- * PATCH /api/connections/installed/:id        Update settings/credentials
- * DELETE /api/connections/installed/:id       Uninstall
+ * GET    /api/connections/registry              All available integrations
+ * GET    /api/connections/registry/:id          Single integration detail
+ * GET    /api/connections/installed?workspaceId Installed connections for a workspace
+ * POST   /api/connections/install               Install a connection
+ * PATCH  /api/connections/installed/:id         Update settings/credentials/status
+ * PUT    /api/connections/installed/:id/tools   Replace enabled tool list
+ * DELETE /api/connections/installed/:id         Uninstall
  */
 import { Router, type Router as RouterType } from 'express'
 import { db, eq, and } from '@plexo/db'
@@ -63,6 +64,7 @@ connectionsRouter.get('/installed', async (req, res) => {
             registryId: installedConnections.registryId,
             name: installedConnections.name,
             status: installedConnections.status,
+            enabledTools: installedConnections.enabledTools,
             scopesGranted: installedConnections.scopesGranted,
             lastVerifiedAt: installedConnections.lastVerifiedAt,
             createdAt: installedConnections.createdAt,
@@ -151,6 +153,34 @@ connectionsRouter.patch('/installed/:id', async (req, res) => {
     } catch (err: unknown) {
         logger.error({ err, id }, 'PATCH /api/connections/installed/:id failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Update failed' } })
+    }
+})
+
+// ── PUT /api/connections/installed/:id/tools ──────────────────────────────────
+// Replaces the enabled tools list. null enables all tools for this connection.
+
+connectionsRouter.put('/installed/:id/tools', async (req, res) => {
+    const { id } = req.params
+    const { workspaceId, enabledTools } = req.body as {
+        workspaceId?: string
+        enabledTools: string[] | null
+    }
+
+    if (!workspaceId || !UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
+        return
+    }
+
+    try {
+        await db.update(installedConnections)
+            .set({ enabledTools })
+            .where(and(eq(installedConnections.id, id), eq(installedConnections.workspaceId, workspaceId)))
+
+        logger.info({ id, workspaceId, count: enabledTools?.length ?? 'all' }, 'Connection tools updated')
+        res.json({ ok: true })
+    } catch (err: unknown) {
+        logger.error({ err, id }, 'PUT /api/connections/installed/:id/tools failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Tool update failed' } })
     }
 })
 

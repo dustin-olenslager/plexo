@@ -21,6 +21,7 @@ import { aiProvidersRouter } from './routes/ai-providers.js'
 import { channelsRouter } from './routes/channels.js'
 import { cronRouter } from './routes/cron.js'
 import { usersRouter } from './routes/users.js'
+import { debugRouter } from './routes/debug.js'
 import { traceMiddleware } from './middleware/trace.js'
 import { generalLimiter, authLimiter, taskCreationLimiter } from './middleware/rate-limit.js'
 import { startAgentLoop, stopAgentLoop } from './agent-loop.js'
@@ -65,6 +66,7 @@ v1.use('/settings/ai-providers', aiProvidersRouter)
 v1.use('/channels', channelsRouter)
 v1.use('/cron', cronRouter)
 v1.use('/users', usersRouter)
+v1.use('/debug', debugRouter)
 
 v1.get('/agent/status', (_req, res) => {
     res.json({ status: 'idle', currentTask: null, currentModel: null, sessionCount: 0, lastActivity: null })

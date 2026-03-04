@@ -15,12 +15,18 @@ import {
     Trash2,
     ChevronRight,
     Search,
+    ToggleLeft,
+    ToggleRight,
+    Settings,
+    Wrench,
+    LayoutDashboard,
 } from 'lucide-react'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type AuthType = 'oauth2' | 'api_key' | 'webhook' | 'none'
 type ConnectionStatus = 'active' | 'disconnected' | 'error'
+type DetailTab = 'overview' | 'tools' | 'config'
 
 interface SetupField {
     key: string
@@ -37,417 +43,569 @@ interface RegistryItem {
     category: string
     logoUrl: string | null
     authType: AuthType
+    oauthScopes: string[]
     setupFields: SetupField[]
+    toolsProvided: string[]
+    cardsProvided: string[]
+    isCore: boolean
+    docUrl: string | null
 }
 
-interface InstalledItem {
+interface InstalledConnection {
     id: string
     registryId: string
     name: string
     status: ConnectionStatus
+    enabledTools: string[] | null  // null = all enabled
     scopesGranted: string[]
     lastVerifiedAt: string | null
     createdAt: string
 }
 
-const AUTH_ICON: Record<AuthType, React.ElementType> = {
-    oauth2: Globe2,
-    api_key: Key,
-    webhook: Webhook,
-    none: Circle,
+interface ConnectedItem extends RegistryItem {
+    installed: InstalledConnection
 }
 
-const AUTH_LABEL: Record<AuthType, string> = {
-    oauth2: 'OAuth 2.0',
-    api_key: 'API key',
-    webhook: 'Webhook',
-    none: 'No auth',
-}
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-const CATEGORY_COLORS: Record<string, string> = {
-    'version-control': 'bg-violet-500/15 text-violet-400',
-    'communication': 'bg-sky-500/15 text-sky-400',
-    'project-management': 'bg-amber-500/15 text-amber-400',
-    'ai': 'bg-indigo-500/15 text-indigo-400',
-    'monitoring': 'bg-red-500/15 text-red-400',
-    'database': 'bg-emerald-500/15 text-emerald-400',
-}
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+const WS_ID = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
 
 function categoryColor(cat: string): string {
-    return CATEGORY_COLORS[cat] ?? 'bg-zinc-500/15 text-zinc-400'
+    const map: Record<string, string> = {
+        code: 'bg-violet-500/15 text-violet-400 border border-violet-500/30',
+        developer: 'bg-violet-500/15 text-violet-400 border border-violet-500/30',
+        communication: 'bg-blue-500/15 text-blue-400 border border-blue-500/30',
+        productivity: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
+        finance: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
+        analytics: 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30',
+        storage: 'bg-orange-500/15 text-orange-400 border border-orange-500/30',
+    }
+    return map[cat.toLowerCase()] ?? 'bg-zinc-700/40 text-zinc-400 border border-zinc-700'
 }
 
-function StatusDot({ status }: { status: ConnectionStatus | null }) {
+function AuthIcon({ type }: { type: AuthType }) {
+    if (type === 'oauth2') return <Globe2 className="h-3.5 w-3.5 text-blue-400" />
+    if (type === 'api_key') return <Key className="h-3.5 w-3.5 text-amber-400" />
+    if (type === 'webhook') return <Webhook className="h-3.5 w-3.5 text-violet-400" />
+    return null
+}
+
+function StatusDot({ status }: { status: ConnectionStatus }) {
     if (status === 'active') return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
     if (status === 'error') return <AlertCircle className="h-3.5 w-3.5 text-red-400" />
-    if (status === 'disconnected') return <Link2Off className="h-3.5 w-3.5 text-zinc-500" />
-    return <Circle className="h-3.5 w-3.5 text-zinc-700" />
+    return <Circle className="h-3.5 w-3.5 text-zinc-600" />
 }
+
+const ALL_CATEGORIES = ['All', 'Code', 'Communication', 'Productivity', 'Finance', 'Analytics', 'Storage']
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ConnectionsPage() {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-    const workspaceId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
-
     const [registry, setRegistry] = useState<RegistryItem[]>([])
-    const [installed, setInstalled] = useState<InstalledItem[]>([])
+    const [installed, setInstalled] = useState<InstalledConnection[]>([])
     const [selected, setSelected] = useState<RegistryItem | null>(null)
-    const [loading, setLoading] = useState(true)
+    const [category, setCategory] = useState('All')
     const [search, setSearch] = useState('')
+    const [loading, setLoading] = useState(true)
     const [installing, setInstalling] = useState(false)
-    const [uninstalling, setUninstalling] = useState<string | null>(null)
+    const [disconnecting, setDisconnecting] = useState(false)
     const [fieldValues, setFieldValues] = useState<Record<string, string>>({})
-    const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null)
+    const [activeTab, setActiveTab] = useState<DetailTab>('overview')
+    const [savingTools, setSavingTools] = useState(false)
+    const [error, setError] = useState<string | null>(null)
 
     const fetchData = useCallback(async () => {
         setLoading(true)
         try {
             const [regRes, instRes] = await Promise.all([
-                fetch(`${apiBase}/api/connections/registry`),
-                workspaceId
-                    ? fetch(`${apiBase}/api/connections/installed?workspaceId=${workspaceId}`)
-                    : Promise.resolve(null),
+                fetch(`${API_BASE}/api/connections/registry`),
+                WS_ID ? fetch(`${API_BASE}/api/connections/installed?workspaceId=${WS_ID}`) : Promise.resolve(null),
             ])
-            const regData = await regRes.json() as { items: RegistryItem[] }
-            setRegistry(regData.items ?? [])
-            if (instRes) {
-                const instData = await instRes.json() as { items: InstalledItem[] }
-                setInstalled(instData.items ?? [])
+            if (regRes.ok) {
+                const d = await regRes.json() as { items: RegistryItem[] }
+                setRegistry(d.items)
+                if (!selected && d.items.length > 0) setSelected(d.items[0])
+            }
+            if (instRes?.ok) {
+                const d = await instRes.json() as { items: InstalledConnection[] }
+                setInstalled(d.items)
             }
         } catch {
-            // silently fail — show empty state
+            setError('Failed to load connections')
         } finally {
             setLoading(false)
         }
-    }, [apiBase, workspaceId])
+    }, [selected])
 
-    useEffect(() => { void fetchData() }, [fetchData])
+    useEffect(() => { void fetchData() }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
-    // When selected service changes, reset field values
-    useEffect(() => {
-        if (!selected) return
-        const defaults: Record<string, string> = {}
-        for (const f of selected.setupFields ?? []) defaults[f.key] = ''
-        setFieldValues(defaults)
-        setMessage(null)
-    }, [selected?.id])
+    const connectedItem = selected
+        ? installed.find((i) => i.registryId === selected.id) ?? null
+        : null
 
-    const installedFor = (id: string) =>
-        installed.find((i) => i.registryId === id) ?? null
+    const isConnected = connectedItem !== null
 
-    const filtered = registry.filter((r) =>
-        search.trim() === '' ||
-        r.name.toLowerCase().includes(search.toLowerCase()) ||
-        r.category.toLowerCase().includes(search.toLowerCase())
-    )
+    // Tools that are enabled for this connection (null = all)
+    const enabledTools: string[] | null = connectedItem?.enabledTools ?? null
+    const allTools = selected?.toolsProvided ?? []
+
+    function isToolEnabled(tool: string): boolean {
+        if (enabledTools === null) return true
+        return enabledTools.includes(tool)
+    }
+
+    async function toggleTool(tool: string) {
+        if (!connectedItem) return
+        setSavingTools(true)
+        const current: string[] = enabledTools ?? [...allTools]
+        const next = current.includes(tool)
+            ? current.filter((t) => t !== tool)
+            : [...current, tool]
+        // null means all enabled — normalise back if all are checked
+        const payload: string[] | null = next.length === allTools.length ? null : next
+        try {
+            await fetch(`${API_BASE}/api/connections/installed/${connectedItem.id}/tools`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ workspaceId: WS_ID, enabledTools: payload }),
+            })
+            setInstalled((prev) => prev.map((i) =>
+                i.id === connectedItem.id ? { ...i, enabledTools: payload } : i
+            ))
+        } finally {
+            setSavingTools(false)
+        }
+    }
 
     async function handleInstall() {
-        if (!selected || !workspaceId) return
+        if (!selected || !WS_ID) return
         setInstalling(true)
-        setMessage(null)
         try {
-            const res = await fetch(`${apiBase}/api/connections/install`, {
+            const res = await fetch(`${API_BASE}/api/connections/install`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    workspaceId,
+                    workspaceId: WS_ID,
                     registryId: selected.id,
                     credentials: fieldValues,
-                    name: selected.name,
                 }),
             })
             if (res.ok) {
-                setMessage({ ok: true, text: `${selected.name} connected successfully` })
-                void fetchData()
+                await fetchData()
+                setFieldValues({})
+                setActiveTab('tools')
             } else {
-                const err = await res.json() as { error?: { message?: string } }
-                setMessage({ ok: false, text: err?.error?.message ?? 'Install failed' })
+                const d = await res.json() as { error?: { message?: string } }
+                setError(d.error?.message ?? 'Install failed')
             }
-        } catch {
-            setMessage({ ok: false, text: 'Network error' })
         } finally {
             setInstalling(false)
         }
     }
 
-    async function handleUninstall(installId: string) {
-        if (!workspaceId) return
-        setUninstalling(installId)
+    async function handleDisconnect() {
+        if (!connectedItem || !WS_ID) return
+        setDisconnecting(true)
         try {
-            await fetch(`${apiBase}/api/connections/installed/${installId}?workspaceId=${workspaceId}`, {
+            await fetch(`${API_BASE}/api/connections/installed/${connectedItem.id}?workspaceId=${WS_ID}`, {
                 method: 'DELETE',
             })
-            setMessage({ ok: true, text: 'Connection removed' })
-            void fetchData()
-        } catch {
-            setMessage({ ok: false, text: 'Delete failed' })
+            setInstalled((prev) => prev.filter((i) => i.id !== connectedItem.id))
+            setActiveTab('overview')
         } finally {
-            setUninstalling(null)
+            setDisconnecting(false)
         }
     }
 
-    const inst = selected ? installedFor(selected.id) : null
-    const AuthIcon = selected ? AUTH_ICON[selected.authType] : Key
+    const filtered = registry.filter((r) => {
+        const matchCat = category === 'All' || r.category.toLowerCase() === category.toLowerCase()
+        const matchSearch = !search ||
+            r.name.toLowerCase().includes(search.toLowerCase()) ||
+            r.description.toLowerCase().includes(search.toLowerCase()) ||
+            r.category.toLowerCase().includes(search.toLowerCase())
+        return matchCat && matchSearch
+    })
+
+    // Connected items first, then alphabetical
+    const sorted = [...filtered].sort((a, b) => {
+        const aConnected = installed.some((i) => i.registryId === a.id) ? 0 : 1
+        const bConnected = installed.some((i) => i.registryId === b.id) ? 0 : 1
+        return aConnected - bConnected || a.name.localeCompare(b.name)
+    })
 
     return (
-        <div className="flex flex-col gap-6 h-full">
+        <div className="flex flex-col gap-4 h-full">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-xl font-bold text-zinc-50">Connections</h1>
-                    <p className="mt-0.5 text-sm text-zinc-500">
-                        Connect Plexo to external services. The agent uses these connections to take action.
-                    </p>
+            <div>
+                <h1 className="text-xl font-bold text-zinc-50">Connections</h1>
+                <p className="mt-0.5 text-sm text-zinc-500">
+                    Connect external services • {installed.length} active
+                </p>
+            </div>
+
+            {error && (
+                <div className="rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2 text-xs text-red-400 flex items-center justify-between">
+                    {error}
+                    <button onClick={() => setError(null)} className="text-red-600 hover:text-red-400">✕</button>
                 </div>
-                <button
-                    onClick={() => void fetchData()}
-                    disabled={loading}
-                    className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-                >
-                    <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-                    Refresh
-                </button>
+            )}
+
+            {/* Category tabs */}
+            <div className="flex gap-1 flex-wrap">
+                {ALL_CATEGORIES.map((cat) => (
+                    <button
+                        key={cat}
+                        onClick={() => setCategory(cat)}
+                        className={`rounded-lg px-3 py-1 text-xs font-medium transition-colors ${category === cat
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                            }`}
+                    >
+                        {cat}
+                    </button>
+                ))}
             </div>
 
             {/* Two-panel layout */}
             <div className="flex gap-4 flex-1 min-h-0">
-                {/* Left — service list */}
+
+                {/* Left panel — list */}
                 <div className="w-[260px] shrink-0 flex flex-col gap-2">
                     {/* Search */}
                     <div className="relative">
-                        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-zinc-600" />
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-600" />
                         <input
                             type="text"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search services…"
-                            className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 pl-8 pr-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                            placeholder="Search…"
+                            className="w-full rounded-lg border border-zinc-800 bg-zinc-900/60 pl-8 pr-3 py-1.5 text-xs text-zinc-300 placeholder:text-zinc-700 focus:border-indigo-500 focus:outline-none"
                         />
                     </div>
 
-                    {/* Service cards */}
-                    <div className="flex flex-col gap-1 overflow-y-auto">
+                    {/* List */}
+                    <div className="flex-1 overflow-y-auto flex flex-col gap-1">
                         {loading ? (
-                            <div className="flex items-center justify-center py-12 text-sm text-zinc-600">
-                                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                Loading…
+                            <div className="flex items-center justify-center py-8">
+                                <RefreshCw className="h-4 w-4 text-zinc-600 animate-spin" />
                             </div>
-                        ) : filtered.length === 0 ? (
-                            <p className="py-8 text-center text-sm text-zinc-600">No services found</p>
-                        ) : filtered.map((item) => {
-                            const itemInst = installedFor(item.id)
-                            const active = selected?.id === item.id
-                            return (
-                                <button
-                                    key={item.id}
-                                    onClick={() => setSelected(item)}
-                                    className={`text-left rounded-xl border p-3 transition-all ${active
+                        ) : sorted.length === 0 ? (
+                            <p className="text-center text-xs text-zinc-600 py-6">No results</p>
+                        ) : (
+                            sorted.map((r) => {
+                                const inst = installed.find((i) => i.registryId === r.id)
+                                const active = r.id === selected?.id
+                                return (
+                                    <button
+                                        key={r.id}
+                                        onClick={() => { setSelected(r); setActiveTab('overview') }}
+                                        className={`text-left rounded-xl border px-3 py-2.5 transition-all ${active
                                             ? 'border-indigo-500/50 bg-zinc-900 shadow-sm shadow-indigo-500/10'
-                                            : 'border-zinc-800 bg-zinc-900/40 hover:border-zinc-700 hover:bg-zinc-900/70'
-                                        }`}
-                                >
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2.5">
-                                            {item.logoUrl ? (
-                                                <img src={item.logoUrl} alt="" className="h-6 w-6 rounded" />
-                                            ) : (
-                                                <div className="flex h-6 w-6 items-center justify-center rounded bg-zinc-800 text-[10px] font-bold text-zinc-400">
-                                                    {item.name.slice(0, 2).toUpperCase()}
-                                                </div>
-                                            )}
-                                            <span className="text-sm font-medium text-zinc-200">{item.name}</span>
+                                            : 'border-zinc-800/60 bg-zinc-900/30 hover:border-zinc-700 hover:bg-zinc-900/60'
+                                            }`}
+                                    >
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2.5">
+                                                {r.logoUrl ? (
+                                                    <img src={r.logoUrl} alt={r.name} className="h-6 w-6 rounded object-contain bg-white/5" />
+                                                ) : (
+                                                    <div className="h-6 w-6 rounded bg-zinc-800 flex items-center justify-center text-[10px] font-bold text-zinc-400">
+                                                        {r.name.slice(0, 2).toUpperCase()}
+                                                    </div>
+                                                )}
+                                                <span className="text-sm font-medium text-zinc-200 truncate max-w-[120px]">{r.name}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                <AuthIcon type={r.authType} />
+                                                {inst ? <StatusDot status={inst.status} /> : <Circle className="h-3 w-3 text-zinc-700" />}
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-1.5">
-                                            <StatusDot status={itemInst?.status ?? null} />
-                                            {active && <ChevronRight className="h-3.5 w-3.5 text-zinc-600" />}
-                                        </div>
-                                    </div>
-                                    <p className="mt-1 text-xs text-zinc-600 pl-8 truncate">{item.description}</p>
-                                </button>
-                            )
-                        })}
-                    </div>
-
-                    {/* Summary */}
-                    <div className="mt-auto pt-2 text-xs text-zinc-700">
-                        {installed.filter((i) => i.status === 'active').length} connected · {registry.length} available
+                                    </button>
+                                )
+                            })
+                        )}
                     </div>
                 </div>
 
-                {/* Right — detail panel */}
-                <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-y-auto">
-                    {!selected ? (
-                        <div className="flex h-full items-center justify-center">
-                            <div className="text-center">
-                                <Link2 className="mx-auto mb-3 h-8 w-8 text-zinc-700" />
-                                <p className="text-sm text-zinc-500">Select a service to configure</p>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="p-5">
-                            {/* Service header */}
-                            <div className="flex items-start gap-4 pb-5 border-b border-zinc-800">
-                                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-zinc-800">
-                                    {selected.logoUrl ? (
-                                        <img src={selected.logoUrl} alt="" className="h-8 w-8 rounded" />
-                                    ) : (
-                                        <span className="text-lg font-bold text-zinc-400">
-                                            {selected.name.slice(0, 2).toUpperCase()}
-                                        </span>
-                                    )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
+                {/* Right panel — detail */}
+                {selected ? (
+                    <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900/40 flex flex-col overflow-hidden">
+                        {/* Detail header */}
+                        <div className="flex items-start justify-between gap-4 p-5 border-b border-zinc-800">
+                            <div className="flex items-center gap-3">
+                                {selected.logoUrl ? (
+                                    <img src={selected.logoUrl} alt={selected.name} className="h-10 w-10 rounded-lg object-contain bg-white/5" />
+                                ) : (
+                                    <div className="h-10 w-10 rounded-lg bg-zinc-800 flex items-center justify-center text-sm font-bold text-zinc-300">
+                                        {selected.name.slice(0, 2).toUpperCase()}
+                                    </div>
+                                )}
+                                <div>
+                                    <div className="flex items-center gap-2">
                                         <h2 className="text-base font-semibold text-zinc-100">{selected.name}</h2>
                                         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wide ${categoryColor(selected.category)}`}>
-                                            {selected.category.replace('-', ' ')}
+                                            {selected.category}
                                         </span>
                                     </div>
-                                    <p className="mt-0.5 text-sm text-zinc-500">{selected.description}</p>
-                                    <div className="mt-1.5 flex items-center gap-3 text-xs text-zinc-600">
-                                        <span className="flex items-center gap-1">
-                                            <AuthIcon className="h-3.5 w-3.5" />
-                                            {AUTH_LABEL[selected.authType]}
-                                        </span>
-                                        {inst && (
-                                            <span className="flex items-center gap-1">
-                                                <StatusDot status={inst.status} />
-                                                <span className="capitalize">{inst.status}</span>
-                                                {inst.lastVerifiedAt && (
-                                                    <span className="text-zinc-700 ml-1">
-                                                        · verified {new Date(inst.lastVerifiedAt).toLocaleDateString()}
-                                                    </span>
-                                                )}
-                                            </span>
+                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                        <AuthIcon type={selected.authType} />
+                                        <span className="text-xs text-zinc-500 capitalize">{selected.authType.replace('_', ' ')}</span>
+                                        {isConnected && (
+                                            <>
+                                                <span className="text-zinc-700">·</span>
+                                                <StatusDot status={connectedItem!.status} />
+                                                <span className="text-xs text-emerald-400">Connected</span>
+                                            </>
                                         )}
                                     </div>
                                 </div>
                             </div>
-
-                            {/* Connection config */}
-                            <div className="pt-5 flex flex-col gap-5">
-                                {inst ? (
-                                    /* Already installed */
-                                    <div className="rounded-xl border border-emerald-800/40 bg-emerald-950/20 p-4">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                                                <span className="text-sm font-medium text-emerald-300">
-                                                    Connected since {new Date(inst.createdAt).toLocaleDateString()}
-                                                </span>
-                                            </div>
-                                            <button
-                                                onClick={() => void handleUninstall(inst.id)}
-                                                disabled={uninstalling === inst.id}
-                                                className="flex items-center gap-1.5 rounded-lg border border-red-800/50 bg-red-950/30 px-3 py-1.5 text-xs font-medium text-red-400 hover:border-red-700 hover:text-red-300 transition-colors disabled:opacity-50"
-                                            >
-                                                {uninstalling === inst.id
-                                                    ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                                    : <Trash2 className="h-3.5 w-3.5" />
-                                                }
-                                                Disconnect
-                                            </button>
-                                        </div>
-                                        {inst.scopesGranted.length > 0 && (
-                                            <div className="mt-3 flex flex-wrap gap-1.5">
-                                                {inst.scopesGranted.map((s) => (
-                                                    <span key={s} className="rounded-full bg-zinc-800 px-2 py-0.5 text-[10px] text-zinc-400">
-                                                        {s}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                                {selected.docUrl && (
+                                    <a
+                                        href={selected.docUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1 rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"
+                                    >
+                                        <ExternalLink className="h-3 w-3" />
+                                        Docs
+                                    </a>
+                                )}
+                                {isConnected ? (
+                                    <button
+                                        onClick={() => void handleDisconnect()}
+                                        disabled={disconnecting}
+                                        className="flex items-center gap-1.5 rounded-lg border border-red-800/50 bg-red-950/30 px-2.5 py-1.5 text-xs text-red-400 hover:border-red-700 hover:bg-red-950/50 transition-colors disabled:opacity-50"
+                                    >
+                                        <Trash2 className="h-3 w-3" />
+                                        {disconnecting ? 'Removing…' : 'Disconnect'}
+                                    </button>
                                 ) : (
-                                    /* Install form */
-                                    <div className="flex flex-col gap-4">
-                                        {selected.authType === 'oauth2' && (
-                                            <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 text-sm text-zinc-400">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <Globe2 className="h-4 w-4 text-indigo-400" />
-                                                    <span className="font-medium text-zinc-200">OAuth 2.0 flow</span>
-                                                </div>
-                                                <p className="text-xs leading-relaxed">
-                                                    Click below to start the OAuth flow. You&apos;ll be redirected to {selected.name} to grant access, then redirected back.
-                                                </p>
-                                                <button
-                                                    onClick={() => window.open(
-                                                        `${apiBase}/api/oauth/${selected.id}/start?workspaceId=${workspaceId}`,
-                                                        '_blank',
-                                                        'width=600,height=700'
-                                                    )}
-                                                    className="mt-3 flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors"
-                                                >
-                                                    <ExternalLink className="h-3.5 w-3.5" />
-                                                    Connect {selected.name}
-                                                </button>
-                                            </div>
-                                        )}
-
-                                        {(selected.setupFields ?? []).length > 0 && (
-                                            <div className="flex flex-col gap-3">
-                                                {selected.setupFields.map((field) => (
-                                                    <div key={field.key} className="flex flex-col gap-1.5">
-                                                        <label className="text-sm font-medium text-zinc-300">
-                                                            {field.label}
-                                                            {field.required && <span className="ml-1 text-red-400">*</span>}
-                                                        </label>
-                                                        <input
-                                                            type={field.type === 'password' ? 'password' : 'text'}
-                                                            value={fieldValues[field.key] ?? ''}
-                                                            onChange={(e) => setFieldValues((v) => ({ ...v, [field.key]: e.target.value }))}
-                                                            placeholder={field.placeholder ?? ''}
-                                                            autoComplete="new-password"
-                                                            className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
-                                                        />
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        {(selected.authType === 'api_key' || selected.authType === 'webhook' || selected.authType === 'none') && (
-                                            <button
-                                                onClick={() => void handleInstall()}
-                                                disabled={installing || !workspaceId}
-                                                className="flex w-fit items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
-                                            >
-                                                {installing
-                                                    ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                                    : <Link2 className="h-3.5 w-3.5" />
-                                                }
-                                                {installing ? 'Connecting…' : `Connect ${selected.name}`}
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
-
-                                {message && (
-                                    <div className={`rounded-lg border px-3 py-2.5 text-sm ${message.ok
-                                            ? 'border-emerald-800/50 bg-emerald-950/30 text-emerald-400'
-                                            : 'border-red-800/50 bg-red-950/30 text-red-400'
-                                        }`}>
-                                        {message.text}
-                                    </div>
-                                )}
-
-                                {/* What the agent can do with this connection */}
-                                {inst?.status === 'active' && (
-                                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-                                        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                                            What Plexo can do
-                                        </h3>
-                                        <p className="text-sm text-zinc-500">
-                                            With {selected.name} connected, the agent can read and write on your behalf
-                                            — creating tasks, opening PRs, sending messages, and more, depending on the scopes granted.
-                                        </p>
-                                    </div>
+                                    <button
+                                        onClick={() => void handleInstall()}
+                                        disabled={installing || !WS_ID}
+                                        className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
+                                    >
+                                        <Link2 className="h-3.5 w-3.5" />
+                                        {installing ? 'Connecting…' : 'Connect'}
+                                    </button>
                                 )}
                             </div>
                         </div>
-                    )}
-                </div>
+
+                        {/* Tabs (only shown when connected) */}
+                        {isConnected && (
+                            <div className="flex gap-0 border-b border-zinc-800">
+                                {([
+                                    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+                                    { id: 'tools', label: 'Tools', icon: Wrench },
+                                    { id: 'config', label: 'Config', icon: Settings },
+                                ] as const).map(({ id, label, icon: Icon }) => (
+                                    <button
+                                        key={id}
+                                        onClick={() => setActiveTab(id)}
+                                        className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors ${activeTab === id
+                                            ? 'border-indigo-500 text-indigo-400'
+                                            : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                                            }`}
+                                    >
+                                        <Icon className="h-3.5 w-3.5" />
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Tab content */}
+                        <div className="flex-1 overflow-y-auto p-5">
+
+                            {/* Overview tab / not connected state */}
+                            {(!isConnected || activeTab === 'overview') && (
+                                <div className="flex flex-col gap-5">
+                                    <p className="text-sm text-zinc-400">{selected.description}</p>
+
+                                    {/* Connection metadata if connected */}
+                                    {isConnected && connectedItem && (
+                                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 flex flex-col gap-2">
+                                            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Connection details</p>
+                                            <dl className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+                                                <dt className="text-zinc-600">Status</dt>
+                                                <dd className="flex items-center gap-1.5">
+                                                    <StatusDot status={connectedItem.status} />
+                                                    <span className="text-zinc-300 capitalize">{connectedItem.status}</span>
+                                                </dd>
+                                                <dt className="text-zinc-600">Connected</dt>
+                                                <dd className="text-zinc-300">{new Date(connectedItem.createdAt).toLocaleDateString()}</dd>
+                                                {connectedItem.lastVerifiedAt && (
+                                                    <>
+                                                        <dt className="text-zinc-600">Last verified</dt>
+                                                        <dd className="text-zinc-300">{new Date(connectedItem.lastVerifiedAt).toLocaleDateString()}</dd>
+                                                    </>
+                                                )}
+                                                {connectedItem.scopesGranted.length > 0 && (
+                                                    <>
+                                                        <dt className="text-zinc-600">Scopes</dt>
+                                                        <dd className="text-zinc-300">{connectedItem.scopesGranted.join(', ')}</dd>
+                                                    </>
+                                                )}
+                                            </dl>
+                                        </div>
+                                    )}
+
+                                    {/* Setup fields for not-yet-connected */}
+                                    {!isConnected && (selected.setupFields ?? []).length > 0 && (
+                                        <div className="flex flex-col gap-3">
+                                            <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Configuration</h3>
+                                            {selected.setupFields.map((field) => (
+                                                <div key={field.key} className="flex flex-col gap-1">
+                                                    <label className="text-sm font-medium text-zinc-300">
+                                                        {field.label} {field.required && <span className="text-red-500">*</span>}
+                                                    </label>
+                                                    <input
+                                                        type={field.type === 'password' ? 'password' : 'text'}
+                                                        value={fieldValues[field.key] ?? ''}
+                                                        onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                                                        placeholder={field.placeholder ?? ''}
+                                                        className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* OAuth2 notice */}
+                                    {!isConnected && selected.authType === 'oauth2' && (
+                                        <div className="rounded-lg border border-blue-800/40 bg-blue-950/20 px-3 py-3 text-xs text-blue-400">
+                                            <p className="font-semibold mb-1">OAuth2 — redirect flow</p>
+                                            <p className="text-blue-500">Clicking Connect will install this connection in your workspace. A full OAuth redirect flow requires provider app credentials and a callback URL configured in the API.</p>
+                                        </div>
+                                    )}
+
+                                    {/* Provided tools + cards */}
+                                    {allTools.length > 0 && (
+                                        <div>
+                                            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">Tools provided</h3>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {allTools.map((t) => (
+                                                    <span key={t} className="rounded border border-zinc-800 bg-zinc-800/60 px-2 py-0.5 text-xs text-zinc-400 font-mono">{t}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {selected.oauthScopes.length > 0 && (
+                                        <div>
+                                            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">OAuth scopes requested</h3>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {selected.oauthScopes.map((s) => (
+                                                    <span key={s} className="rounded border border-zinc-800 bg-zinc-800/60 px-2 py-0.5 text-xs text-zinc-400 font-mono">{s}</span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Tools tab */}
+                            {isConnected && activeTab === 'tools' && (
+                                <div className="flex flex-col gap-3">
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-xs text-zinc-500">
+                                            Enable or disable individual tools from this connection.
+                                            Disabled tools are hidden from the agent runtime.
+                                        </p>
+                                        {savingTools && <RefreshCw className="h-3.5 w-3.5 text-zinc-600 animate-spin" />}
+                                    </div>
+                                    {allTools.length === 0 ? (
+                                        <p className="text-sm text-zinc-600">This connection provides no agent tools.</p>
+                                    ) : (
+                                        <div className="flex flex-col gap-1">
+                                            {allTools.map((tool) => {
+                                                const enabled = isToolEnabled(tool)
+                                                return (
+                                                    <button
+                                                        key={tool}
+                                                        onClick={() => void toggleTool(tool)}
+                                                        disabled={savingTools}
+                                                        className={`flex items-center justify-between rounded-lg border px-3 py-2.5 text-left transition-all disabled:opacity-60 ${enabled
+                                                            ? 'border-zinc-700/60 bg-zinc-900/60 hover:border-zinc-600'
+                                                            : 'border-zinc-800/40 bg-zinc-900/20 opacity-60 hover:opacity-80'
+                                                            }`}
+                                                    >
+                                                        <div className="flex items-center gap-2.5">
+                                                            <Wrench className="h-3.5 w-3.5 text-zinc-600" />
+                                                            <span className="text-sm font-mono text-zinc-300">{tool}</span>
+                                                        </div>
+                                                        {enabled
+                                                            ? <ToggleRight className="h-5 w-5 text-indigo-400" />
+                                                            : <ToggleLeft className="h-5 w-5 text-zinc-700" />
+                                                        }
+                                                    </button>
+                                                )
+                                            })}
+                                        </div>
+                                    )}
+                                    <p className="text-xs text-zinc-700 mt-1">
+                                        {enabledTools === null
+                                            ? `All ${allTools.length} tools enabled`
+                                            : `${enabledTools.length} / ${allTools.length} tools enabled`
+                                        }
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Config tab */}
+                            {isConnected && activeTab === 'config' && (
+                                <div className="flex flex-col gap-4">
+                                    {(selected.setupFields ?? []).length > 0 ? (
+                                        <>
+                                            <p className="text-xs text-zinc-500">Update credentials for this connection.</p>
+                                            {selected.setupFields.map((field) => (
+                                                <div key={field.key} className="flex flex-col gap-1">
+                                                    <label className="text-sm font-medium text-zinc-300">
+                                                        {field.label}
+                                                    </label>
+                                                    <input
+                                                        type={field.type === 'password' ? 'password' : 'text'}
+                                                        value={fieldValues[field.key] ?? ''}
+                                                        onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                                                        placeholder="Leave blank to keep current value"
+                                                        className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                                                    />
+                                                </div>
+                                            ))}
+                                        </>
+                                    ) : selected.authType === 'oauth2' ? (
+                                        <div className="flex flex-col gap-2">
+                                            <p className="text-sm text-zinc-400">OAuth2 connection — no manual credentials required.</p>
+                                            <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 flex items-center gap-2">
+                                                <Globe2 className="h-4 w-4 text-blue-400" />
+                                                <span className="text-xs text-zinc-500">Scopes: {connectedItem?.scopesGranted.join(', ') || 'none recorded'}</span>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-zinc-600">No configuration fields for this connection.</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900/40 flex items-center justify-center">
+                        <div className="text-center">
+                            <Link2Off className="mx-auto h-8 w-8 text-zinc-700 mb-2" />
+                            <p className="text-sm text-zinc-600">Select a service</p>
+                        </div>
+                    </div>
+                )}
             </div>
+
+            {/* Footer */}
+            {!WS_ID && (
+                <p className="text-xs text-red-500">NEXT_PUBLIC_DEFAULT_WORKSPACE not set — connections will not persist.</p>
+            )}
         </div>
     )
 }

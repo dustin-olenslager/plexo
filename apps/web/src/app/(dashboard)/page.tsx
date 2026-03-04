@@ -1,13 +1,4 @@
-import {
-    Activity,
-    Zap,
-    MessageSquare,
-    DollarSign,
-    Clock,
-    GitBranch,
-} from 'lucide-react'
-import { DashboardCards } from './_components/dashboard-cards'
-import { TaskFeed } from './_components/task-feed'
+import { LiveDashboard } from './_components/live-dashboard'
 import { QuickSend } from './_components/quick-send'
 
 export const dynamic = 'force-dynamic'
@@ -17,18 +8,13 @@ export default function HomePage() {
     return (
         <div>
             {/* Header */}
-            <div className="mb-8">
+            <div className="mb-6">
                 <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
-                <p className="mt-1 text-sm text-zinc-500">Your AI agent overview</p>
+                <p className="mt-1 text-sm text-zinc-500">Your AI agent — live</p>
             </div>
 
-            {/* Live dashboard cards — fetches from API */}
-            <DashboardCards />
-
-            {/* Task feed */}
-            <div className="mt-8">
-                <TaskFeed />
-            </div>
+            {/* Live dashboard: cards + task feed, SSE-connected */}
+            <LiveDashboard />
 
             {/* Quick Send */}
             <div className="mt-6">
