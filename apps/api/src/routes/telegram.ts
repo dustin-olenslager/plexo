@@ -64,37 +64,93 @@ async function deleteWebhook(): Promise<void> {
 
 // ── AI helpers ───────────────────────────────────────────────────────────────
 
-async function resolveApiKey(workspaceId: string): Promise<string | null> {
-    if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY
+import { getAnthropicTokens } from '../anthropic-tokens.js'
+
+// An OAuth access token from Anthropic — cannot be used with x-api-key header
+const ANTHROPIC_OAUTH_PREFIX = 'sk-ant-oat'
+
+interface ResolvedCredential {
+    apiKey: string | null       // permanent API key — use x-api-key header
+    bearerToken: string | null  // OAuth access token — use Authorization: Bearer header
+}
+
+async function resolveCredential(workspaceId: string): Promise<ResolvedCredential> {
+    const nil: ResolvedCredential = { apiKey: null, bearerToken: null }
+
+    // 1. Env var — always a proper API key
+    const envKey = process.env.ANTHROPIC_API_KEY
+    if (envKey && !envKey.startsWith(ANTHROPIC_OAUTH_PREFIX)) {
+        return { apiKey: envKey, bearerToken: null }
+    }
+
+    // 2. Workspace settings — may have an API key OR mistakenly an OAuth token
     try {
         const [ws] = await db.select({ settings: workspaces.settings }).from(workspaces)
             .where(eq(workspaces.id, workspaceId)).limit(1)
         const providers = (ws?.settings as {
             aiProviders?: { providers?: Record<string, { apiKey?: string }> }
         } | null)?.aiProviders?.providers ?? {}
-        for (const p of ['anthropic', ...Object.keys(providers)]) {
-            const k = providers[p]?.apiKey; if (k) return k
+
+        for (const providerKey of ['anthropic', ...Object.keys(providers)]) {
+            const k = providers[providerKey]?.apiKey
+            if (!k) continue
+            if (k.startsWith(ANTHROPIC_OAUTH_PREFIX)) {
+                // OAuth token stored in wrong place — fall through to proper token store
+                break
+            }
+            return { apiKey: k, bearerToken: null }
         }
     } catch { /* ignore */ }
+
+    // 3. Proper Anthropic OAuth token store (encrypted in installed_connections)
+    try {
+        const tokens = await getAnthropicTokens(workspaceId)
+        if (tokens?.accessToken) {
+            return { apiKey: null, bearerToken: tokens.accessToken }
+        }
+    } catch { /* ignore */ }
+
+    // 4. Installed connections — other providers' API keys
     try {
         const rows = await db.select({ credentials: installedConnections.credentials })
             .from(installedConnections).where(eq(installedConnections.workspaceId, workspaceId))
         for (const row of rows) {
             const creds = row.credentials as Record<string, string> | null
-            const k = creds?.api_key ?? creds?.apiKey; if (k) return k
+            const k = creds?.api_key ?? creds?.apiKey
+            if (k && !k.startsWith(ANTHROPIC_OAUTH_PREFIX)) return { apiKey: k, bearerToken: null }
         }
     } catch { /* ignore */ }
-    return null
+
+    return nil
+}
+
+// Keep old resolveApiKey signature for backward compat — returns null if only OAuth available
+async function resolveApiKey(workspaceId: string): Promise<string | null> {
+    const cred = await resolveCredential(workspaceId)
+    return cred.apiKey ?? null
 }
 
 interface ChatMessage { role: 'user' | 'assistant'; content: string }
 
-async function chatWithAI(apiKey: string, messages: ChatMessage[], system?: string): Promise<string | null> {
+
+interface AiResult {
+    text: string | null
+    error: string | null
+}
+
+async function chatWithAI(cred: ResolvedCredential, messages: ChatMessage[], system?: string): Promise<AiResult> {
+    if (!cred.apiKey && !cred.bearerToken) {
+        return { text: null, error: 'no_credential' }
+    }
     try {
+        const authHeaders: Record<string, string> = cred.bearerToken
+            ? { 'Authorization': `Bearer ${cred.bearerToken}`, 'anthropic-beta': 'oauth-2025-04-20' }
+            : { 'x-api-key': cred.apiKey! }
+
         const res = await fetch(ANTHROPIC_URL, {
             method: 'POST',
             headers: {
-                'x-api-key': apiKey,
+                ...authHeaders,
                 'anthropic-version': '2023-06-01',
                 'content-type': 'application/json',
             },
@@ -106,11 +162,24 @@ async function chatWithAI(apiKey: string, messages: ChatMessage[], system?: stri
             }),
             signal: AbortSignal.timeout(30_000),
         })
+
+        if (!res.ok) {
+            let reason = `http_${res.status}`
+            try {
+                const errBody = await res.json() as { error?: { type?: string; message?: string } }
+                if (errBody.error?.message) reason = errBody.error.message
+                else if (errBody.error?.type) reason = errBody.error.type
+            } catch { /* ignore */ }
+            logger.warn({ status: res.status, reason, authType: cred.bearerToken ? 'oauth' : 'api_key' }, 'AI chat call returned non-2xx')
+            return { text: null, error: reason }
+        }
+
         const data = await res.json() as { content?: Array<{ text: string }> }
-        return data.content?.[0]?.text ?? null
+        const text = data.content?.[0]?.text ?? null
+        return { text, error: null }
     } catch (err) {
         logger.warn({ err }, 'AI chat call failed')
-        return null
+        return { text: null, error: 'network_error' }
     }
 }
 
@@ -146,9 +215,11 @@ CONVERSATION: greetings, status checks, questions about you, small talk, thanks,
 
 Reply with ONLY one word: TASK or CONVERSATION.`
 
-async function classifyIntent(apiKey: string, text: string): Promise<'TASK' | 'CONVERSATION'> {
-    const reply = await chatWithAI(apiKey, [{ role: 'user', content: text }], CLASSIFY_SYSTEM)
-    return reply?.trim().toUpperCase().startsWith('TASK') ? 'TASK' : 'CONVERSATION'
+async function classifyIntent(cred: ResolvedCredential, text: string): Promise<'TASK' | 'CONVERSATION'> {
+    const result = await chatWithAI(cred, [{ role: 'user', content: text }], CLASSIFY_SYSTEM)
+    // On AI error, default to CONVERSATION so the error path handles it
+    if (result.error) return 'CONVERSATION'
+    return result.text?.trim().toUpperCase().startsWith('TASK') ? 'TASK' : 'CONVERSATION'
 }
 
 // Per-chat conversation history (last 20 messages, in-memory)
@@ -196,8 +267,8 @@ async function handleUpdate(update: TelegramUpdate): Promise<void> {
         return
     }
 
-    const apiKey = await resolveApiKey(workspaceId)
-    if (!apiKey) {
+    const cred = await resolveCredential(workspaceId)
+    if (!cred.apiKey && !cred.bearerToken) {
         await sendMessage(chatId, '⚠️ No AI provider configured. Add your API key in Settings → AI Providers.')
         return
     }
@@ -206,17 +277,21 @@ async function handleUpdate(update: TelegramUpdate): Promise<void> {
     await sendTyping(chatId)
 
     // Classify: is this a task or just conversation?
-    const intent = await classifyIntent(apiKey, text)
+    const intent = await classifyIntent(cred, text)
 
     if (intent === 'CONVERSATION') {
         const history = chatHistory.get(chatId) ?? []
-        const reply = await chatWithAI(
-            apiKey,
+        const result = await chatWithAI(
+            cred,
             history,
             'You are Plexo, a helpful AI agent. Keep replies concise and friendly. '
             + 'If the user describes something they want done, ask them to confirm so you can execute it as a task.'
         )
-        const replyText = reply ?? 'Sorry, I couldn\'t reach the AI right now.'
+        // Log internal errors server-side; expose only neutral message to user
+        if (result.error) {
+            logger.warn({ chatId, workspaceId, error: result.error }, 'AI error during Telegram conversation')
+        }
+        const replyText = result.text ?? "I'm having a bit of trouble right now — please try again in a moment."
         addToHistory(chatId, 'assistant', replyText)
         await sendMessage(chatId, replyText)
         return

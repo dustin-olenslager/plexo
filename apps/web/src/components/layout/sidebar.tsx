@@ -27,6 +27,8 @@ import {
     ChevronsUpDown,
     Plus,
     Check,
+    Zap,
+    Wrench,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 
@@ -73,6 +75,8 @@ const NAV_GROUPS: NavGroup[] = [
         items: [
             { label: 'Connections', href: '/settings/connections', icon: Plug },
             { label: 'Channels', href: '/settings/channels', icon: Radio },
+            { label: 'Skills', href: '/skills', icon: Zap },
+            { label: 'Tools', href: '/tools', icon: Wrench },
             { label: 'Plugins', href: '/marketplace', icon: Store },
             { label: 'Memory', href: '/insights', icon: Brain },
         ],

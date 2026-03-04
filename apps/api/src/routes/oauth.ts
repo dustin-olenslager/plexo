@@ -166,10 +166,14 @@ oauthRouter.get('/:provider/start', async (req, res) => {
 
     const clientId = process.env[config.clientIdEnv]
     if (!clientId) {
-        res.status(503).json({
-            error: `${config.clientIdEnv} not configured`,
-            message: `Set ${config.clientIdEnv} and ${config.clientSecretEnv} to enable ${provider} OAuth`,
-        })
+        // Return an HTML popup-close page so the UI message handler can surface the error cleanly
+        res.send(popupCloseScript({
+            ok: false,
+            provider,
+            error: 'setup_required',
+            envVar: config.clientIdEnv,
+            message: `Set ${config.clientIdEnv} and ${config.clientSecretEnv} in the API environment to enable ${provider} OAuth.`,
+        }))
         return
     }
 

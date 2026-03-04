@@ -199,6 +199,12 @@ export default function ConnectionsPage() {
                 if (ev.data.ok) {
                     void fetchData()
                     setActiveTab('tools')
+                } else if (ev.data.error === 'setup_required') {
+                    const envVar = String(ev.data.envVar ?? `${selected.id.toUpperCase()}_CLIENT_ID`)
+                    const msg = String(ev.data.message ?? '')
+                    setError(
+                        `${selected.name} OAuth not configured: set ${envVar} in the API environment. ${msg}`
+                    )
                 } else {
                     setError(`OAuth failed: ${String(ev.data.error ?? 'unknown')}`)
                 }
