@@ -176,6 +176,7 @@ export default function AIProvidersPage() {
     const [modelRouting, setModelRouting] = useState<Record<TaskType, string>>(
         { ...DEFAULT_MODELS }
     )
+    const [fallbackOrder, setFallbackOrder] = useState<ProviderKey[]>(PROVIDERS.map((p) => p.key))
 
     const API_BASE = typeof window !== 'undefined'
         ? (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001')
@@ -194,6 +195,7 @@ export default function AIProvidersPage() {
                         aiProviders?: {
                             primary?: ProviderKey
                             modelRouting?: Record<TaskType, string>
+                            fallbackOrder?: ProviderKey[]
                             providers?: Record<ProviderKey, { status: ProviderStatus; selectedModel: string; baseUrl: string }>
                         }
                     }
@@ -202,6 +204,7 @@ export default function AIProvidersPage() {
                 if (!aiCfg) return
                 if (aiCfg.primary) setPrimaryProvider(aiCfg.primary)
                 if (aiCfg.modelRouting) setModelRouting((prev) => ({ ...prev, ...aiCfg.modelRouting }))
+                if (aiCfg.fallbackOrder?.length) setFallbackOrder(aiCfg.fallbackOrder)
                 if (aiCfg.providers) {
                     setProviderStates((prev) => {
                         const next = { ...prev }
@@ -290,6 +293,7 @@ export default function AIProvidersPage() {
                             primary: primaryProvider,
                             modelRouting,
                             providers: providersConfig,
+                            fallbackOrder,
                         },
                     },
                 }),
@@ -307,7 +311,20 @@ export default function AIProvidersPage() {
         }
     }
 
-    const configuredProviders = PROVIDERS.filter((p) => providerStates[p.key].status !== 'unconfigured')
+    const configuredProviders = fallbackOrder
+        .map((k) => PROVIDERS.find((p) => p.key === k)!)
+        .filter((p) => p && providerStates[p.key].status !== 'unconfigured')
+
+    function moveFallback(key: ProviderKey, dir: -1 | 1) {
+        setFallbackOrder((prev) => {
+            const idx = prev.indexOf(key)
+            const next = [...prev]
+            const swap = idx + dir
+            if (swap < 0 || swap >= next.length) return prev
+                ;[next[idx], next[swap]] = [next[swap]!, next[idx]!]
+            return next
+        })
+    }
 
     return (
         <div className="flex flex-col gap-6 h-full">
@@ -482,12 +499,25 @@ export default function AIProvidersPage() {
                                 Fallback chain
                             </h3>
                             <p className="mb-3 text-xs text-zinc-600">
-                                If the primary provider fails, Plexo tries these in order.
+                                If the primary provider fails, Plexo tries these in order. Use ↑↓ to reorder.
                             </p>
                             <div className="flex flex-col gap-1.5">
-                                {configuredProviders.map((p) => (
+                                {configuredProviders.map((p, idx) => (
                                     <div key={p.key} className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2">
-                                        <GripVertical className="h-4 w-4 text-zinc-700" />
+                                        <div className="flex flex-col gap-0.5">
+                                            <button
+                                                onClick={() => moveFallback(p.key, -1)}
+                                                disabled={idx === 0}
+                                                className="text-zinc-600 hover:text-zinc-400 disabled:opacity-20 leading-none"
+                                                aria-label="Move up"
+                                            >▲</button>
+                                            <button
+                                                onClick={() => moveFallback(p.key, 1)}
+                                                disabled={idx === configuredProviders.length - 1}
+                                                className="text-zinc-600 hover:text-zinc-400 disabled:opacity-20 leading-none"
+                                                aria-label="Move down"
+                                            >▼</button>
+                                        </div>
                                         <StatusDot status={providerStates[p.key].status} />
                                         <span className="text-sm text-zinc-300">{p.name}</span>
                                         {primaryProvider === p.key && (

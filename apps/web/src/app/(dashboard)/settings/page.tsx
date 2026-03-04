@@ -222,22 +222,35 @@ export default function SettingsPage() {
                     <div className="flex flex-col gap-6">
                         <div>
                             <h2 className="text-lg font-bold text-zinc-50">API Keys</h2>
-                            <p className="mt-0.5 text-sm text-zinc-500">Credentials for AI and memory services. Stored encrypted at rest.</p>
+                            <p className="mt-0.5 text-sm text-zinc-500">Configure credentials for AI providers.</p>
                         </div>
-                        <div className="flex items-start gap-2 rounded-lg border border-amber-900/50 bg-amber-950/20 px-4 py-3">
-                            <AlertCircle className="h-4 w-4 shrink-0 text-amber-500 mt-0.5" />
-                            <p className="text-xs text-amber-300">Keys are write-only from the UI — existing values are not displayed. Leave blank to keep current value.</p>
-                        </div>
-                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 flex flex-col gap-5">
-                            <Field id="anthropic-key" label="Anthropic API key" description="Required for task execution. Alternatively use OAuth via the Anthropic connection.">
-                                <Input id="anthropic-key" type="password" value={anthropicKey} onChange={(e) => setAnthropicKey(e.target.value)} placeholder="sk-ant-api03-…" autoComplete="new-password" />
-                            </Field>
-                            <Field id="openai-key" label="OpenAI API key" description="Optional. Enables pgvector semantic memory search. Falls back to text search if not set.">
-                                <Input id="openai-key" type="password" value={openaiKey} onChange={(e) => setOpenaiKey(e.target.value)} placeholder="sk-…" autoComplete="new-password" />
-                            </Field>
-                        </div>
-                        <div className="flex justify-end">
-                            <SaveButton saved={saved} saving={saving} />
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 flex flex-col gap-4">
+                            <div className="flex items-start gap-3 rounded-lg border border-indigo-800/40 bg-indigo-950/20 px-4 py-3">
+                                <AlertCircle className="h-4 w-4 shrink-0 text-indigo-400 mt-0.5" />
+                                <div>
+                                    <p className="text-sm text-indigo-300 font-medium">Manage keys in AI Providers</p>
+                                    <p className="mt-1 text-xs text-indigo-400/70">
+                                        API keys, model selection, provider testing, and the fallback chain are all managed in the dedicated AI Providers page.
+                                    </p>
+                                    <a
+                                        href="/settings/ai-providers"
+                                        className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
+                                    >
+                                        Go to AI Providers →
+                                    </a>
+                                </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-zinc-800">
+                                <p className="text-xs font-medium text-zinc-400 mb-2">Self-hosted environment variables</p>
+                                <code className="block rounded-lg bg-zinc-950 border border-zinc-800 p-3 text-[11px] font-mono text-zinc-400 whitespace-pre leading-relaxed">
+                                    {`ANTHROPIC_API_KEY=sk-ant-api03-…
+OPENAI_API_KEY=sk-…
+OPENROUTER_API_KEY=sk-or-v1-…
+GROQ_API_KEY=gsk_…`}
+                                </code>
+                                <p className="mt-2 text-[10px] text-zinc-700">Set these in <code className="text-zinc-600">.env.local</code> or your deployment environment.</p>
+                            </div>
                         </div>
                     </div>
                 )}
