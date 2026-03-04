@@ -6,6 +6,8 @@ import { withFallback } from '../providers/registry.js'
 import { SAFETY_LIMITS } from '../constants.js'
 import { PlexoError } from '../errors.js'
 import { loadConnectionTools } from '../connections/bridge.js'
+import { loadPluginTools } from '../plugins/bridge.js'
+
 import type { ExecutionContext, ExecutionPlan, ExecutionResult, StepResult } from '../types.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
 
@@ -173,9 +175,10 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
 
     const stepStart = Date.now()
 
-    // Load connection-backed tools for this workspace (non-fatal if fails)
+    // Load connection-backed tools and plugin tools for this workspace (non-fatal if either fails)
     const connectionTools = await loadConnectionTools(ctx.workspaceId)
-    const allTools = { ...buildTools(ctx), ...connectionTools }
+    const pluginTools = await loadPluginTools(ctx.workspaceId)
+    const allTools = { ...buildTools(ctx), ...connectionTools, ...pluginTools }
 
     const genResult = await withFallback(settings, 'codeGeneration', async (model) => {
         return generateText({

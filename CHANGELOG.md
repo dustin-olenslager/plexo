@@ -12,6 +12,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [0.9.0-dev] — 2026-03-04 (Phase 12 — Plugin runtime)
+
+### Added
+- **Plugins CRUD API** (`GET/POST/PATCH/DELETE /api/plugins`) — install from manifest JSON, toggle enabled, patch settings, uninstall; validates workspace exists before insert
+- **Plugin tool bridge** (`packages/agent/src/plugins/bridge.ts`) — loads enabled plugins for a workspace at task start, converts `manifest.tools[]` declarations to Vercel AI SDK tool objects; runs as stubs until handler packages are installed; non-fatal on load failure
+- **Executor integration** — `loadPluginTools(workspaceId)` merged into `allTools` alongside built-in and connection tools; plugins fire at agent execution time
+
+### Architecture notes
+- Plugin tool naming: `plugin__{pluginName}__{toolName}` — namespaced to avoid collisions with built-in tools
+- Plugin tools use `inputSchema` (Vercel AI v4 convention) with zod shape derived from manifest parameter declarations
+- Phase 13 target: move plugin tool execution to isolated `worker_threads` with permission enforcement
+
+---
+
 ## [0.8.0-dev] — 2026-03-04 (Phase 11 — Workspace membership + invites)
 
 ### Added
