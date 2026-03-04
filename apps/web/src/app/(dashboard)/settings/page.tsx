@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Settings as SettingsIcon, Key, Zap, Globe, Save, Check, AlertCircle } from 'lucide-react'
+import { Settings as SettingsIcon, Key, Zap, Globe, Save, Check, AlertCircle, Plus, Loader2, LogIn } from 'lucide-react'
+import { useWorkspace } from '@web/context/workspace'
 
 interface Section {
     id: string
@@ -56,23 +57,48 @@ function SaveButton({ saved, saving }: { saved: boolean; saving: boolean }) {
     )
 }
 
+interface WorkspaceRow {
+    id: string
+    name: string
+    createdAt: string
+}
+
 export default function SettingsPage() {
+    const { workspaceId, setWorkspace } = useWorkspace()
     const [active, setActive] = useState('workspace')
     const [saving, setSaving] = useState(false)
     const [saved, setSaved] = useState(false)
     const [saveError, setSaveError] = useState<string | null>(null)
 
     const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-    const WS_ID = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
+    // Active workspace ID — prefer context (localStorage), fall back to env
+    const WS_ID = workspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
 
     // Workspace settings state
     const [workspaceName, setWorkspaceName] = useState('My Workspace')
     const [costCeiling, setCostCeiling] = useState('10')
 
+    // Workspace list state
+    const [wsList, setWsList] = useState<WorkspaceRow[]>([])
+    const [wsListLoading, setWsListLoading] = useState(false)
+    const [creatingWs, setCreatingWs] = useState(false)
+    const [newWsName, setNewWsName] = useState('')
+    const [creating, setCreating] = useState(false)
+
     // Agent settings state
     const [tokenBudget, setTokenBudget] = useState('50000')
     const [defaultModel, setDefaultModel] = useState('claude-opus-4-5')
     const [maxRetries, setMaxRetries] = useState('3')
+
+    const loadWorkspaceList = useCallback(async () => {
+        setWsListLoading(true)
+        try {
+            const res = await fetch(`${API_BASE}/api/workspaces`, { cache: 'no-store' })
+            if (!res.ok) return
+            const data = await res.json() as { items?: WorkspaceRow[] }
+            setWsList(data.items ?? [])
+        } catch { /* non-fatal */ } finally { setWsListLoading(false) }
+    }, [API_BASE])
 
     // Load workspace data on mount
     const loadWorkspace = useCallback(async () => {
@@ -91,10 +117,33 @@ export default function SettingsPage() {
     }, [API_BASE, WS_ID])
 
     useEffect(() => { void loadWorkspace() }, [loadWorkspace])
+    useEffect(() => { if (active === 'workspace') void loadWorkspaceList() }, [active, loadWorkspaceList])
 
     // API key state (write-only — never read back)
     const [anthropicKey, setAnthropicKey] = useState('')
     const [openaiKey, setOpenaiKey] = useState('')
+
+    async function handleCreateWorkspace() {
+        if (!newWsName.trim()) return
+        setCreating(true)
+        try {
+            // Get ownerId from current workspace
+            const wsRes = await fetch(`${API_BASE}/api/workspaces/${WS_ID}`)
+            const wsData = await (wsRes.ok ? wsRes.json() : {}) as { ownerId?: string }
+            const ownerId = wsData.ownerId ?? WS_ID
+            const res = await fetch(`${API_BASE}/api/workspaces`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: newWsName.trim(), ownerId }),
+            })
+            if (res.ok) {
+                const created = await res.json() as WorkspaceRow
+                setWsList((prev) => [created, ...prev])
+                setNewWsName('')
+                setCreatingWs(false)
+            }
+        } catch { /* non-fatal */ } finally { setCreating(false) }
+    }
 
     async function handleSave(e: React.FormEvent) {
         e.preventDefault()
@@ -171,9 +220,12 @@ export default function SettingsPage() {
                     <div className="flex flex-col gap-6">
                         <div>
                             <h2 className="text-lg font-bold text-zinc-50">Workspace</h2>
-                            <p className="mt-0.5 text-sm text-zinc-500">General workspace configuration</p>
+                            <p className="mt-0.5 text-sm text-zinc-500">Manage your workspaces and configure the active one</p>
                         </div>
+
+                        {/* Active workspace config */}
                         <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 flex flex-col gap-5">
+                            <p className="text-[11px] uppercase tracking-widest text-zinc-600 font-medium">Active workspace</p>
                             <Field id="workspace-name" label="Workspace name" description="Displayed in the sidebar and agent context.">
                                 <Input id="workspace-name" value={workspaceName} onChange={(e) => setWorkspaceName(e.target.value)} placeholder="My Workspace" />
                             </Field>
@@ -186,6 +238,90 @@ export default function SettingsPage() {
                         </div>
                         <div className="flex justify-end">
                             <SaveButton saved={saved} saving={saving} />
+                        </div>
+
+                        {/* All workspaces */}
+                        <div className="flex flex-col gap-3">
+                            <div className="flex items-center justify-between">
+                                <p className="text-[11px] uppercase tracking-widest text-zinc-600 font-medium">All workspaces</p>
+                                <button
+                                    type="button"
+                                    onClick={() => setCreatingWs((v) => !v)}
+                                    className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-2.5 py-1.5 text-[12px] text-zinc-400 hover:border-indigo-600/50 hover:text-indigo-400 transition-colors"
+                                >
+                                    <Plus className="h-3.5 w-3.5" />
+                                    New workspace
+                                </button>
+                            </div>
+
+                            {creatingWs && (
+                                <div className="flex items-center gap-2 rounded-xl border border-indigo-800/40 bg-indigo-950/20 px-4 py-3">
+                                    <input
+                                        autoFocus
+                                        value={newWsName}
+                                        onChange={(e) => setNewWsName(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') void handleCreateWorkspace()
+                                            if (e.key === 'Escape') { setCreatingWs(false); setNewWsName('') }
+                                        }}
+                                        placeholder="Workspace name"
+                                        className="flex-1 bg-transparent text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleCreateWorkspace()}
+                                        disabled={creating || !newWsName.trim()}
+                                        className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                                    >
+                                        {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                                        Create
+                                    </button>
+                                    <button type="button" onClick={() => { setCreatingWs(false); setNewWsName('') }} className="text-zinc-600 hover:text-zinc-300 text-sm transition-colors">Cancel</button>
+                                </div>
+                            )}
+
+                            <div className="rounded-xl border border-zinc-800 overflow-hidden">
+                                {wsListLoading ? (
+                                    <div className="flex items-center justify-center py-8">
+                                        <Loader2 className="h-4 w-4 animate-spin text-zinc-600" />
+                                    </div>
+                                ) : wsList.length === 0 ? (
+                                    <p className="px-4 py-6 text-sm text-zinc-600 text-center">No workspaces found</p>
+                                ) : (
+                                    wsList.map((ws, i) => {
+                                        const isActive = ws.id === WS_ID
+                                        return (
+                                            <div
+                                                key={ws.id}
+                                                className={`flex items-center gap-3 px-4 py-3 ${i > 0 ? 'border-t border-zinc-800' : ''} ${isActive ? 'bg-indigo-950/20' : 'hover:bg-zinc-900/40'} transition-colors`}
+                                            >
+                                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-600/20 text-[11px] font-bold text-indigo-400">
+                                                    {ws.name.slice(0, 1).toUpperCase()}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-zinc-100 truncate">{ws.name}</p>
+                                                    <p className="text-[10px] font-mono text-zinc-600 truncate">{ws.id}</p>
+                                                </div>
+                                                {isActive ? (
+                                                    <span className="flex items-center gap-1 rounded-full bg-indigo-900/40 border border-indigo-700/30 px-2 py-0.5 text-[10px] font-medium text-indigo-400">
+                                                        <Check className="h-2.5 w-2.5" />
+                                                        Active
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setWorkspace(ws.id, ws.name)}
+                                                        className="flex items-center gap-1 rounded-lg border border-zinc-700 px-2.5 py-1 text-[11px] text-zinc-400 hover:border-indigo-600/50 hover:text-indigo-400 transition-colors"
+                                                    >
+                                                        <LogIn className="h-3 w-3" />
+                                                        Switch
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )
+                                    })
+                                )}
+                            </div>
                         </div>
                     </div>
                 )}

@@ -140,8 +140,8 @@ function WorkspaceSwitcher() {
     useEffect(() => {
         if (!open) return
         fetch(`${API}/api/workspaces`, { cache: 'no-store' })
-            .then((r) => r.ok ? r.json() : [])
-            .then((d: WorkspaceSummary[]) => setList(d))
+            .then((r) => r.ok ? r.json() : { items: [] })
+            .then((d: unknown) => setList(Array.isArray(d) ? d : ((d as { items?: WorkspaceSummary[] }).items ?? [])))
             .catch(() => { /* non-fatal */ })
     }, [open, API])
 

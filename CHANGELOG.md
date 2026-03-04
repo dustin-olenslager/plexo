@@ -12,6 +12,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [0.7.0-dev] — 2026-03-04 (Phase 7C — Workspace management)
+
+### Added
+- **Workspace switcher** — replaces static logo in sidebar with a click-to-open popover listing all workspaces; active workspace has a ✓ checkmark; switch persists to `localStorage` and reloads the app
+- **Multi-workspace create** — inline "New workspace" form in both the sidebar switcher and Settings > Workspace; calls `POST /api/workspaces` and auto-switches on success
+- **Settings > Workspace management panel** — full workspace list with avatar initials, truncated ID, active indicator, and Switch button for all other workspaces
+- **`POST /api/workspaces`** — creates a new workspace with `name` + `ownerId`; returns `{ id, name }`
+
+### Fixed
+- **Sidebar multi-select bug** — `isActive` rewritten with segment-boundary match (`href + '/'`) and `exact?: boolean` flag; `/settings` (Workspace) no longer activates alongside `/settings/agent`, `/settings/ai-providers`, etc.
+- **Workspace section dedup** — removed the redundant Workspace section from Settings > Agent; Settings > Workspace is the single authoritative location for workspace name, ID (read-only), and cost ceiling
+- **Discord logo broken** — connection registry logo URL updated to `cdn.simpleicons.org/discord/5865F2` (stable CDN); seed SQL updated; `onError` fallback on all connection `<img>` tags degrades to initials
+
+### Added
+- **Task → project relationship** — `tasks.project_id` nullable FK → `sprints.id` (`ON DELETE SET NULL`); index `tasks_project_id_idx`; backfill via `sprint_tasks` join (migration 0006)
+- **`projectId` filtering** — `GET /api/tasks?projectId=` and `POST /api/tasks` body; queue `push()`/`list()` updated
+- **Sprint runner** — passes `sprintId` as `projectId` when pushing tasks so sprint-generated tasks carry the FK
+- **Task detail breadcrumb** — shows project link in header when `task.projectId` is set
+- **Tasks page project filter** — project badge on each row; filter bar for project/standalone tasks
+
+---
+
 ## [0.7.0-dev] — 2026-03-04 (Phase 7A continued + UX polish)
 
 ### Added

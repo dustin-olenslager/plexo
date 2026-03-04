@@ -166,8 +166,8 @@ All routes require a valid `workspaceId` UUID.
 
 ```
 GET    /health                               Postgres + Redis latency, version, uptime
-GET    /api/tasks                            List tasks (paginated, filter by status/type)
-POST   /api/tasks                            Create task
+GET    /api/tasks                            List tasks (paginated, filter by status/type/projectId)
+POST   /api/tasks                            Create task (optional projectId)
 GET    /api/tasks/:id                        Task detail + execution steps
 DELETE /api/tasks/:id                        Cancel task
 GET    /api/tasks/stats/summary              Counts by status + cost totals
@@ -177,6 +177,10 @@ GET    /api/sprints/:id                      Sprint detail + linked tasks
 PATCH  /api/sprints/:id                      Update status
 GET    /api/dashboard/summary                All dashboard card data (one request)
 GET    /api/dashboard/activity               Recent task feed
+GET    /api/workspaces                       List workspaces
+POST   /api/workspaces                       Create workspace
+GET    /api/workspaces/:id                   Workspace detail + settings
+PATCH  /api/workspaces/:id                   Update workspace (deep-merges settings)
 POST   /api/channels/discord/interactions    Discord Interactions (slash commands, ping verification)
 GET    /api/channels/discord/info            Discord adapter status + supported commands
 GET    /api/channels/telegram/info           Telegram adapter status
@@ -236,7 +240,7 @@ pnpm typecheck         # tsc --noEmit across all packages — must pass before c
 
 ## Roadmap
 
-> Updated with every push. Last updated: 2026-03-03
+> Updated with every push. Last updated: 2026-03-04
 
 ### ✅ Phase 1 — Foundation
 - [x] pnpm workspace monorepo, Turborepo pipeline
@@ -326,6 +330,15 @@ pnpm typecheck         # tsc --noEmit across all packages — must pass before c
 - [x] **Projects route** — sidebar "Projects" links directly to `/sprints` (canonical); placeholder redirect removed
 - [x] **New API routes** — `GET/POST/PATCH/DELETE /api/channels`, `GET/POST/PATCH/DELETE /api/cron`, `POST /api/cron/:id/trigger`, `GET/PATCH /api/users`, `PATCH /api/workspaces/:id`
 - [x] All placeholder pages eliminated — every sidebar route now renders real content
+
+### ✅ Phase 10 — Workspace management + navigation polish
+- [x] **Workspace switcher** — sidebar header replaced with popover; lists all workspaces, active checkmark, switch via localStorage, full page reload
+- [x] **Multi-workspace create** — inline form in sidebar + Settings > Workspace; `POST /api/workspaces` endpoint
+- [x] **Settings > Workspace** — canonical location for name, ID, cost ceiling + full workspace list with switch buttons
+- [x] **Sidebar multi-select fix** — segment-boundary `isActive`; `exact` flag prevents `/settings` shadowing sub-routes
+- [x] **Task → project relationship** — `tasks.project_id` FK → `sprints.id`, migration 0006, queue + API + UI updated
+- [x] **Discord icon** — stable CDN URL, `onError` fallback on all connection logos
+- [x] **Settings dedup** — Workspace section removed from Settings > Agent
 
 ### 🔲 Backlog
 - [ ] Sandbox tools in isolated Docker containers
