@@ -189,6 +189,17 @@ This has implications for every decision:
 - **web .env.local**: `NEXT_PUBLIC_DEFAULT_WORKSPACE` and `DEV_WORKSPACE_ID` set to the dev workspace UUID. Required for LiveDashboard and other client components to make API calls.
 - **API restart protocol**: `kill -9 <pid>` then restart with `cmd < /dev/null >> logfile 2>&1 &`. Wait 5s, verify with `curl -sm4 http://localhost:3001/health`. Do not use pnpm from within a background job (EBADF on stdin).
 
+### 2026-03 — Phase 11 (Workspace Membership + Invites)
+
+- **`workspace_members` table**: composite unique `(workspace_id, user_id)`, roles enum `member_role` = owner/admin/member/viewer. Migration 0007 backfills existing owners.
+- **`workspace_invites` table**: 48-char random hex token, optional `invited_email`, role, 7-day `expires_at`, `used_at`/`used_by_user_id` for single-use enforcement.
+- **Members router** (`apps/api/src/routes/members.ts`): mounted at `/api/workspaces/:id/members` with `mergeParams: true`. Params require explicit cast `(req.params as { id: string }).id` due to Express 5 typing.
+- **Invite router** at `/api/invites/:token` (GET info, POST accept). POST accept upserts membership via `onConflictDoUpdate`.
+- **Settings > Members page**: workspace-scoped list replaces global users list. Invite panel generates 7-day link, copy-to-clipboard. Role chips for viewer/member/admin. Remove button blocked for workspace owner.
+- **`/invite/[token]` page**: standalone accept flow outside dashboard layout (no sidebar/nav). Shows workspace name + role, one-click join, redirects to `/` on success.
+- **WorkspaceContext propagation**: All 11 pages using module-level `NEXT_PUBLIC_DEFAULT_WORKSPACE` constant converted to `useWorkspace()` hook inside component. `RouteRow` in debug page received `wsId` prop to avoid module-scope capture.
+- **QuickSend**: now reads from `WorkspaceContext`; success message links to `/tasks/:id`.
+
 ### 2026-03 — Phase 7B/C/D (Personality, Control Room, Webchat, NLP Cron)
 
 - **Agent personality**: `workspaces.settings` JSONB holds `agentName`, `agentPersona`, `agentTagline`, `agentAvatar`. Executor (`packages/agent/src/executor/index.ts`) dynamic-imports from `@plexo/db` to read these at task start. Non-fatal try/catch — falls back to 'Plexo' name and empty persona prefix.
