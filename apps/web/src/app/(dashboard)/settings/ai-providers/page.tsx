@@ -276,14 +276,19 @@ export default function AIProvidersPage() {
         if (!WS_ID) return
         setSaving(true)
         try {
-            // Persist non-secret config to workspace settings.
-            // API keys are NOT stored here — they are env-var managed.
-            // We store: status, selected model, baseUrl, primary, routing.
-            const providersConfig: Record<string, { status: ProviderStatus; selectedModel: string; baseUrl: string }> = {}
+            // Persist provider config to workspace settings, including API keys.
+            // Keys are stored in workspace JSONB settings (local dev only).
+            // In production, prefer ANTHROPIC_API_KEY env var.
+            const providersConfig: Record<string, { status: ProviderStatus; selectedModel: string; baseUrl: string; apiKey?: string }> = {}
             for (const p of PROVIDERS) {
                 const s = providerStates[p.key]
                 if (s.status !== 'unconfigured') {
-                    providersConfig[p.key] = { status: s.status, selectedModel: s.selectedModel, baseUrl: s.baseUrl }
+                    providersConfig[p.key] = {
+                        status: s.status,
+                        selectedModel: s.selectedModel,
+                        baseUrl: s.baseUrl,
+                        ...(s.apiKey ? { apiKey: s.apiKey } : {}),
+                    }
                 }
             }
             const res = await fetch(`${API_BASE}/api/workspaces/${WS_ID}`, {

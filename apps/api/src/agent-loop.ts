@@ -1,6 +1,6 @@
 import { claimTask, completeTask, blockTask } from '@plexo/queue'
 import { db, eq } from '@plexo/db'
-import { tasks, workspaces } from '@plexo/db'
+import { tasks, workspaces, installedConnections } from '@plexo/db'
 import { planTask } from '@plexo/agent/planner'
 import { executeTask } from '@plexo/agent/executor'
 import type { AnthropicCredential, ExecutionContext } from '@plexo/agent/types'
@@ -15,14 +15,55 @@ let activeAbort: AbortController | null = null
 
 /**
  * Resolve the Anthropic credential for a workspace.
- * Phase 2: reads from environment. Phase 3: fetches from installed_connections.
+ * Priority:
+ *   1. ANTHROPIC_API_KEY env var (server-level override)
+ *   2. workspace.settings.aiProviders.providers.anthropic.apiKey (set via UI)
+ *   3. installedConnections table (future OAuth flow)
  */
-async function resolveCredential(_workspaceId: string): Promise<AnthropicCredential | null> {
-    const key = process.env.ANTHROPIC_API_KEY
-    if (key && key !== 'placeholder') {
-        return { type: 'api_key', apiKey: key }
+async function resolveCredential(workspaceId: string): Promise<AnthropicCredential | null> {
+    // 1. Env var override
+    const envKey = process.env.ANTHROPIC_API_KEY
+    if (envKey && envKey !== 'placeholder') {
+        return { type: 'api_key', apiKey: envKey }
     }
-    // OAuth credentials — Phase 3 will load from installed_connections table
+
+    // 2. Workspace settings (saved by AI Providers UI)
+    try {
+        const [ws] = await db.select({ settings: workspaces.settings })
+            .from(workspaces)
+            .where(eq(workspaces.id, workspaceId))
+            .limit(1)
+        const settings = ws?.settings as {
+            aiProviders?: {
+                providers?: Record<string, { apiKey?: string; status?: string }>
+            }
+        } | null
+        const providers = settings?.aiProviders?.providers ?? {}
+        // Check anthropic first, then any provider with an api key
+        const providerOrder = ['anthropic', ...Object.keys(providers).filter(k => k !== 'anthropic')]
+        for (const p of providerOrder) {
+            const key = providers[p]?.apiKey
+            if (key) return { type: 'api_key', apiKey: key }
+        }
+    } catch (err) {
+        logger.warn({ err }, 'Failed to read AI key from workspace settings')
+    }
+
+    // 3. installedConnections table
+    try {
+        const rows = await db
+            .select({ credentials: installedConnections.credentials })
+            .from(installedConnections)
+            .where(eq(installedConnections.workspaceId, workspaceId))
+        for (const row of rows) {
+            const creds = row.credentials as Record<string, string> | null
+            const key = creds?.api_key ?? creds?.apiKey ?? creds?.ANTHROPIC_API_KEY
+            if (key) return { type: 'api_key', apiKey: key }
+        }
+    } catch (err) {
+        logger.warn({ err }, 'Failed to load credentials from installedConnections')
+    }
+
     return null
 }
 
