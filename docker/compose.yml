@@ -11,7 +11,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U plexo -d plexo"]
+      test: [ "CMD-SHELL", "pg_isready -U plexo -d plexo" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -30,7 +30,7 @@ services:
     volumes:
       - redisdata:/data
     healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
+      test: [ "CMD", "valkey-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,6 +39,26 @@ services:
         limits:
           memory: 192M
           cpus: "0.5"
+
+  # ── DB Migrations (runs once, exits) ────────────────────
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    entrypoint: [ "/bin/sh", "/migrate.sh" ]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://plexo:${POSTGRES_PASSWORD}@postgres:5432/plexo
+      MIGRATIONS_DIR: ./drizzle
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
 
   # ── API Server ───────────────────────────────────────────
 
@@ -52,6 +72,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       NODE_ENV: production
       PORT: "3001"
@@ -63,6 +85,26 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      SLACK_CLIENT_ID: ${SLACK_CLIENT_ID:-}
+      SLACK_CLIENT_SECRET: ${SLACK_CLIENT_SECRET:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      DISCORD_APP_ID: ${DISCORD_APP_ID:-}
+      DISCORD_PUBLIC_KEY: ${DISCORD_PUBLIC_KEY:-}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      MAX_SPRINT_WORKERS: ${MAX_SPRINT_WORKERS:-5}
+      API_COST_CEILING_USD: ${API_COST_CEILING_USD:-10.00}
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:3001/health | grep -q '\"status\":\"ok\"' || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     deploy:
       resources:
         limits:
@@ -77,7 +119,8 @@ services:
       dockerfile: docker/Dockerfile.web
     restart: unless-stopped
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       PORT: "3000"
@@ -86,6 +129,12 @@ services:
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
       NEXT_PUBLIC_API_URL: ${PUBLIC_URL}/api
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:3000/api/health 2>/dev/null | grep -q ok || wget -qO- http://localhost:3000 | grep -q html || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     deploy:
       resources:
         limits:
@@ -106,8 +155,10 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - web
-      - api
+      web:
+        condition: service_healthy
+      api:
+        condition: service_healthy
     deploy:
       resources:
         limits:

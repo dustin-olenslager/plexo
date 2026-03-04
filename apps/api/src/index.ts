@@ -1,4 +1,6 @@
 import 'dotenv/config'
+import { validateEnv } from './env.js'
+validateEnv()
 import express, { type Express } from 'express'
 import cors from 'cors'
 import { logger } from './logger.js'
