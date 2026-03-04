@@ -196,3 +196,12 @@ This has implications for every decision:
 - **Webchat**: `apps/api/src/routes/chat.ts` — POST `/api/chat/message` creates a `type:'online'` task with `source:'dashboard'`; uses `ulid()` for ID since `tasks.id` has no DB default. GET `/api/chat/reply/:taskId` long-polls up to 25s. GET `/api/chat/widget.js` returns a self-contained JS bundle injected via `<script>` tag with `data-workspace` attribute.
 - **NLP cron**: `parseNl()` is a deterministic rule-based parser in `apps/api/src/routes/cron.ts` — no AI call, handles "every Monday at 9am", "daily at midnight", "every 5 minutes", etc. Registered before parameterized routes so `/parse-nl` is not mistaken for `/:id`.
 - **Route ordering**: In Express, `cronRouter.post('/parse-nl', ...)` MUST be registered before `cronRouter.patch('/:id', ...)` etc. — already correct in current file.
+
+### 2026-03 — Phase 7A (Parity & Stability)
+
+- **Settings page**: Now a client component. Loads workspace name/settings from `GET /api/workspaces/:id` on mount. Saves to `PATCH /api/workspaces/:id`. `handleSave` dispatches to workspace/agent/api-keys branches. API Keys section converted to info panel pointing to AI Providers page + env var reference (keys live in process.env, not workspace settings).
+- **PATCH /api/workspaces/:id**: Deep-merges settings (read-modify-write) so saving agent settings does not wipe personality/cost-ceiling and vice versa. 404 returned if workspace not found.
+- **AI Providers fallback chain**: `fallbackOrder: ProviderKey[]` state added. Up/down buttons reorder configured providers. Persisted to `workspace.settings.aiProviders.fallbackOrder`. Loaded back on mount.
+- **Insights/Memory browser**: Converted from server component to client component. Memory semantic search via `GET /api/memory/search`. Run improvement cycle button → `POST /api/memory/improvements/run`. Per-entry Apply buttons → `POST /api/memory/improvements/:id/apply`.
+- **Telegram setup wizard**: `TelegramWizard` component in channels/page.tsx. 3-step: (1) BotFather guide, (2) token paste + live verify via `api.telegram.org/bot:token/getMe`, (3) webhook secret. Generic raw fields still used for Slack/Discord/etc.
+- **GripVertical in fallback chain**: Was decorative only. Replaced with ▲▼ buttons that call `moveFallback(key, -1|1)` — no DnD dependency needed.

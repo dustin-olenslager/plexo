@@ -12,6 +12,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ---
 
+## [0.7.0-dev] — 2026-03-04 (Phase 7A — Parity & Stability)
+
+### Added
+- **Telegram setup wizard** — 3-step guided onboarding in `/settings/channels`: BotFather instructions → live token verify via Telegram API → webhook secret. Auto-advances on successful token verify
+- **Memory/Insights browser** — converted to interactive client component: semantic search (`GET /api/memory/search`), run improvement cycle button, per-entry Apply buttons
+- **AI Providers fallback chain reordering** — ▲▼ buttons reorder configured providers; fallback order persisted to `workspace.settings.aiProviders.fallbackOrder`
+
+### Changed
+- **Settings page** — now a client component; loads real workspace data on mount; saves to `PATCH /api/workspaces/:id`; API Keys section replaced with info panel + env var reference pointing to AI Providers
+- **`PATCH /api/workspaces/:id`** — deep-merges settings object (read-modify-write) to prevent cross-section overwrites
+- **Settings > Agent** — `handleSave` wired to real API; loads persisted `defaultModel`, `tokenBudgetPerTask`, `maxRetries` from workspace settings on mount
+
+---
+
 ## [0.7.0-dev] — 2026-03-04 (Phase 7B/C/D — Personality, Control Room, Webchat, NLP Cron)
 
 ### Added
