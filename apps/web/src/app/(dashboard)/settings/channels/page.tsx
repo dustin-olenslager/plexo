@@ -66,6 +66,149 @@ function timeAgo(iso: string): string {
     return `${Math.floor(s / 86400)}d ago`
 }
 
+// ── Telegram Wizard ──────────────────────────────────────────────────────────
+
+function TelegramWizard({
+    fields,
+    onChange,
+}: {
+    fields: Record<string, string>
+    onChange: (k: string, v: string) => void
+}) {
+    const [step, setStep] = useState(0)
+    const [verifying, setVerifying] = useState(false)
+    const [verifyResult, setVerifyResult] = useState<{ ok: boolean; botName?: string } | null>(null)
+
+    async function verifyToken() {
+        const token = fields.bot_token?.trim()
+        if (!token) return
+        setVerifying(true)
+        setVerifyResult(null)
+        try {
+            const res = await fetch(`https://api.telegram.org/bot${token}/getMe`)
+            const data = await res.json() as { ok: boolean; result?: { username: string; first_name: string } }
+            setVerifyResult({ ok: data.ok, botName: data.result ? `${data.result.first_name} (@${data.result.username})` : undefined })
+            if (data.ok) setStep(2)
+        } catch {
+            setVerifyResult({ ok: false })
+        } finally {
+            setVerifying(false)
+        }
+    }
+
+    const STEPS = [
+        {
+            label: 'Create bot',
+            content: (
+                <div className="flex flex-col gap-4">
+                    <p className="text-sm text-zinc-400">Use <strong className="text-zinc-200">@BotFather</strong> on Telegram to create a new bot and get its token.</p>
+                    <ol className="flex flex-col gap-2 text-sm text-zinc-500 list-decimal list-inside">
+                        <li>Open Telegram → search <code className="text-sky-400">@BotFather</code></li>
+                        <li>Send <code className="text-sky-400">/newbot</code></li>
+                        <li>Follow prompts — choose a name and username ending in <code className="text-zinc-400">bot</code></li>
+                        <li>Copy the token BotFather gives you</li>
+                    </ol>
+                    <a
+                        href="https://t.me/botfather"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-sm text-sky-400 hover:text-sky-300 transition-colors"
+                    >
+                        Open @BotFather ↗
+                    </a>
+                    <button
+                        onClick={() => setStep(1)}
+                        className="self-start rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors"
+                    >
+                        I have my token →
+                    </button>
+                </div>
+            ),
+        },
+        {
+            label: 'Paste token',
+            content: (
+                <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-sm font-medium text-zinc-300">Bot token</label>
+                        <input
+                            type="password"
+                            value={fields.bot_token ?? ''}
+                            onChange={(e) => onChange('bot_token', e.target.value)}
+                            placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
+                            className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none font-mono"
+                            autoComplete="new-password"
+                        />
+                    </div>
+                    {verifyResult && (
+                        <div className={`rounded-lg border px-3 py-2 text-sm ${verifyResult.ok ? 'border-emerald-800/50 bg-emerald-950/20 text-emerald-400' : 'border-red-800/50 bg-red-950/20 text-red-400'}`}>
+                            {verifyResult.ok ? `✓ ${verifyResult.botName ?? 'Bot verified'}` : '✗ Invalid token — check and try again'}
+                        </div>
+                    )}
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => void verifyToken()}
+                            disabled={verifying || !fields.bot_token?.trim()}
+                            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                        >
+                            {verifying ? 'Verifying…' : 'Verify token'}
+                        </button>
+                        <button onClick={() => setStep(0)} className="text-sm text-zinc-600 hover:text-zinc-400 transition-colors">
+                            ← Back
+                        </button>
+                    </div>
+                </div>
+            ),
+        },
+        {
+            label: 'Webhook',
+            content: (
+                <div className="flex flex-col gap-4">
+                    {verifyResult?.ok && (
+                        <div className="rounded-lg border border-emerald-800/50 bg-emerald-950/20 px-3 py-2 text-sm text-emerald-400">
+                            ✓ {verifyResult.botName} connected
+                        </div>
+                    )}
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-sm font-medium text-zinc-300">Webhook secret <span className="text-zinc-600 font-normal">(optional)</span></label>
+                        <input
+                            type="password"
+                            value={fields.webhook_secret ?? ''}
+                            onChange={(e) => onChange('webhook_secret', e.target.value)}
+                            placeholder="Random secret for verifying webhook authenticity"
+                            className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none font-mono"
+                            autoComplete="new-password"
+                        />
+                        <p className="text-xs text-zinc-600">Leave blank to auto-generate one. Plexo will register the webhook automatically on save.</p>
+                    </div>
+                </div>
+            ),
+        },
+    ]
+
+    return (
+        <div className="flex flex-col gap-4">
+            {/* Step indicator */}
+            <div className="flex items-center gap-2">
+                {STEPS.map((s, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                        <button
+                            onClick={() => i < step && setStep(i)}
+                            className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium transition-colors ${i === step ? 'bg-indigo-600 text-white' : i < step ? 'bg-emerald-600/30 text-emerald-400 cursor-pointer' : 'bg-zinc-800 text-zinc-600'
+                                }`}
+                        >
+                            {i < step ? '✓' : i + 1}
+                        </button>
+                        <span className={`text-xs ${i === step ? 'text-zinc-300' : 'text-zinc-600'}`}>{s.label}</span>
+                        {i < STEPS.length - 1 && <span className="h-px w-4 bg-zinc-800" />}
+                    </div>
+                ))}
+            </div>
+            {STEPS[step]?.content}
+        </div>
+    )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ChannelsPage() {
@@ -233,8 +376,8 @@ export default function ChannelsPage() {
                                 key={ch.id}
                                 onClick={() => { setSelected(ch); setAdding(false) }}
                                 className={`text-left rounded-xl border p-3 transition-all ${active
-                                        ? 'border-indigo-500/50 bg-zinc-900'
-                                        : 'border-zinc-800 bg-zinc-900/40 hover:border-zinc-700'
+                                    ? 'border-indigo-500/50 bg-zinc-900'
+                                    : 'border-zinc-800 bg-zinc-900/40 hover:border-zinc-700'
                                     }`}
                             >
                                 <div className="flex items-center justify-between">
@@ -276,8 +419,8 @@ export default function ChannelsPage() {
                                                 key={t}
                                                 onClick={() => setAddState((s) => ({ ...s, type: t }))}
                                                 className={`flex flex-col items-center gap-1.5 rounded-lg border p-2.5 transition-all ${addState.type === t
-                                                        ? 'border-indigo-500/50 bg-zinc-800'
-                                                        : 'border-zinc-800 hover:border-zinc-700'
+                                                    ? 'border-indigo-500/50 bg-zinc-800'
+                                                    : 'border-zinc-800 hover:border-zinc-700'
                                                     }`}
                                             >
                                                 <Icon className={`h-5 w-5 ${m.color}`} />
@@ -300,20 +443,27 @@ export default function ChannelsPage() {
                                 />
                             </div>
 
-                            {/* Dynamic config fields */}
-                            {CHANNEL_META[addState.type].docFields.map((field) => (
-                                <div key={field} className="flex flex-col gap-1.5">
-                                    <label className="text-sm font-medium text-zinc-300">{field.replace(/_/g, ' ')}</label>
-                                    <input
-                                        type="password"
-                                        value={addState.fields[field] ?? ''}
-                                        onChange={(e) => setAddState((s) => ({ ...s, fields: { ...s.fields, [field]: e.target.value } }))}
-                                        placeholder={field.includes('token') || field.includes('secret') ? '••••••••' : ''}
-                                        autoComplete="new-password"
-                                        className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none font-mono"
-                                    />
-                                </div>
-                            ))}
+                            {/* Config fields — wizard for Telegram, generic for others */}
+                            {addState.type === 'telegram' ? (
+                                <TelegramWizard
+                                    fields={addState.fields}
+                                    onChange={(k, v) => setAddState((s) => ({ ...s, fields: { ...s.fields, [k]: v } }))}
+                                />
+                            ) : (
+                                CHANNEL_META[addState.type].docFields.map((field) => (
+                                    <div key={field} className="flex flex-col gap-1.5">
+                                        <label className="text-sm font-medium text-zinc-300">{field.replace(/_/g, ' ')}</label>
+                                        <input
+                                            type="password"
+                                            value={addState.fields[field] ?? ''}
+                                            onChange={(e) => setAddState((s) => ({ ...s, fields: { ...s.fields, [field]: e.target.value } }))}
+                                            placeholder={field.includes('token') || field.includes('secret') ? '••••••••' : ''}
+                                            autoComplete="new-password"
+                                            className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none font-mono"
+                                        />
+                                    </div>
+                                ))
+                            )}
 
                             {message && (
                                 <div className={`rounded-lg border px-3 py-2 text-sm ${message.ok ? 'border-emerald-800/50 bg-emerald-950/30 text-emerald-400' : 'border-red-800/50 bg-red-950/30 text-red-400'}`}>
