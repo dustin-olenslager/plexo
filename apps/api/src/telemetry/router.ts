@@ -1,8 +1,9 @@
 /**
  * Telemetry API routes
  *
- * GET  /api/v1/telemetry          — current config (enabled, instanceId)
- * POST /api/v1/telemetry          — update enabled + instanceId
+ * GET  /api/v1/telemetry          — current config (enabled, instanceId) — reads from DB
+ * POST /api/v1/telemetry          — update enabled; persists to workspace.settings
+ * POST /api/v1/telemetry/regenerate-id — new anonymous instance ID
  * GET  /api/v1/telemetry/payload  — last sanitized payload from Redis
  */
 import { Router, type Router as RouterType } from 'express'
@@ -20,12 +21,66 @@ import pino from 'pino'
 const logger = pino({ name: 'telemetry-router' })
 export const telemetryRouter: RouterType = Router()
 
-// GET /api/v1/telemetry
-telemetryRouter.get('/', (_req, res) => {
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+interface TelemetrySettings {
+    enabled?: boolean
+    instanceId?: string
+}
+
+async function loadFromDb(workspaceId: string): Promise<TelemetrySettings | null> {
+    try {
+        const [ws] = await db.select({ settings: workspaces.settings }).from(workspaces)
+            .where(eq(workspaces.id, workspaceId)).limit(1)
+        if (!ws) return null
+        const settings = (ws.settings ?? {}) as Record<string, unknown>
+        return (settings.telemetry ?? {}) as TelemetrySettings
+    } catch (err) {
+        logger.warn({ err }, 'Failed to load telemetry settings from DB')
+        return null
+    }
+}
+
+async function saveToDb(workspaceId: string, patch: TelemetrySettings): Promise<void> {
+    try {
+        const [ws] = await db.select({ settings: workspaces.settings }).from(workspaces)
+            .where(eq(workspaces.id, workspaceId)).limit(1)
+        if (!ws) return
+        const settings = (ws.settings ?? {}) as Record<string, unknown>
+        settings.telemetry = { ...(settings.telemetry as TelemetrySettings ?? {}), ...patch }
+        await db.update(workspaces).set({ settings }).where(eq(workspaces.id, workspaceId))
+    } catch (err) {
+        logger.warn({ err }, 'Failed to persist telemetry setting')
+    }
+}
+
+// ── GET /api/v1/telemetry ─────────────────────────────────────────────────────
+
+telemetryRouter.get('/', async (req, res) => {
+    const workspaceId = req.headers['x-workspace-id'] as string | undefined
+
+    // Always prefer DB value — in-memory is unreliable across restarts
+    if (workspaceId) {
+        const persisted = await loadFromDb(workspaceId)
+        if (persisted) {
+            const enabled = persisted.enabled ?? false
+            const { instanceId } = getTelemetryConfig()
+            const resolvedId = persisted.instanceId ?? instanceId
+
+            // Sync in-memory so subsequent captures use the right values
+            setTelemetryEnabled(enabled)
+
+            res.json({ enabled, instanceId: resolvedId })
+            return
+        }
+    }
+
+    // Fallback to in-memory (CI/CLI or no workspace context)
     res.json(getTelemetryConfig())
 })
 
-// POST /api/v1/telemetry — { enabled: boolean }
+// ── POST /api/v1/telemetry ────────────────────────────────────────────────────
+
 telemetryRouter.post('/', async (req, res) => {
     const { enabled } = req.body as { enabled?: boolean }
 
@@ -34,32 +89,23 @@ telemetryRouter.post('/', async (req, res) => {
         return
     }
 
+    // Update in-memory immediately
     setTelemetryEnabled(enabled)
 
-    // Persist to workspace settings — use x-workspace-id header
     const workspaceId = req.headers['x-workspace-id'] as string | undefined
     if (workspaceId) {
-        try {
-            const [ws] = await db.select({ settings: workspaces.settings }).from(workspaces)
-                .where(eq(workspaces.id, workspaceId)).limit(1)
-            if (ws) {
-                const settings = (ws.settings ?? {}) as Record<string, unknown>
-                settings.telemetry = { ...(settings.telemetry as Record<string, unknown> ?? {}), enabled }
-                await db.update(workspaces).set({ settings }).where(eq(workspaces.id, workspaceId))
-            }
-        } catch (err) {
-            logger.warn({ err }, 'Failed to persist telemetry setting')
-        }
+        await saveToDb(workspaceId, { enabled })
     }
 
-    logger.info({ enabled }, 'Telemetry setting updated')
+    logger.info({ enabled, workspaceId }, 'Telemetry setting updated')
     res.json({ ok: true, enabled })
 })
 
-// POST /api/v1/telemetry/regenerate-id — generate a new anonymous instance ID
+// ── POST /api/v1/telemetry/regenerate-id ──────────────────────────────────────
+
 telemetryRouter.post('/regenerate-id', async (req, res) => {
     const newId = randomUUID()
-    const { instanceId: _old, enabled } = getTelemetryConfig()
+    const { enabled } = getTelemetryConfig()
 
     configureTelemetry({
         enabled,
@@ -68,27 +114,17 @@ telemetryRouter.post('/regenerate-id', async (req, res) => {
         redisUrl: process.env.REDIS_URL,
     })
 
-    // Persist to workspace settings
     const workspaceId = req.headers['x-workspace-id'] as string | undefined
     if (workspaceId) {
-        try {
-            const [ws] = await db.select({ settings: workspaces.settings }).from(workspaces)
-                .where(eq(workspaces.id, workspaceId)).limit(1)
-            if (ws) {
-                const settings = (ws.settings ?? {}) as Record<string, unknown>
-                settings.telemetry = { ...(settings.telemetry as Record<string, unknown> ?? {}), instanceId: newId }
-                await db.update(workspaces).set({ settings }).where(eq(workspaces.id, workspaceId))
-            }
-        } catch (err) {
-            logger.warn({ err }, 'Failed to persist new instance ID')
-        }
+        await saveToDb(workspaceId, { instanceId: newId })
     }
 
     logger.info({ newId }, 'Telemetry instance ID regenerated')
     res.json({ ok: true, instanceId: newId })
 })
 
-// GET /api/v1/telemetry/payload — last sanitized crash payload
+// ── GET /api/v1/telemetry/payload ─────────────────────────────────────────────
+
 telemetryRouter.get('/payload', async (_req, res) => {
     const payload = await getLastPayload()
     res.json({ payload })

@@ -183,9 +183,12 @@ export default function PrivacyPage() {
     }
 
     const load = useCallback(async () => {
+        if (!workspaceId) return          // wait until context resolves
         setLoading(true)
         try {
-            const r = await fetch('/api/telemetry')
+            const r = await fetch('/api/telemetry', {
+                headers: { 'x-workspace-id': workspaceId },
+            })
             if (r.ok) setConfig(await r.json() as TelemetryConfig)
         } finally {
             setLoading(false)
@@ -196,7 +199,7 @@ export default function PrivacyPage() {
             const d = await r2.json() as { payload: (LastPayload & { timestamp?: string }) | null }
             setLastSentAt(d.payload?.timestamp ?? null)
         } catch { /* optional */ }
-    }, [])
+    }, [workspaceId])    // re-run when workspaceId becomes available
 
     useEffect(() => { void load() }, [load])
 
