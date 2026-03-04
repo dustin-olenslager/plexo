@@ -490,6 +490,19 @@ pnpm typecheck         # tsc --noEmit across all packages — must pass before c
 - [x] Auto-disables color/spinners when piped (non-TTY)
 - [x] `--output json|table|csv` on all list commands
 
+### ✅ Phase 27 — Channels, telemetry, observability polish
+- [x] **Telegram long polling** — works in local dev without a public URL; bot token resolved from DB channels config
+- [x] **Telegram intent classification** — AI-classifies every message as TASK or CONVERSATION; greetings get a direct reply, not a queued task
+- [x] **Telegram reply-back** — internal event bus (`onAgentEvent`) notifies bot of task completion; sends result to chat
+- [x] **Conversation history** — per-chat rolling 20-turn context window
+- [x] **Credential resolution** — agent-loop resolves AI keys from `workspace.settings.aiProviders` (set via UI) before falling back to env var
+- [x] **Health check** — Anthropic ping resolves key from workspace settings if `ANTHROPIC_API_KEY` env not set
+- [x] **Rate limiter** — loopback IPs (`127.0.0.1`, `::1`) exempt; prevents dev/test runs burning the window
+- [x] **Telemetry opt-in** — anonymous crash reporting toggle in Privacy settings + onboarding wizard step
+- [x] **Logs page** — card-style rows with status badge, source, description, metrics; status filter; click through to detail page
+- [x] **Log detail page** — `/logs/[id]` shows metrics grid, outcome summary, full context, per-step breakdown with tool calls
+- [x] **URL routing fix** — all settings pages now use `API_BASE` (port 3001) not relative Next.js paths
+
 ### 🔲 Backlog
 - [ ] External Kapsel Marketplace — separate hosted service; Plexo instances pull from it
 - [ ] `task_source: 'extension'` fully propagated — pending enum migration in all environments
