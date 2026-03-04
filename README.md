@@ -11,7 +11,7 @@ Plexo runs a persistent agent that handles real work autonomously — and interr
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=nextdotjs)](https://nextjs.org)
 [![Docker](https://img.shields.io/badge/self--hosted-Docker-2496ED?logo=docker&logoColor=white)](docker/compose.yml)
 [![Build](https://img.shields.io/badge/typecheck-passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
-[![Phase](https://img.shields.io/badge/phase-25%20complete-brightgreen)](https://github.com/dustin-olenslager/plexo#roadmap)
+[![Phase](https://img.shields.io/badge/phase-26%20complete-brightgreen)](https://github.com/dustin-olenslager/plexo#roadmap)
 [![Kapsel](https://img.shields.io/badge/Kapsel-Full%20compliant-6C47FF)](https://github.com/joeybuilt-official/kapsel)
 
 [**Managed hosting →**](https://getplexo.com) · [Docs](docs/) · [Kapsel SDK](packages/sdk/) · [Kapsel Protocol →](https://github.com/joeybuilt-official/kapsel) · [Architecture](docs/architecture.md)
@@ -303,6 +303,54 @@ POST   /api/v1/auth/login                    Verify credentials
 
 ---
 
+## CLI
+
+Control Plexo from the terminal or CI/CD pipelines.
+
+```bash
+# No install required
+npx plexo@latest auth login
+npx plexo@latest task run "fix the failing tests" --wait
+
+# Or install globally
+npm install -g @plexo/cli
+plexo status
+```
+
+**Commands:**
+
+```
+plexo auth login|logout|status|token
+plexo task run|list|get|logs|cancel|block|approve
+plexo sprint start|list|get|logs|cancel|workers|merge-queue
+plexo cron list|get|add|enable|disable|delete|run|history
+plexo connection list|get|install|remove|test
+plexo plugin list|install|remove|enable|disable|logs
+plexo memory search|list|get|delete
+plexo logs
+plexo status [--watch]
+plexo config show|set|profile
+```
+
+**CI/CD — trigger a sprint on merge:**
+
+```yaml
+# .github/workflows/plexo.yml
+- run: npx plexo@latest sprint start "review changes and update docs" --wait --timeout 2h
+  env:
+    PLEXO_HOST: ${{ secrets.PLEXO_HOST }}
+    PLEXO_TOKEN: ${{ secrets.PLEXO_TOKEN }}
+    PLEXO_WORKSPACE: ${{ secrets.PLEXO_WORKSPACE }}
+```
+
+**Exit codes:** `0` success · `2` task failed / quality < 7 · `3` blocked (OWD approval needed) · `4` auth error · `5` timeout
+
+**Config:** `~/.plexo/config.json` · env vars `PLEXO_HOST`, `PLEXO_TOKEN`, `PLEXO_WORKSPACE` override for CI
+
+See [`apps/cli/`](apps/cli/) for source and [`docs/cli-github-actions-example.yml`](docs/cli-github-actions-example.yml) for a full workflow example.
+
+---
+
 ## Testing
 
 ```bash
@@ -423,6 +471,24 @@ pnpm typecheck         # tsc --noEmit across all packages — must pass before c
 - [x] **OWD → SSE push** — `requestApproval()` emits `plexo.owd.pending`; API subscribes and forwards to workspace SSE clients; approval banner appears in real time
 - [x] **Worker stats in `/health`** — `kapsel.workers[]` shows active persistent workers with tool counts
 - [x] CORS hardened — always allows `localhost:3000/3001` in dev regardless of `PUBLIC_URL`
+
+### ✅ Phase 26 — CLI (`@plexo/cli`)
+- [x] `apps/cli` — ESM Node.js package, `npx plexo@latest` or global install
+- [x] `plexo auth` — login (email/password, stores profile at `~/.plexo/config.json`), logout, status, token
+- [x] `plexo task` — run (with `--wait` SSE blocking + timeout), list, get, logs, cancel, block, approve (OWD code)
+- [x] `plexo sprint` — start (with `--wait`), list, get, logs, cancel, workers, merge-queue
+- [x] `plexo cron` — list, get, add, enable, disable, delete, run, history
+- [x] `plexo connection` — list, get, install (API key or OAuth URL), remove, test
+- [x] `plexo plugin` — list (installed + registry), install, remove, enable, disable, logs
+- [x] `plexo memory` — search, list, get, delete
+- [x] `plexo logs` — SSE tail with task/sprint scope, level filter, `--since`
+- [x] `plexo status` — health + dashboard summary, `--watch` (5s refresh)
+- [x] `plexo config` — show, set, profile list/use/delete
+- [x] Multi-profile support via `--profile` flag
+- [x] CI/CD mode — `PLEXO_HOST` / `PLEXO_TOKEN` / `PLEXO_WORKSPACE` env vars override config
+- [x] Structured exit codes: `0` success · `2` fail · `3` blocked · `4` auth · `5` timeout
+- [x] Auto-disables color/spinners when piped (non-TTY)
+- [x] `--output json|table|csv` on all list commands
 
 ### 🔲 Backlog
 - [ ] External Kapsel Marketplace — separate hosted service; Plexo instances pull from it
