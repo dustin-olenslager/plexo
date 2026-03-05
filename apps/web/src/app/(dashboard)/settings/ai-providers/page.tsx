@@ -384,10 +384,11 @@ export default function AIProvidersPage() {
                     const effectiveStatus = s.status === 'unconfigured' && hasCredential ? 'untested' : s.status
                     providersConfig[p.key] = {
                         status: effectiveStatus,
-                        selectedModel: s.selectedModel,
-                        baseUrl: s.baseUrl,
-                        ...(s.apiKey ? { apiKey: s.apiKey } : {}),
-                        ...(s.oauthToken ? { oauthToken: s.oauthToken } : {}),
+                        selectedModel: s.selectedModel.trim(),
+                        baseUrl: s.baseUrl.trim(),
+                        // Always trim keys — a stray space breaks auth silently
+                        ...(s.apiKey?.trim() ? { apiKey: s.apiKey.trim() } : {}),
+                        ...(s.oauthToken?.trim() ? { oauthToken: s.oauthToken.trim() } : {}),
                     }
                 }
             }

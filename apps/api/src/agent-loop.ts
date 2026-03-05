@@ -206,7 +206,7 @@ async function processOneTask(): Promise<boolean> {
         const description = (taskContext.description as string) ?? JSON.stringify(taskContext)
 
         emit({ type: 'task_planning', taskId: task.id })
-        const plan = await planTask(ctx, description, taskContext)
+        const plan = await planTask(ctx, description, taskContext, aiSettings ?? undefined)
         logger.info({ taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore }, 'Plan ready')
         emit({ type: 'task_planned', taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore })
 

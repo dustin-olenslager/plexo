@@ -86,9 +86,9 @@ export async function complete(taskId: string, params: CompleteParams): Promise<
         .where(eq(tasks.id, taskId))
 }
 
-export async function block(taskId: string, _reason: string): Promise<void> {
+export async function block(taskId: string, reason: string): Promise<void> {
     await db.update(tasks)
-        .set({ status: 'blocked' })
+        .set({ status: 'blocked', outcomeSummary: reason })
         .where(eq(tasks.id, taskId))
 }
 
