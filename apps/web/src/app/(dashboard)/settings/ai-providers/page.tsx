@@ -201,10 +201,14 @@ export default function AIProvidersPage() {
         : 'http://localhost:3001'
     const { workspaceId: ctxWorkspaceId } = useWorkspace()
     const WS_ID = ctxWorkspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
+    // Track which workspace we've already loaded — prevents double-fetch
+    const loadedForRef = useRef<string | null>(null)
 
-    // Load persisted config on mount
+    // WS_ID is async from useWorkspace() context — deps [WS_ID] ensures we reload
+    // when it resolves. loadedForRef prevents redundant re-fetches for same workspace.
     useEffect(() => {
-        if (!WS_ID) return
+        if (!WS_ID || loadedForRef.current === WS_ID) return
+        loadedForRef.current = WS_ID
         void (async () => {
             try {
                 const res = await fetch(`${API_BASE}/api/workspaces/${WS_ID}`)
