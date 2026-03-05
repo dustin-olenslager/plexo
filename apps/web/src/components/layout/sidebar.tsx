@@ -29,6 +29,7 @@ import {
     Check,
     Zap,
     Wrench,
+    Sparkles,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 
@@ -88,6 +89,7 @@ const NAV_GROUPS: NavGroup[] = [
         items: [
             { label: 'AI Providers', href: '/settings/ai-providers', icon: Cpu },
             { label: 'Agent', href: '/settings/agent', icon: Bot },
+            { label: 'Behavior', href: '/settings/behavior', icon: Sparkles },
             { label: 'Workspace', href: '/settings', icon: SettingsIcon, exact: true },
             { label: 'Users', href: '/settings/users', icon: Users },
             { label: 'Privacy', href: '/settings/privacy', icon: ShieldCheck },

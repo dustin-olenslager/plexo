@@ -21,7 +21,10 @@
         "./one-way-door": "./src/one-way-door.ts",
         "./persistent-pool": "./src/plugins/persistent-pool.ts",
         "./event-bus": "./src/plugins/event-bus.ts",
-        "./providers/registry": "./src/providers/registry.ts"
+        "./providers/registry": "./src/providers/registry.ts",
+        "./behavior/types": "./src/behavior/types.ts",
+        "./behavior/resolver": "./src/behavior/resolver.ts",
+        "./behavior/compiler": "./src/behavior/compiler.ts"
     },
     "scripts": {
         "typecheck": "tsc --noEmit",

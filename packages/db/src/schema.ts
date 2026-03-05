@@ -606,3 +606,93 @@ export const auditLog = pgTable('audit_log', {
     index('audit_log_created_idx').on(table.createdAt),
 ])
 
+// ── Phase 5 — Agent Behavior Configuration ───────────────────────────────────
+
+export const ruleTypeEnum = pgEnum('rule_type', [
+    'safety_constraint',
+    'operational_rule',
+    'communication_style',
+    'domain_knowledge',
+    'persona_trait',
+    'tool_preference',
+    'quality_gate',
+])
+
+export const ruleSourceEnum = pgEnum('rule_source', [
+    'platform',
+    'workspace',
+    'project',
+    'task',
+])
+
+/**
+ * behavior_rules — structured agent behavior rules with inheritance.
+ * Source hierarchy: platform → workspace → project → task (later wins).
+ */
+export const behaviorRules = pgTable('behavior_rules', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    /** null = workspace-level rule */
+    projectId: uuid('project_id'),
+    type: ruleTypeEnum('type').notNull(),
+    /** Machine-readable key, unique within (workspace, project) scope */
+    key: text('key').notNull(),
+    label: text('label').notNull(),
+    description: text('description').notNull().default(''),
+    /** Typed value: { type: 'boolean'|'string'|'number'|'enum'|'text_block'|'json', value, ...meta } */
+    value: jsonb('value').notNull(),
+    /** Safety constraints cannot be deleted or toggled off */
+    locked: boolean('locked').notNull().default(false),
+    source: ruleSourceEnum('source').notNull().default('workspace'),
+    /** Self-referential: which parent rule this overrides */
+    overridesRuleId: uuid('overrides_rule_id'),
+    tags: text('tags').array().notNull().default(sql`'{}'`),
+    /** Soft delete */
+    deletedAt: timestamp('deleted_at', { mode: 'date' }),
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('behavior_rules_workspace_idx').on(table.workspaceId),
+    index('behavior_rules_project_idx').on(table.projectId),
+    index('behavior_rules_type_idx').on(table.type),
+    index('behavior_rules_deleted_idx').on(table.deletedAt),
+])
+
+/**
+ * behavior_groups — card groups shown in UI (seeded, not user-editable).
+ */
+export const behaviorGroups = pgTable('behavior_groups', {
+    id: text('id').primaryKey(), // e.g. 'safety', 'communication'
+    label: text('label').notNull(),
+    description: text('description').notNull().default(''),
+    icon: text('icon').notNull().default('Circle'),
+    ruleTypes: ruleTypeEnum('rule_types').array().notNull(),
+    locked: boolean('locked').notNull().default(false),
+    color: text('color').notNull().default('zinc'),
+    displayOrder: integer('display_order').notNull().default(0),
+})
+
+/**
+ * behavior_snapshots — version history, one per task/sprint start or manual preview.
+ */
+export const behaviorSnapshots = pgTable('behavior_snapshots', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    projectId: uuid('project_id'),
+    /** Full resolved rule set at time of snapshot */
+    snapshot: jsonb('snapshot').notNull(),
+    /** Compiled system prompt fragment from this snapshot */
+    compiledPrompt: text('compiled_prompt').notNull().default(''),
+    /** 'manual' | 'task_start' | 'sprint_start' */
+    triggeredBy: text('triggered_by').notNull().default('manual'),
+    /** Task/sprint ID that triggered this snapshot */
+    triggerResourceId: text('trigger_resource_id'),
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('behavior_snapshots_workspace_idx').on(table.workspaceId),
+    index('behavior_snapshots_created_idx').on(table.createdAt),
+])
