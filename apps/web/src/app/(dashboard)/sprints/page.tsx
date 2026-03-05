@@ -35,12 +35,12 @@ const STATUS_TEXT: Record<string, string> = {
 
 async function fetchSprints(): Promise<Sprint[]> {
     const apiBase = process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
-    const workspaceId = process.env.DEV_WORKSPACE_ID ?? '00000000-0000-0000-0000-000000000000'
+    const workspaceId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '00000000-0000-0000-0000-000000000000'
     try {
-        const res = await fetch(`${apiBase}/api/sprints?workspaceId=${workspaceId}&limit=50`, { cache: 'no-store' })
+        const res = await fetch(`${apiBase}/api/v1/sprints?workspaceId=${workspaceId}&limit=50`, { cache: 'no-store' })
         if (!res.ok) return []
-        const data = await res.json() as { items: Sprint[] }
-        return data.items
+        const data = await res.json() as { sprints?: Sprint[]; items?: Sprint[] }
+        return data.sprints ?? data.items ?? []
     } catch {
         return []
     }
