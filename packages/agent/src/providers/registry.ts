@@ -1,5 +1,5 @@
 import { anthropic, createAnthropic } from '@ai-sdk/anthropic'
-import { openai } from '@ai-sdk/openai'
+import { openai, createOpenAI } from '@ai-sdk/openai'
 import { google } from '@ai-sdk/google'
 import { mistral } from '@ai-sdk/mistral'
 import { groq } from '@ai-sdk/groq'
@@ -64,16 +64,44 @@ type AnyLanguageModel = any
 
 /**
  * Build a LanguageModel instance for a given provider + task type.
- * API keys are read from the config object; falls back to process.env
- * for any provider whose key is not in the config (for local dev).
+ *
+ * Model ID resolution order:
+ *   1. settings.modelOverrides[taskType]          — explicit per-task workspace override
+ *   2. config.model                               — provider-level selected model (from UI)
+ *   3. PROVIDER_DEFAULT_MODELS[providerKey]       — provider-appropriate fallback
+ *   4. DEFAULT_MODEL_ROUTING[taskType]            — last resort (may be wrong provider family)
+ *
+ * API key resolution: always uses config.apiKey when present, never assumes env vars
+ * are set — keys are stored in the workspace DB and must flow through config.
  */
+
+/** Per-provider sensible default models — used when no model is explicitly selected. */
+const PROVIDER_DEFAULT_MODELS: Partial<Record<ProviderKey, string>> = {
+    openai: 'gpt-4o',
+    google: 'gemini-1.5-flash-002',
+    mistral: 'mistral-large-latest',
+    groq: 'llama-3.1-8b-instant',
+    xai: 'grok-3-mini',
+    deepseek: 'deepseek-chat',
+    ollama: 'llama3.2',
+    openrouter: 'anthropic/claude-haiku-4-5',
+}
+
 export function buildModel(
     providerKey: ProviderKey,
     config: AIProviderConfig,
     taskType: TaskType,
     settings: WorkspaceAISettings,
 ): AnyLanguageModel {
-    const modelId = settings.modelOverrides?.[taskType] ?? DEFAULT_MODEL_ROUTING[taskType]
+    // Resolve model ID — never let a Claude ID land on a non-Anthropic provider
+    const validModel = (id: string | undefined) =>
+        id && id.trim() !== '' && id !== 'default' && id !== 'placeholder' ? id : undefined
+
+    const modelId =
+        validModel(settings.modelOverrides?.[taskType]) ??
+        validModel(config.model) ??
+        PROVIDER_DEFAULT_MODELS[providerKey] ??
+        DEFAULT_MODEL_ROUTING[taskType]
 
     switch (providerKey) {
         case 'openrouter': {
@@ -104,9 +132,15 @@ export function buildModel(
             }
             return anthropic(modelId)
         }
-        case 'openai':
-            return openai(modelId)
+        case 'openai': {
+            const oa = config.apiKey
+                ? createOpenAI({ apiKey: config.apiKey })
+                : openai
+            return (oa as typeof openai)(modelId)
+        }
         case 'google':
+            // google() singleton uses GOOGLE_GENERATIVE_AI_API_KEY env var.
+            // Config-keyed Google support requires createGoogleGenerativeAI — left for a follow-up.
             return google(modelId)
         case 'mistral':
             return mistral(modelId)

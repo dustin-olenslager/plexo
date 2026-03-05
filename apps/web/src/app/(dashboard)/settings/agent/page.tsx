@@ -142,7 +142,8 @@ export default function AgentSettingsPage() {
                 <div>
                     <h1 className="text-xl font-bold text-zinc-50">Agent Settings</h1>
                     <p className="mt-0.5 text-sm text-zinc-500">
-                        Configure agent behaviour, safety limits, and execution parameters.
+                        Agent identity and operational limits. For persona and prompt behavior, see{' '}
+                        <a href="/settings/behavior" className="text-indigo-400 hover:underline">Settings → Behavior</a>.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -215,8 +216,8 @@ export default function AgentSettingsPage() {
                                             key={emoji}
                                             onClick={() => updateSetting('agentAvatar', emoji)}
                                             className={`h-9 w-9 rounded-lg text-lg transition-all ${(settings.agentAvatar ?? '🤖') === emoji
-                                                    ? 'bg-indigo-600/30 ring-1 ring-indigo-500'
-                                                    : 'bg-zinc-800 hover:bg-zinc-700'
+                                                ? 'bg-indigo-600/30 ring-1 ring-indigo-500'
+                                                : 'bg-zinc-800 hover:bg-zinc-700'
                                                 }`}
                                         >{emoji}</button>
                                     ))}
@@ -245,18 +246,6 @@ export default function AgentSettingsPage() {
                                 placeholder="Your autonomous ops agent"
                             />
                         </Field>
-                        <Field
-                            label="Persona / soul"
-                            description="Character text injected at the top of the system prompt. Sets the agent's tone, personality, and expertise emphasis."
-                        >
-                            <textarea
-                                value={settings.agentPersona ?? ''}
-                                onChange={(e) => updateSetting('agentPersona', e.target.value || undefined)}
-                                rows={3}
-                                placeholder="You are a calm, methodical senior engineer. You prefer to verify before acting. You ask clarifying questions rather than making assumptions."
-                                className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 resize-none"
-                            />
-                        </Field>
                     </Section>
 
                     {/* Model */}
@@ -269,18 +258,6 @@ export default function AgentSettingsPage() {
                                 value={settings.agentModel ?? ''}
                                 onChange={(e) => updateSetting('agentModel', e.target.value || undefined)}
                                 placeholder="claude-sonnet-4-5"
-                            />
-                        </Field>
-                        <Field
-                            label="System prompt addition"
-                            description="Text appended to the end of the system prompt on every task."
-                        >
-                            <textarea
-                                value={settings.systemPromptExtra ?? ''}
-                                onChange={(e) => updateSetting('systemPromptExtra', e.target.value || undefined)}
-                                rows={3}
-                                placeholder="Always respond in British English."
-                                className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 resize-none"
                             />
                         </Field>
                     </Section>

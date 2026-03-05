@@ -661,15 +661,22 @@ export default function BehaviorPage() {
     const [tab, setTab] = useState<Tab>('rules')
     const [refreshTick, setRefreshTick] = useState(0)
 
+    // Core prompt fields (previously split across Agent settings)
+    const [agentPersona, setAgentPersona] = useState('')
+    const [systemPromptExtra, setSystemPromptExtra] = useState('')
+    const [promptSaving, setPromptSaving] = useState(false)
+    const [promptSaved, setPromptSaved] = useState(false)
+
     const reload = useCallback(async () => {
         if (!WS_ID) return
         setLoading(true)
         setError(null)
         try {
-            const [groupsRes, rulesRes, resolvedRes] = await Promise.all([
+            const [groupsRes, rulesRes, resolvedRes, wsRes] = await Promise.all([
                 fetch(`${API}/api/v1/behavior/${WS_ID}/groups`),
                 fetch(`${API}/api/v1/behavior/${WS_ID}`),
                 fetch(`${API}/api/v1/behavior/${WS_ID}/resolve`),
+                fetch(`${API}/api/workspaces/${WS_ID}`),
             ])
             if (!groupsRes.ok || !rulesRes.ok) throw new Error('Failed to load behavior data')
             const g = (await groupsRes.json() as { groups: GroupDef[] }).groups
@@ -680,6 +687,11 @@ export default function BehaviorPage() {
             setGroups(g.sort((a, b) => a.displayOrder - b.displayOrder))
             setRules(r)
             setResolvedRules(resolved)
+            if (wsRes.ok) {
+                const ws = await wsRes.json() as { settings: { agentPersona?: string; systemPromptExtra?: string } }
+                setAgentPersona(ws.settings?.agentPersona ?? '')
+                setSystemPromptExtra(ws.settings?.systemPromptExtra ?? '')
+            }
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Unknown error')
         } finally {
@@ -735,8 +747,8 @@ export default function BehaviorPage() {
                     <button
                         onClick={() => setInheritanceMode(m => !m)}
                         className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-all ${inheritanceMode
-                                ? 'border-indigo-500/40 bg-indigo-950/20 text-indigo-400'
-                                : 'border-zinc-700 text-zinc-500 hover:text-zinc-300'
+                            ? 'border-indigo-500/40 bg-indigo-950/20 text-indigo-400'
+                            : 'border-zinc-700 text-zinc-500 hover:text-zinc-300'
                             }`}
                     >
                         <ArrowLeftRight className="h-3.5 w-3.5" />
@@ -771,8 +783,8 @@ export default function BehaviorPage() {
                         key={id}
                         onClick={() => setTab(id)}
                         className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${tab === id
-                                ? 'border-indigo-500 text-indigo-400'
-                                : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                            ? 'border-indigo-500 text-indigo-400'
+                            : 'border-transparent text-zinc-500 hover:text-zinc-300'
                             }`}
                     >
                         <Icon className="h-3.5 w-3.5" />
