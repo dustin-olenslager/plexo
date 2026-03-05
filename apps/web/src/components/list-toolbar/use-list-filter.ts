@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { useRouter, usePathname, useSearchParams } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -57,14 +57,26 @@ export interface ListFilterHook {
 export function useListFilter(keys: readonly string[], initialSort: string = ''): ListFilterHook {
     const router = useRouter()
     const pathname = usePathname()
-    const searchParams = useSearchParams()
 
-    const [search, setSearch] = useState(() => searchParams.get('q') ?? '')
-    const [sort, setSort] = useState(() => searchParams.get('sort') ?? initialSort)
+    // Initialize from empty — will hydrate from URL on first client render
+    const [search, setSearch] = useState('')
+    const [sort, setSort] = useState(initialSort)
     const [showFilters, setShowFilters] = useState(false)
     const [filterValues, setFilterValues] = useState<Record<string, string | null>>(
-        () => Object.fromEntries(keys.map((k) => [k, searchParams.get(k) ?? null]))
+        () => Object.fromEntries(keys.map((k) => [k, null]))
     )
+    const [hydrated, setHydrated] = useState(false)
+
+    // Hydrate from URL query string on mount (client-only, avoids useSearchParams)
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search)
+        setSearch(params.get('q') ?? '')
+        const s = params.get('sort')
+        if (s) setSort(s)
+        setFilterValues(Object.fromEntries(keys.map((k) => [k, params.get(k) ?? null])))
+        setHydrated(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
 
     const setFilter = useCallback((key: string, value: string | null) => {
         setFilterValues((prev) => ({ ...prev, [key]: value }))
@@ -87,8 +99,9 @@ export function useListFilter(keys: readonly string[], initialSort: string = '')
 
     const hasFilters = search !== '' || activeFilterCount > 0
 
-    // Sync state to URL
+    // Sync state to URL (debounced, after hydration)
     useEffect(() => {
+        if (!hydrated) return
         const timer = setTimeout(() => {
             const params = new URLSearchParams(window.location.search)
 
@@ -112,7 +125,7 @@ export function useListFilter(keys: readonly string[], initialSort: string = '')
         }, 250)
 
         return () => clearTimeout(timer)
-    }, [search, sort, filterValues, pathname, router, initialSort])
+    }, [search, sort, filterValues, pathname, router, initialSort, hydrated])
 
     return {
         search,
