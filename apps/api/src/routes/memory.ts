@@ -136,6 +136,10 @@ memoryRouter.post('/improvements/:id/apply', async (req, res) => {
     const { id } = req.params
     const { workspaceId } = req.body as { workspaceId?: string }
 
+    if (!UUID_RE.test(id)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required for improvement id' } })
+        return
+    }
     if (!workspaceId || !UUID_RE.test(workspaceId)) {
         res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
         return

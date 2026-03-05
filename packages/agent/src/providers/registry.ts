@@ -336,6 +336,18 @@ export async function testProvider(
         }
     }
 
+    // ── Anthropic OAuth tokens: skip live test — these are Claude.ai session tokens
+    // (sk-ant-oat01-*) that are NOT authorized against api.anthropic.com.
+    // Format-validate only and explain the distinction.
+    if (providerKey === 'anthropic' && opts.apiKey?.startsWith('sk-ant-oat')) {
+        return {
+            ok: false,
+            message: 'Claude.ai session tokens (sk-ant-oat01-*) are not valid for the Anthropic API. Use a permanent API key from console.anthropic.com (sk-ant-api03-*) or connect via the "Connect with Claude.ai" OAuth button instead.',
+            latencyMs: 0,
+            model: opts.model ?? DEFAULT_TEST_MODELS[providerKey],
+        }
+    }
+
     const modelId = opts.model ?? DEFAULT_TEST_MODELS[providerKey]
     const envKey = PROVIDER_ENV_KEY[providerKey]
 

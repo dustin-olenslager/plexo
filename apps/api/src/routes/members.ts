@@ -21,11 +21,16 @@ export const invitesRouter: RouterType = Router({ mergeParams: true })
 
 type MemberRole = 'owner' | 'admin' | 'member' | 'viewer'
 const VALID_ROLES: MemberRole[] = ['owner', 'admin', 'member', 'viewer']
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // ── GET /api/workspaces/:id/members ────────────────────────────────────────────
 
 membersRouter.get('/', async (req, res) => {
     const workspaceId = (req.params as { id: string }).id
+    if (!UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid UUID required' } })
+        return
+    }
     try {
         const rows = await db
             .select({
@@ -54,6 +59,10 @@ membersRouter.post('/', async (req, res) => {
     const workspaceId = (req.params as { id: string }).id
     const { email, role = 'member' } = req.body as { email?: string; role?: string }
 
+    if (!UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid UUID required' } })
+        return
+    }
     if (!email) {
         res.status(400).json({ error: { code: 'MISSING_EMAIL', message: 'email required' } })
         return
@@ -95,6 +104,10 @@ membersRouter.patch('/:userId', async (req, res) => {
     const userId = (req.params as { id: string; userId: string }).userId
     const { role } = req.body as { role?: string }
 
+    if (!UUID_RE.test(workspaceId) || !UUID_RE.test(userId)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
+        return
+    }
     if (!role || !VALID_ROLES.includes(role as MemberRole)) {
         res.status(400).json({ error: { code: 'INVALID_ROLE', message: `role must be one of: ${VALID_ROLES.join(', ')}` } })
         return
@@ -123,6 +136,11 @@ membersRouter.patch('/:userId', async (req, res) => {
 membersRouter.delete('/:userId', async (req, res) => {
     const workspaceId = (req.params as { id: string; userId: string }).id
     const userId = (req.params as { id: string; userId: string }).userId
+
+    if (!UUID_RE.test(workspaceId) || !UUID_RE.test(userId)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
+        return
+    }
 
     try {
         // Prevent removing the owner
@@ -155,8 +173,16 @@ membersRouter.post('/invite', async (req, res) => {
         invitedByUserId?: string
     }
 
+    if (!UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid UUID required' } })
+        return
+    }
     if (!invitedByUserId) {
         res.status(400).json({ error: { code: 'MISSING_USER', message: 'invitedByUserId required' } })
+        return
+    }
+    if (!UUID_RE.test(invitedByUserId)) {
+        res.status(400).json({ error: { code: 'INVALID_USER', message: 'Valid UUID required for invitedByUserId' } })
         return
     }
     if (!VALID_ROLES.includes(role as MemberRole)) {
@@ -244,6 +270,10 @@ invitesRouter.post('/:token/accept', async (req, res) => {
 
     if (!userId) {
         res.status(400).json({ error: { code: 'MISSING_USER', message: 'userId required' } })
+        return
+    }
+    if (!UUID_RE.test(userId)) {
+        res.status(400).json({ error: { code: 'INVALID_USER', message: 'Valid UUID required for userId' } })
         return
     }
 

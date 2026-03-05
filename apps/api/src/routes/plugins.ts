@@ -27,6 +27,8 @@ import { terminateWorker } from '@plexo/agent/persistent-pool'
 
 export const pluginsRouter: RouterType = Router()
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 // Plexo compliance level — used to enforce minHostLevel
 const PLEXO_COMPLIANCE_LEVEL: 'core' | 'standard' | 'full' = 'full'
 const COMPLIANCE_ORDER = { core: 0, standard: 1, full: 2 }
@@ -38,6 +40,10 @@ pluginsRouter.get('/', async (req, res) => {
 
     if (!workspaceId) {
         res.status(400).json({ error: { code: 'MISSING_WORKSPACE', message: 'workspaceId required' } })
+        return
+    }
+    if (!UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid UUID required for workspaceId' } })
         return
     }
 
@@ -58,6 +64,10 @@ pluginsRouter.get('/', async (req, res) => {
 // ── GET /api/plugins/:id ──────────────────────────────────────────────────────
 
 pluginsRouter.get('/:id', async (req, res) => {
+    if (!UUID_RE.test(req.params.id)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
+        return
+    }
     try {
         const [plugin] = await db.select().from(plugins).where(eq(plugins.id, req.params.id)).limit(1)
         if (!plugin) {
@@ -82,6 +92,10 @@ pluginsRouter.post('/', async (req, res) => {
 
     if (!workspaceId) {
         res.status(400).json({ error: { code: 'MISSING_WORKSPACE', message: 'workspaceId required' } })
+        return
+    }
+    if (!UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid UUID required for workspaceId' } })
         return
     }
 
@@ -157,6 +171,11 @@ pluginsRouter.post('/', async (req, res) => {
 pluginsRouter.patch('/:id', async (req, res) => {
     const { enabled, settings } = req.body as { enabled?: boolean; settings?: Record<string, unknown> }
 
+    if (!UUID_RE.test(req.params.id)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
+        return
+    }
+
     try {
         const [existing] = await db.select().from(plugins).where(eq(plugins.id, req.params.id)).limit(1)
         if (!existing) {
@@ -199,6 +218,10 @@ pluginsRouter.patch('/:id', async (req, res) => {
 // ── DELETE /api/plugins/:id ───────────────────────────────────────────────────
 
 pluginsRouter.delete('/:id', async (req, res) => {
+    if (!UUID_RE.test(req.params.id)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
+        return
+    }
     try {
         const [existing] = await db
             .select({ id: plugins.id, workspaceId: plugins.workspaceId, name: plugins.name, kapselVersion: plugins.kapselVersion })

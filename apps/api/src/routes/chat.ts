@@ -105,7 +105,7 @@ chatRouter.get('/reply/:taskId', async (req, res) => {
                 return
             }
 
-            if (task.status === 'failed' || task.status === 'cancelled' || task.status === 'blocked') {
+            if (task.status === 'cancelled' || task.status === 'blocked') {
                 res.json({
                     taskId,
                     status: task.status,

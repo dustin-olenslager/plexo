@@ -6,6 +6,9 @@ import { ulid } from 'ulid'
 
 export const sprintsRouter: RouterType = Router()
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const VALID_SPRINT_STATUSES = new Set(['planning', 'running', 'complete', 'failed', 'cancelled'])
+
 // ── GET /api/sprints?workspaceId=&status= ───────────────────────────────────
 
 sprintsRouter.get('/', async (req, res) => {
@@ -13,6 +16,14 @@ sprintsRouter.get('/', async (req, res) => {
 
     if (!workspaceId) {
         res.status(400).json({ error: { code: 'MISSING_WORKSPACE', message: 'workspaceId required' } })
+        return
+    }
+    if (!UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid UUID required for workspaceId' } })
+        return
+    }
+    if (status && !VALID_SPRINT_STATUSES.has(status)) {
+        res.status(400).json({ error: { code: 'INVALID_STATUS', message: `status must be one of: ${[...VALID_SPRINT_STATUSES].join(', ')}` } })
         return
     }
 
@@ -47,6 +58,18 @@ sprintsRouter.post('/', async (req, res) => {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'workspaceId, repo, request required' } })
         return
     }
+    if (!UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid UUID required for workspaceId' } })
+        return
+    }
+    if (repo.length > 500) {
+        res.status(400).json({ error: { code: 'INVALID_REPO', message: 'repo max 500 chars' } })
+        return
+    }
+    if (request.length > 4000) {
+        res.status(400).json({ error: { code: 'INVALID_REQUEST', message: 'request max 4000 chars' } })
+        return
+    }
 
     try {
         const id = ulid()
@@ -69,6 +92,10 @@ sprintsRouter.post('/', async (req, res) => {
 
 sprintsRouter.get('/:id', async (req, res) => {
     const { id } = req.params
+    if (!id || id.length > 64) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Invalid sprint id' } })
+        return
+    }
     try {
         const [sprint] = await db.select().from(sprints).where(eq(sprints.id, id)).limit(1)
         if (!sprint) {
@@ -91,6 +118,15 @@ sprintsRouter.get('/:id', async (req, res) => {
 sprintsRouter.patch('/:id', async (req, res) => {
     const { id } = req.params
     const { status } = req.body as { status?: string }
+
+    if (!id || id.length > 64) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Invalid sprint id' } })
+        return
+    }
+    if (status && !VALID_SPRINT_STATUSES.has(status)) {
+        res.status(400).json({ error: { code: 'INVALID_STATUS', message: `status must be one of: ${[...VALID_SPRINT_STATUSES].join(', ')}` } })
+        return
+    }
 
     try {
         const updates: Partial<typeof sprints.$inferInsert> = {}

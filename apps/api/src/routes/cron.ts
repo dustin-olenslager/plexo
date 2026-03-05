@@ -152,6 +152,10 @@ cronRouter.post('/', async (req, res) => {
 
 cronRouter.patch('/:id', async (req, res) => {
     const { id } = req.params
+    if (!UUID_RE.test(id)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
+        return
+    }
     const { workspaceId, enabled, schedule, name } = req.body as {
         workspaceId?: string
         enabled?: boolean
@@ -192,6 +196,10 @@ cronRouter.delete('/:id', async (req, res) => {
     const { id } = req.params
     const { workspaceId } = req.query as Record<string, string>
 
+    if (!UUID_RE.test(id)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
+        return
+    }
     if (!workspaceId || !UUID_RE.test(workspaceId)) {
         res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
         return
@@ -215,6 +223,10 @@ cronRouter.post('/:id/trigger', async (req, res) => {
     const { id } = req.params
     const { workspaceId } = req.body as { workspaceId?: string }
 
+    if (!UUID_RE.test(id)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
+        return
+    }
     if (!workspaceId || !UUID_RE.test(workspaceId)) {
         res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
         return

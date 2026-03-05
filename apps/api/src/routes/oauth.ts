@@ -355,7 +355,6 @@ oauthRouter.post('/anthropic/import-cli', async (req, res) => {
             access_token: oauth.accessToken,
             refresh_token: oauth.refreshToken,
             expires_in: expiresIn,
-            token_type: 'Bearer',
         })
         logger.info({ workspaceId, expiresIn }, 'Anthropic OAuth token imported from Claude Code CLI')
         res.json({ ok: true, expiresIn, tokenPrefix: String(oauth.accessToken).slice(0, 20) + '…' })

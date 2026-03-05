@@ -4,9 +4,17 @@ import { workspaces } from '@plexo/db'
 
 export const workspacesRouter: RouterType = Router()
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 // GET /api/workspaces — list workspaces, optionally filter by ownerId
 workspacesRouter.get('/', async (req, res) => {
     const { ownerId } = req.query as Record<string, string>
+
+    if (ownerId && !UUID_RE.test(ownerId)) {
+        res.status(400).json({ error: { code: 'INVALID_OWNER', message: 'Valid UUID required for ownerId' } })
+        return
+    }
+
     try {
         const query = db
             .select({ id: workspaces.id, name: workspaces.name, createdAt: workspaces.createdAt })
@@ -25,11 +33,16 @@ workspacesRouter.get('/', async (req, res) => {
 
 // GET /api/workspaces/:id
 workspacesRouter.get('/:id', async (req, res) => {
+    const { id } = req.params
+    if (!UUID_RE.test(id)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
+        return
+    }
     try {
         const [ws] = await db
             .select({ id: workspaces.id, name: workspaces.name, settings: workspaces.settings, createdAt: workspaces.createdAt })
             .from(workspaces)
-            .where(eq(workspaces.id, req.params.id))
+            .where(eq(workspaces.id, id))
             .limit(1)
 
         if (!ws) {
@@ -49,6 +62,14 @@ workspacesRouter.post('/', async (req, res) => {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'name and ownerId are required' } })
         return
     }
+    if (!UUID_RE.test(ownerId)) {
+        res.status(400).json({ error: { code: 'INVALID_OWNER', message: 'Valid UUID required for ownerId' } })
+        return
+    }
+    if (name.trim().length > 200) {
+        res.status(400).json({ error: { code: 'INVALID_NAME', message: 'name max 200 chars' } })
+        return
+    }
     try {
         const [created] = await db.insert(workspaces)
             .values({ name: name.trim(), ownerId, settings: {} })
@@ -61,7 +82,18 @@ workspacesRouter.post('/', async (req, res) => {
 
 // PATCH /api/workspaces/:id — update name and/or settings (deep-merges settings)
 workspacesRouter.patch('/:id', async (req, res) => {
+    const { id } = req.params
     const { name, settings } = req.body as { name?: string; settings?: Record<string, unknown> }
+
+    if (!UUID_RE.test(id)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
+        return
+    }
+    if (name && name.length > 200) {
+        res.status(400).json({ error: { code: 'INVALID_NAME', message: 'name max 200 chars' } })
+        return
+    }
+
     try {
         if (!name && settings === undefined) {
             res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'name or settings required' } })
@@ -72,7 +104,7 @@ workspacesRouter.patch('/:id', async (req, res) => {
         const [current] = await db
             .select({ settings: workspaces.settings })
             .from(workspaces)
-            .where(eq(workspaces.id, req.params.id))
+            .where(eq(workspaces.id, id))
             .limit(1)
 
         if (!current) {
@@ -88,7 +120,7 @@ workspacesRouter.patch('/:id', async (req, res) => {
         if (name) update.name = name
         if (merged !== undefined) update.settings = merged
 
-        await db.update(workspaces).set(update).where(eq(workspaces.id, req.params.id))
+        await db.update(workspaces).set(update).where(eq(workspaces.id, id))
         res.json({ ok: true })
     } catch (err) {
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to update workspace' } })

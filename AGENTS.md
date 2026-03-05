@@ -238,15 +238,12 @@ This has implications for every decision:
 - **Event bus `TOPICS`**: Added `OWD_PENDING = 'plexo.owd.pending'` and `OWD_RESOLVED = 'plexo.owd.resolved'` to constants. `@plexo/agent/event-bus` added as a package export.
 - **Drizzle migration journal**: No Drizzle migration journal table exists — DB was initialized directly from SQL files. Migrations are tracked manually. No journal sync needed.
 
-### 2026-03 — Phases 21-24 (Persistent Workers, SDK Bridge, OWD→SSE, Worker Observability)
+### 2026-03 — Security hardening pass (all routes)
 
-- **Persistent Worker Pool v2**: Host bridge handles sdk_call messages from workers. Storage->Redis (key: ext:<plugin>:<key>), memory->storeMemory/searchMemory, connections->installedConnections join, events->eventBus.publish, tasks->@plexo/queue push().
-- **Activation SDK v2**: All capability stubs replaced with real bridge() calls. HostBridge = (method, args) => Promise<unknown>. Storage uses ttlSeconds. Memory uses tags not type in read options.
-- **Sandbox Worker v2**: makeMessageBridge() posts sdk_call to host and awaits bridge_reply. Full persistent protocol: activate/invoke/bridge_reply/terminate. Ephemeral fallback preserved.
-- **OWD to SSE push**: requestApproval() calls eventBus.emitSystem(TOPICS.OWD_PENDING, record). API subscribes on start and emits to workspace SSE clients. No polling needed for approval banner.
-- **Worker stats in /health**: kapsel.workers array in health. Import from @plexo/agent/persistent-pool.
-- **CORS fix**: PUBLIC_URL in .env.local was blocking localhost:3000. Fixed to always allow localhost in allowedOrigins Set.
-- **AUTH_SECRET**: Added to apps/web/.env.local to suppress Auth.js MissingSecret log noise.
-- **task_source enum**: Added extension value via ALTER TYPE. Schema updated. Pool temporarily uses api source.
-- **Event bus TOPICS**: Added OWD_PENDING and OWD_RESOLVED. @plexo/agent/event-bus added as package export.
-- **Drizzle migration journal**: No journal table exists - DB initialized from SQL files. Migrations tracked manually.
+- **UUID validation on all path/query params**: Added `UUID_RE` gates to `tasks.ts`, `sprints.ts`, `workspaces.ts`, `plugins.ts`, `members.ts`, `cron.ts`, `memory.ts`, `connections.ts`. Every route that accepts an `id`, `workspaceId`, `userId`, or similar now returns 400 before touching the DB.
+- **Input validation on POST bodies**: `tasks.ts` validates `type` against `VALID_TASK_TYPES` (coding/deployment/research/ops/opportunity/monitoring/report/online/automation) and `source` against `VALID_TASK_SOURCES` (matches `task_source` enum). `sprints.ts` adds `repo`/`request` length caps (500/4000 chars). `workspaces.ts` adds `name` length cap (200 chars) and UUID check on `ownerId`.
+- **`queue/index.ts`**: Added `'extension'` to `source` union type — was missing despite being in the DB enum. Persistent pool was hitting a TS error via `tasks.create` sdk bridge call.
+- **`chat.ts` TS2367**: Removed dead `=== 'failed'` check — `task_status` enum has no failed value (tasks go queued→claimed→running→blocked|cancelled|complete).
+- **`oauth.ts` TS2353**: Removed stray `token_type: 'Bearer'` field from `storeAnthropicTokens()` call — not in the function's input type.
+- **Anthropic OAuth token (sk-ant-oat01-*)**: These are Claude.ai/Claude Code session tokens, NOT Anthropic API credentials. They are NOT authorized against `api.anthropic.com`. `testProvider()` now short-circuits immediately with a clear explanation when an `sk-ant-oat` token is passed, instead of silently failing with "invalid x-api-key". Users must either use the OAuth popup flow ("Connect with Claude.ai" button) or a real API key from console.anthropic.com (`sk-ant-api03-*`).
+- **`behavior.ts`**: UUID validation on workspaceId/ruleId path params, allowlist on `type` field, format enforcement on `key` (alphanumeric/underscore, max 80 chars), length cap on `label` (max 200 chars). This was the only route missing the UUID pattern that all other routes already followed.

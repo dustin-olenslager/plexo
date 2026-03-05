@@ -6,6 +6,11 @@ import { logger } from '../logger.js'
 
 export const tasksRouter: RouterType = Router()
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+const VALID_TASK_TYPES = new Set(['coding', 'deployment', 'research', 'ops', 'opportunity', 'monitoring', 'report', 'online', 'automation'])
+const VALID_TASK_SOURCES = new Set(['telegram', 'slack', 'discord', 'scanner', 'github', 'cron', 'dashboard', 'api', 'extension'])
+
 // ── GET /api/tasks?workspaceId=&status=&type=&limit=&cursor= ─────────────────
 
 tasksRouter.get('/', async (req, res) => {
@@ -22,9 +27,11 @@ tasksRouter.get('/', async (req, res) => {
         res.status(400).json({ error: { code: 'MISSING_WORKSPACE', message: 'workspaceId required' } })
         return
     }
-
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!UUID_RE.test(workspaceId)) {
+        res.json({ items: [], nextCursor: null, total: 0 })
+        return
+    }
+    if (projectId && !UUID_RE.test(projectId)) {
         res.json({ items: [], nextCursor: null, total: 0 })
         return
     }
@@ -59,11 +66,31 @@ tasksRouter.post('/', async (req, res) => {
         source?: string
         context?: Record<string, unknown>
         priority?: number
-        projectId?: string   // optional FK → sprints.id
+        projectId?: string
     }
 
     if (!workspaceId || !type) {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'workspaceId and type are required' } })
+        return
+    }
+    if (!UUID_RE.test(workspaceId)) {
+        res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid UUID required for workspaceId' } })
+        return
+    }
+    if (!VALID_TASK_TYPES.has(type)) {
+        res.status(400).json({ error: { code: 'INVALID_TYPE', message: `type must be one of: ${[...VALID_TASK_TYPES].join(', ')}` } })
+        return
+    }
+    if (!VALID_TASK_SOURCES.has(source)) {
+        res.status(400).json({ error: { code: 'INVALID_SOURCE', message: `source must be one of: ${[...VALID_TASK_SOURCES].join(', ')}` } })
+        return
+    }
+    if (projectId && !UUID_RE.test(projectId)) {
+        res.status(400).json({ error: { code: 'INVALID_PROJECT', message: 'Valid UUID required for projectId' } })
+        return
+    }
+    if (priority !== undefined && (typeof priority !== 'number' || priority < 1 || priority > 10)) {
+        res.status(400).json({ error: { code: 'INVALID_PRIORITY', message: 'priority must be 1–10' } })
         return
     }
 
@@ -87,6 +114,10 @@ tasksRouter.post('/', async (req, res) => {
 
 tasksRouter.get('/:id', async (req, res) => {
     const { id } = req.params
+    if (!id || id.length > 64) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Invalid task id' } })
+        return
+    }
     try {
         const [task] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1)
         if (!task) {
@@ -107,6 +138,10 @@ tasksRouter.get('/:id', async (req, res) => {
 
 tasksRouter.delete('/:id', async (req, res) => {
     const { id } = req.params
+    if (!id || id.length > 64) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Invalid task id' } })
+        return
+    }
     try {
         await db.update(tasks).set({ status: 'cancelled' }).where(eq(tasks.id, id))
         res.json({ ok: true })
@@ -125,7 +160,6 @@ tasksRouter.get('/stats/summary', async (req, res) => {
         return
     }
 
-    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     if (!UUID_RE.test(workspaceId)) {
         res.json({ byStatus: {}, cost: { total: 0, thisWeek: 0, ceiling: parseFloat(process.env.API_COST_CEILING_USD ?? '10') } })
         return

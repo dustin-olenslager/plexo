@@ -7,7 +7,7 @@ import { ulid } from 'ulid'
 export interface PushParams {
     workspaceId: string
     type: 'coding' | 'deployment' | 'research' | 'ops' | 'opportunity' | 'monitoring' | 'report' | 'online' | 'automation'
-    source: 'telegram' | 'slack' | 'discord' | 'scanner' | 'github' | 'cron' | 'dashboard' | 'api'
+    source: 'telegram' | 'slack' | 'discord' | 'scanner' | 'github' | 'cron' | 'dashboard' | 'api' | 'extension'
     context: Record<string, unknown>
     priority?: number
     project?: string

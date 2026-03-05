@@ -35,6 +35,10 @@ connectionsRouter.get('/registry', async (_req, res) => {
 
 connectionsRouter.get('/registry/:id', async (req, res) => {
     const { id } = req.params
+    if (!UUID_RE.test(id)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
+        return
+    }
     try {
         const [item] = await db.select().from(connectionsRegistry).where(eq(connectionsRegistry.id, id)).limit(1)
         if (!item) {
@@ -127,6 +131,10 @@ connectionsRouter.post('/install', async (req, res) => {
 
 connectionsRouter.patch('/installed/:id', async (req, res) => {
     const { id } = req.params
+    if (!UUID_RE.test(id)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
+        return
+    }
     const { workspaceId, status, credentials } = req.body as {
         workspaceId?: string
         status?: 'active' | 'disconnected'
@@ -161,6 +169,10 @@ connectionsRouter.patch('/installed/:id', async (req, res) => {
 
 connectionsRouter.put('/installed/:id/tools', async (req, res) => {
     const { id } = req.params
+    if (!UUID_RE.test(id)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
+        return
+    }
     const { workspaceId, enabledTools } = req.body as {
         workspaceId?: string
         enabledTools: string[] | null
@@ -190,6 +202,10 @@ connectionsRouter.delete('/installed/:id', async (req, res) => {
     const { id } = req.params
     const { workspaceId } = req.query as Record<string, string>
 
+    if (!UUID_RE.test(id)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
+        return
+    }
     if (!workspaceId || !UUID_RE.test(workspaceId)) {
         res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
         return
