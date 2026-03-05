@@ -82,7 +82,8 @@ export function buildModel(
         }
         case 'anthropic': {
             if (config.apiKey) {
-                // OAuth tokens (sk-ant-oat*) need Authorization: Bearer; API keys use x-api-key
+                // OAuth tokens (sk-ant-oat*) need Authorization: Bearer + oauth beta header
+                // API keys (sk-ant-api03-*) use x-api-key header (handled by createAnthropic default)
                 const isOAuth = config.apiKey.startsWith('sk-ant-oat')
                 const provider = isOAuth
                     ? createAnthropic({
@@ -94,6 +95,7 @@ export function buildModel(
                                     ...(init.headers as Record<string, string> ?? {}),
                                     'Authorization': `Bearer ${config.apiKey}`,
                                     'anthropic-version': '2023-06-01',
+                                    'anthropic-beta': 'oauth-2025-04-20',
                                 },
                             }),
                     } as Parameters<typeof createAnthropic>[0])
@@ -333,18 +335,6 @@ export async function testProvider(
         } catch (err) {
             const message = err instanceof Error ? err.message.slice(0, 200) : 'Connection failed'
             return { ok: false, message, latencyMs: Date.now() - start, model: opts.model ?? '' }
-        }
-    }
-
-    // ── Anthropic OAuth tokens: skip live test — these are Claude.ai session tokens
-    // (sk-ant-oat01-*) that are NOT authorized against api.anthropic.com.
-    // Format-validate only and explain the distinction.
-    if (providerKey === 'anthropic' && opts.apiKey?.startsWith('sk-ant-oat')) {
-        return {
-            ok: false,
-            message: 'Claude.ai session tokens (sk-ant-oat01-*) are not valid for the Anthropic API. Use a permanent API key from console.anthropic.com (sk-ant-api03-*) or connect via the "Connect with Claude.ai" OAuth button instead.',
-            latencyMs: 0,
-            model: opts.model ?? DEFAULT_TEST_MODELS[providerKey],
         }
     }
 
