@@ -4,15 +4,20 @@
 set -e
 
 echo "[migrate] Running Drizzle migrations..."
-node -e "
-import('@plexo/db').then(async ({ db: _db }) => {
-  const { Pool } = await import('pg');
-  const { drizzle } = await import('drizzle-orm/node-postgres');
-  const { migrate } = await import('drizzle-orm/node-postgres/migrator');
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  const db = drizzle(pool);
-  await migrate(db, { migrationsFolder: process.env.MIGRATIONS_DIR ?? './drizzle' });
-  await pool.end();
-  console.log('[migrate] Done.');
-}).catch(e => { console.error('[migrate] Failed:', e.message); process.exit(1); });
-"
+
+node --input-type=module << 'EOF'
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
+
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) { console.error('[migrate] DATABASE_URL not set'); process.exit(1); }
+
+const migrationsFolder = process.env.MIGRATIONS_DIR ?? './drizzle';
+
+const pool = new Pool({ connectionString });
+const db = drizzle(pool);
+await migrate(db, { migrationsFolder });
+await pool.end();
+console.log('[migrate] Done.');
+EOF
