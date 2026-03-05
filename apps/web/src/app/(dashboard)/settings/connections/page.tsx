@@ -101,7 +101,7 @@ const ALL_CATEGORIES = ['All', 'Code', 'Communication', 'Productivity', 'Finance
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-export default function ConnectionsPage() {
+export default function IntegrationsPage() {
     const { workspaceId } = useWorkspace()
     const WS_ID = workspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
     const [registry, setRegistry] = useState<RegistryItem[]>([])
@@ -280,9 +280,9 @@ export default function ConnectionsPage() {
         <div className="flex flex-col gap-4 h-full">
             {/* Header */}
             <div>
-                <h1 className="text-xl font-bold text-zinc-50">Connections</h1>
+                <h1 className="text-xl font-bold text-zinc-50">Integrations</h1>
                 <p className="mt-0.5 text-sm text-zinc-500">
-                    Connect external services • {installed.length} active
+                    Manage authenticated external services • {installed.length} active
                 </p>
             </div>
 

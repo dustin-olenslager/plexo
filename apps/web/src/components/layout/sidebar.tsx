@@ -74,11 +74,11 @@ const NAV_GROUPS: NavGroup[] = [
         collapsible: true,
         defaultOpen: true,
         items: [
-            { label: 'Connections', href: '/settings/connections', icon: Plug },
+            { label: 'Integrations', href: '/settings/connections', icon: Plug },
+            { label: 'Marketplace', href: '/marketplace', icon: Store },
             { label: 'Channels', href: '/settings/channels', icon: Radio },
             { label: 'Skills', href: '/skills', icon: Zap },
             { label: 'Tools', href: '/tools', icon: Wrench },
-            { label: 'Plugins', href: '/marketplace', icon: Store },
             { label: 'Memory', href: '/insights', icon: Brain },
         ],
     },

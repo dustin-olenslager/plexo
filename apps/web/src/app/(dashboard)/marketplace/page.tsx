@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers'
 import MarketplaceClient from './MarketplaceClient'
 
 interface RegistryItem {
@@ -22,12 +23,27 @@ interface InstalledItem {
     status: 'active' | 'error' | 'expired' | 'disconnected'
 }
 
+interface KapselPlugin {
+    id: string
+    workspaceId: string
+    name: string
+    displayName: string
+    description: string
+    version: string
+    type: string
+    enabled: boolean
+    installedAt: string
+}
+
 async function fetchMarketplaceData(workspaceId: string) {
     const apiBase = process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
-    const [regRes, instRes] = await Promise.all([
-        fetch(`${apiBase}/api/connections/registry`, { cache: 'no-store' }),
-        fetch(`${apiBase}/api/connections/installed?workspaceId=${workspaceId}`, { cache: 'no-store' }),
+    const [regRes, instRes, pluginsRes] = await Promise.all([
+        fetch(`${apiBase}/api/v1/connections/registry`, { cache: 'no-store' })
+            .catch(() => fetch(`${apiBase}/api/connections/registry`, { cache: 'no-store' })),
+        fetch(`${apiBase}/api/v1/connections/installed?workspaceId=${workspaceId}`, { cache: 'no-store' })
+            .catch(() => fetch(`${apiBase}/api/connections/installed?workspaceId=${workspaceId}`, { cache: 'no-store' })),
+        fetch(`${apiBase}/api/v1/plugins?workspaceId=${workspaceId}`, { cache: 'no-store' }),
     ])
 
     const registry: RegistryItem[] = regRes.ok
@@ -38,17 +54,26 @@ async function fetchMarketplaceData(workspaceId: string) {
         ? ((await instRes.json()) as { items: InstalledItem[] }).items
         : []
 
-    return { registry, installed }
+    const plugins: KapselPlugin[] = pluginsRes.ok
+        ? ((await pluginsRes.json()) as KapselPlugin[])
+        : []
+
+    return { registry, installed, plugins }
 }
 
 export default async function MarketplacePage() {
-    const workspaceId = process.env.DEV_WORKSPACE_ID ?? '00000000-0000-0000-0000-000000000000'
-    const { registry, installed } = await fetchMarketplaceData(workspaceId)
+    // Prefer the env var, but use a sensible default for dev
+    const workspaceId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE
+        ?? process.env.DEV_WORKSPACE_ID
+        ?? '00000000-0000-0000-0000-000000000000'
+
+    const { registry, installed, plugins } = await fetchMarketplaceData(workspaceId)
 
     return (
         <MarketplaceClient
             registry={registry}
             installed={installed}
+            plugins={plugins}
             workspaceId={workspaceId}
         />
     )
