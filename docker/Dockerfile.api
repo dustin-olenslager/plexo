@@ -48,4 +48,4 @@ RUN chown -R plexo:plexo /app
 USER plexo
 EXPOSE 3001
 
-CMD ["node", "--import", "tsx/esm", "apps/api/src/index.ts"]
+CMD ["/app/apps/api/node_modules/.bin/tsx", "apps/api/src/index.ts"]
