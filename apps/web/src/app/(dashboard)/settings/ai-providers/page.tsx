@@ -337,9 +337,15 @@ export default function AIProvidersPage() {
             const providersConfig: Record<string, { status: ProviderStatus; selectedModel: string; baseUrl: string; apiKey?: string; oauthToken?: string }> = {}
             for (const p of PROVIDERS) {
                 const s = providerStates[p.key]
-                if (s.status !== 'unconfigured') {
+                // Include any provider that has a credential (regardless of test status)
+                // OR that was already confirmed as configured/untested.
+                const hasCredential = !!(s.apiKey || s.oauthToken)
+                const hasStatus = s.status !== 'unconfigured'
+                if (hasCredential || hasStatus) {
+                    // Promote unconfigured-but-keyed providers to 'untested' before writing
+                    const effectiveStatus = s.status === 'unconfigured' && hasCredential ? 'untested' : s.status
                     providersConfig[p.key] = {
-                        status: s.status,
+                        status: effectiveStatus,
                         selectedModel: s.selectedModel,
                         baseUrl: s.baseUrl,
                         ...(s.apiKey ? { apiKey: s.apiKey } : {}),
@@ -364,9 +370,12 @@ export default function AIProvidersPage() {
                 }),
             })
             if (res.ok) {
-                // Mark current key entry as untested if key was just entered but not tested
-                if (state.status === 'unconfigured' && state.apiKey) {
-                    updateState(selectedProvider, { status: 'untested' })
+                // Update UI state to reflect promoted statuses
+                for (const p of PROVIDERS) {
+                    const s = providerStates[p.key]
+                    if (s.status === 'unconfigured' && (s.apiKey || s.oauthToken)) {
+                        updateState(p.key, { status: 'untested' })
+                    }
                 }
                 setSaved(true)
                 setTimeout(() => setSaved(false), 2500)
