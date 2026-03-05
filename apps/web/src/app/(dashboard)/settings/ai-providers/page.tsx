@@ -213,24 +213,42 @@ export default function AIProvidersPage() {
                     settings?: {
                         aiProviders?: {
                             primary?: ProviderKey
+                            primaryProvider?: ProviderKey
                             modelRouting?: Record<TaskType, string>
                             fallbackOrder?: ProviderKey[]
-                            providers?: Record<ProviderKey, { status: ProviderStatus; selectedModel: string; baseUrl: string }>
+                            fallbackChain?: ProviderKey[]
+                            providers?: Record<ProviderKey, {
+                                status: ProviderStatus
+                                selectedModel: string
+                                baseUrl: string
+                                apiKey?: string
+                                oauthToken?: string
+                            }>
                         }
                     }
                 }
                 const aiCfg = ws.settings?.aiProviders
                 if (!aiCfg) return
-                if (aiCfg.primary) setPrimaryProvider(aiCfg.primary)
+                const primary = aiCfg.primary ?? aiCfg.primaryProvider
+                if (primary) setPrimaryProvider(primary)
                 if (aiCfg.modelRouting) setModelRouting((prev) => ({ ...prev, ...aiCfg.modelRouting }))
-                if (aiCfg.fallbackOrder?.length) setFallbackOrder(aiCfg.fallbackOrder)
+                const order = aiCfg.fallbackOrder ?? aiCfg.fallbackChain
+                if (order?.length) setFallbackOrder(order)
                 if (aiCfg.providers) {
                     setProviderStates((prev) => {
                         const next = { ...prev }
                         for (const [k, v] of Object.entries(aiCfg.providers!)) {
                             const pk = k as ProviderKey
                             if (next[pk]) {
-                                next[pk] = { ...next[pk], status: v.status, selectedModel: v.selectedModel ?? '', baseUrl: v.baseUrl ?? next[pk].baseUrl }
+                                next[pk] = {
+                                    ...next[pk],
+                                    status: v.status,
+                                    selectedModel: v.selectedModel ?? '',
+                                    baseUrl: v.baseUrl ?? next[pk].baseUrl,
+                                    // Restore credentials so Test Connection and re-saves work correctly
+                                    ...(v.apiKey ? { apiKey: v.apiKey } : {}),
+                                    ...(v.oauthToken ? { oauthToken: v.oauthToken } : {}),
+                                }
                             }
                         }
                         return next
@@ -566,8 +584,8 @@ export default function AIProvidersPage() {
                                     />
                                     <p className="text-xs text-zinc-600">
                                         {selected.supportsOAuth
-                                            ? 'Permanent API key from console.anthropic.com. Write-only — leave blank to keep current.'
-                                            : 'Write-only — existing value not shown. Leave blank to keep current.'}
+                                            ? 'Permanent API key from console.anthropic.com. Stored in workspace settings.'
+                                            : 'Stored in workspace settings. Shown masked — re-enter to change.'}
                                     </p>
                                 </div>
 
