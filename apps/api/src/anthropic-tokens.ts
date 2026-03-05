@@ -92,7 +92,7 @@ export async function storeAnthropicTokens(
             registryId: ANTHROPIC_REGISTRY_ID,
             name: 'Anthropic (Claude.ai OAuth)',
             credentials: { encrypted: encryptedCreds },
-            scopesGranted: ['org:read', 'user:read', 'user:inference'],
+            scopesGranted: ['user:profile', 'user:inference', 'user:sessions:claude_code'],
             status: 'active',
             lastVerifiedAt: new Date(),
         })

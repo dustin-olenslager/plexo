@@ -24,8 +24,8 @@ export const ANTHROPIC_OAUTH = {
     clientId: '9d1c250a-e61b-44d9-88ed-5944d1962f5e',
     authorizationUrl: 'https://claude.ai/oauth/authorize',
     tokenUrl: 'https://api.anthropic.com/oauth/token',
-    /** Scopes required for API access via subscription */
-    scopes: ['org:create_api_key', 'user:profile', 'user:inference'],
+    /** Scopes required for API access via subscription — matches claude setup-token */
+    scopes: ['user:profile', 'user:inference', 'user:sessions:claude_code'],
     /** Access tokens expire after 1 hour */
     accessTokenTtlMs: 60 * 60 * 1000,
 } as const
