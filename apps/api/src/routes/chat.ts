@@ -112,6 +112,7 @@ chatRouter.post('/message', async (req, res) => {
             sessionHistory.set(sid, history)
 
             try {
+                logger.info({ workspaceId, providerKey, modelId: config.model }, 'Webchat: generating conversational reply')
                 const result = await generateText({
                     model,
                     system: 'You are Plexo, a helpful AI agent. Keep replies concise and friendly. '
