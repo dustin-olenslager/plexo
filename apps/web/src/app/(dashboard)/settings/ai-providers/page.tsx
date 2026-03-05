@@ -376,24 +376,38 @@ export default function AIProvidersPage() {
         }
     }
 
-    const configuredProviders = fallbackOrder
+    // All providers with any meaningful status (not completely unconfigured)
+    const chainProviders = fallbackOrder
         .map((k) => PROVIDERS.find((p) => p.key === k)!)
-        .filter((p) => p && providerStates[p.key].status !== 'unconfigured')
+        .filter((p): p is typeof PROVIDERS[number] => p != null && providerStates[p.key].status !== 'unconfigured')
+
+    // Active = tested and working; warn = present but untested (greyed out, click to configure)
+    const activeChainProviders = chainProviders.filter((p) => providerStates[p.key].status === 'configured')
+    const warnChainProviders = chainProviders.filter((p) => providerStates[p.key].status !== 'configured')
+
+    // Alias so section-visibility guard (configuredProviders.length > 0) still works
+    const configuredProviders = chainProviders
 
     function moveFallback(key: ProviderKey, dir: -1 | 1) {
         setFallbackOrder((prev) => {
-            // Partition into configured (visible) and unconfigured (hidden) groups.
-            // Only reorder within the visible set so the buttons always do something visible.
-            const configured = prev.filter((k) => providerStates[k].status !== 'unconfigured')
-            const unconfigured = prev.filter((k) => providerStates[k].status === 'unconfigured')
-            const idx = configured.indexOf(key)
+            const visible = prev.filter((k) => providerStates[k].status !== 'unconfigured')
+            const hidden = prev.filter((k) => providerStates[k].status === 'unconfigured')
+            const idx = visible.indexOf(key)
             if (idx === -1) return prev
             const swap = idx + dir
-            if (swap < 0 || swap >= configured.length) return prev
-            const next = [...configured]
-                ;[next[idx], next[swap]] = [next[swap]!, next[idx]!]
-            return [...next, ...unconfigured]
+            if (swap < 0 || swap >= visible.length) return prev
+            const next = [...visible]
+            ;[next[idx], next[swap]] = [next[swap]!, next[idx]!]
+            return [...next, ...hidden]
         })
+    }
+
+    function removeFromFallback(key: ProviderKey) {
+        setFallbackOrder((prev) => prev.filter((k) => k !== key))
+        setProviderStates((prev) => ({
+            ...prev,
+            [key]: { ...prev[key], status: 'unconfigured' as const },
+        }))
     }
 
     return (
@@ -656,12 +670,13 @@ export default function AIProvidersPage() {
 
                     {/* Provider priority row */}
                     <div className="mt-4 flex items-center gap-2 flex-wrap">
-                        {configuredProviders.map((p, idx) => (
+                        {/* Active (configured) providers — full controls */}
+                        {activeChainProviders.map((p, idx) => (
                             <div
                                 key={p.key}
                                 className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${primaryProvider === p.key
-                                    ? 'border-indigo-500/40 bg-indigo-500/8'
-                                    : 'border-zinc-700 bg-zinc-900/60'
+                                        ? 'border-indigo-500/40 bg-indigo-500/8'
+                                        : 'border-zinc-700 bg-zinc-900/60'
                                     }`}
                             >
                                 <span className="text-xs text-zinc-600 font-mono w-4 text-center">{idx + 1}</span>
@@ -675,15 +690,44 @@ export default function AIProvidersPage() {
                                         onClick={() => moveFallback(p.key, -1)}
                                         disabled={idx === 0}
                                         className="text-zinc-600 hover:text-zinc-400 disabled:opacity-20 leading-none px-0.5"
-                                        aria-label="Move up"
+                                        aria-label="Move earlier"
                                     >◀</button>
                                     <button
                                         onClick={() => moveFallback(p.key, 1)}
-                                        disabled={idx === configuredProviders.length - 1}
+                                        disabled={idx === activeChainProviders.length - 1}
                                         className="text-zinc-600 hover:text-zinc-400 disabled:opacity-20 leading-none px-0.5"
-                                        aria-label="Move down"
+                                        aria-label="Move later"
                                     >▶</button>
+                                    <button
+                                        onClick={() => removeFromFallback(p.key)}
+                                        className="ml-1 text-zinc-600 hover:text-red-400 leading-none px-0.5 transition-colors"
+                                        aria-label="Remove from chain"
+                                        title="Remove from chain"
+                                    >×</button>
                                 </div>
+                            </div>
+                        ))}
+
+                        {/* Degraded (untested/unconfigured) providers — greyed, clickable, removable */}
+                        {warnChainProviders.map((p) => (
+                            <div
+                                key={p.key}
+                                className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 opacity-50"
+                                title={`${p.name} — not tested. Click to configure.`}
+                            >
+                                <StatusDot status={providerStates[p.key].status} />
+                                <button
+                                    onClick={() => setSelectedProvider(p.key)}
+                                    className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+                                >
+                                    {p.name}
+                                </button>
+                                <button
+                                    onClick={() => removeFromFallback(p.key)}
+                                    className="ml-1 text-zinc-600 hover:text-red-400 leading-none px-0.5 transition-colors"
+                                    aria-label="Remove from chain"
+                                    title="Remove from chain"
+                                >×</button>
                             </div>
                         ))}
                     </div>
