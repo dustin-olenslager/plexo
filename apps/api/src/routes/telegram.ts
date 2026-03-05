@@ -15,10 +15,10 @@ import { pushTask } from '@plexo/queue'
 import { logger } from '../logger.js'
 import { emitToWorkspace, onAgentEvent } from '../sse-emitter.js'
 import { db, eq } from '@plexo/db'
-import { channels, workspaces } from '@plexo/db'
+import { channels } from '@plexo/db'
 import { generateText } from 'ai'
 import { buildModel } from '@plexo/agent/providers/registry'
-import type { WorkspaceAISettings, ProviderKey, AIProviderConfig } from '@plexo/agent/providers/registry'
+import { loadWorkspaceAISettings } from '../agent-loop.js'
 
 export const telegramRouter: RouterType = Router()
 
@@ -64,79 +64,7 @@ async function deleteWebhook(): Promise<void> {
     await fetch(`${TELEGRAM_API}${_botToken}/deleteWebhook`, { method: 'POST' }).catch(() => null)
 }
 
-// ── AI helpers (provider-agnostic) ───────────────────────────────────────────
-
-/**
- * Load workspace AI settings from DB — same logic as agent-loop's loadWorkspaceAISettings
- * but returns the resolved settings + provider config for direct use.
- */
-async function loadWorkspaceAI(workspaceId: string): Promise<{
-    aiSettings: WorkspaceAISettings | null
-    providerKey: ProviderKey | null
-    config: AIProviderConfig | null
-}> {
-    const nil = { aiSettings: null, providerKey: null, config: null }
-    try {
-        const [ws] = await db.select({ settings: workspaces.settings })
-            .from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const s = ws?.settings as any
-        const ap = s?.aiProviders
-        if (!ap) return nil
-
-        const rawProviders = ap.providers ?? {}
-        const providerKeys = Object.keys(rawProviders)
-
-        const aiSettings: WorkspaceAISettings = {
-            primaryProvider: (ap.primary ?? ap.primaryProvider ?? 'anthropic') as ProviderKey,
-            fallbackChain: (ap.fallbackOrder ?? ap.fallbackChain ?? []) as ProviderKey[],
-            providers: Object.fromEntries(
-                providerKeys.map((k) => {
-                    const p = rawProviders[k]
-                    return [k, {
-                        provider: k as ProviderKey,
-                        apiKey: p.apiKey,
-                        oauthToken: p.oauthToken,
-                        baseUrl: p.baseUrl,
-                        status: p.status,
-                        model: p.selectedModel ?? p.defaultModel,
-                    }]
-                })
-            ) as WorkspaceAISettings['providers'],
-        }
-
-        // Walk chain to find first usable provider
-        const chain = [aiSettings.primaryProvider, ...aiSettings.fallbackChain.filter(p => p !== aiSettings.primaryProvider)]
-        for (const pk of chain) {
-            const p = rawProviders[pk]
-            if (!p) continue
-            const apiKey = p.apiKey as string | undefined
-            const oauthToken = p.oauthToken as string | undefined
-            const baseUrl = p.baseUrl as string | undefined
-            const status = p.status as string | undefined
-
-            const isValidKey = (k: string) => k !== 'placeholder' && k.length > 10 && !k.includes(' ')
-            const isValidOAuth = (t: string) => t.startsWith('sk-ant-oat') && t.length > 20 && !t.includes(' ')
-
-            if (pk === 'anthropic') {
-                if ((oauthToken && isValidOAuth(oauthToken)) || (apiKey && isValidKey(apiKey))) {
-                    const key = (oauthToken && isValidOAuth(oauthToken)) ? oauthToken : apiKey!
-                    return { aiSettings: { ...aiSettings, primaryProvider: pk }, providerKey: pk, config: { provider: pk, apiKey: key, model: p.selectedModel ?? p.defaultModel } }
-                }
-            } else {
-                if (apiKey && isValidKey(apiKey)) {
-                    return { aiSettings: { ...aiSettings, primaryProvider: pk }, providerKey: pk, config: { provider: pk, apiKey, baseUrl, model: p.selectedModel ?? p.defaultModel } }
-                }
-                if (status === 'configured' || baseUrl) {
-                    return { aiSettings: { ...aiSettings, primaryProvider: pk }, providerKey: pk, config: { provider: pk, apiKey: 'local', baseUrl, model: p.selectedModel ?? p.defaultModel } }
-                }
-            }
-        }
-    } catch (err) {
-        logger.error({ err, workspaceId }, 'Telegram: failed to load workspace AI settings')
-    }
-    return nil
-}
+// ── AI helpers (provider-agnostic, shared credential resolution) ─────────────
 
 interface ChatMessage { role: 'user' | 'assistant'; content: string }
 
@@ -146,12 +74,19 @@ interface AiResult {
 }
 
 /**
- * Provider-agnostic chat — uses the workspace's configured provider via ai-sdk.
+ * Provider-agnostic chat — uses the shared loadWorkspaceAISettings (same as agent-loop)
+ * to resolve the correct provider + credential, then calls generateText via ai-sdk.
  */
 async function chatWithAI(workspaceId: string, messages: ChatMessage[], system?: string): Promise<AiResult> {
-    const { aiSettings, providerKey, config } = await loadWorkspaceAI(workspaceId)
-    if (!aiSettings || !providerKey || !config) {
+    const { credential, aiSettings } = await loadWorkspaceAISettings(workspaceId)
+    if (!credential || !aiSettings) {
         return { text: null, error: 'no_credential' }
+    }
+
+    const providerKey = aiSettings.primaryProvider
+    const config = aiSettings.providers[providerKey]
+    if (!config) {
+        return { text: null, error: `no config for provider ${providerKey}` }
     }
 
     try {
@@ -160,7 +95,6 @@ async function chatWithAI(workspaceId: string, messages: ChatMessage[], system?:
             model,
             system: system ?? 'You are Plexo, an AI agent assistant.',
             messages: messages.map(m => ({ role: m.role, content: m.content })),
-            maxTokens: 1024,
             abortSignal: AbortSignal.timeout(30_000),
         })
         return { text: result.text ?? null, error: null }
@@ -256,8 +190,8 @@ async function handleUpdate(update: TelegramUpdate): Promise<void> {
     }
 
     // Check if workspace has any AI provider configured
-    const { providerKey } = await loadWorkspaceAI(workspaceId)
-    if (!providerKey) {
+    const { credential } = await loadWorkspaceAISettings(workspaceId)
+    if (!credential) {
         await sendMessage(chatId, '⚠️ No AI provider configured. Add your API key in Settings → AI Providers.')
         return
     }

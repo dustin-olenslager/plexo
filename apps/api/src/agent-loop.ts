@@ -21,7 +21,7 @@ let activeAbort: AbortController | null = null
  * isn't configured but OpenAI is, the task proceeds and withFallback() in
  * the executor handles provider selection.
  */
-async function loadWorkspaceAISettings(workspaceId: string): Promise<{
+export async function loadWorkspaceAISettings(workspaceId: string): Promise<{
     credential: AnthropicCredential | null
     aiSettings: WorkspaceAISettings | null
 }> {
