@@ -1,8 +1,36 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import GitHub from 'next-auth/providers/github'
+import type { NextAuthConfig } from 'next-auth'
 
+// Edge-safe config (no Node.js APIs) used in middleware
+export const authConfig: NextAuthConfig = {
+    providers: [
+        // Credentials listed here without the authorize() function
+        // (authorize runs only in the server route handler, not middleware)
+        Credentials({ credentials: {} }),
+        GitHub,
+    ],
+    session: { strategy: 'jwt' },
+    pages: { signIn: '/login' },
+    callbacks: {
+        authorized({ auth }) {
+            return !!auth
+        },
+        async jwt({ token, user }) {
+            if (user) token.id = user.id
+            return token
+        },
+        async session({ session, token }) {
+            if (session.user && token.id) session.user.id = token.id as string
+            return session
+        },
+    },
+}
+
+// Full server config with the actual credentials authorize logic
 export const { handlers, auth, signIn, signOut } = NextAuth({
+    ...authConfig,
     providers: [
         Credentials({
             name: 'Email',
@@ -13,7 +41,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             async authorize(credentials) {
                 if (!credentials?.email || !credentials?.password) return null
 
-                const apiUrl = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'
+                const apiUrl = process.env.INTERNAL_API_URL ?? 'http://api:3001'
                 const res = await fetch(`${apiUrl}/api/v1/auth/verify-password`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -34,25 +62,4 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             clientSecret: process.env.GITHUB_CLIENT_SECRET,
         }),
     ],
-    session: { strategy: 'jwt' },
-    pages: {
-        signIn: '/login',
-    },
-    callbacks: {
-        authorized({ auth }) {
-            return !!auth
-        },
-        async jwt({ token, user }) {
-            if (user) {
-                token.id = user.id
-            }
-            return token
-        },
-        async session({ session, token }) {
-            if (session.user && token.id) {
-                session.user.id = token.id as string
-            }
-            return session
-        },
-    },
 })
