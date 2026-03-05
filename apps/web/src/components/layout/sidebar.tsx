@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useSession, signOut } from 'next-auth/react'
 import {
     LayoutDashboard,
     MessageSquare,
@@ -33,6 +32,11 @@ import {
     Sparkles as _Sparkles, // kept for potential future use
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
+
+interface SessionUser {
+    name?: string | null
+    email?: string | null
+}
 
 interface NavItem {
     label: string
@@ -267,9 +271,8 @@ function WorkspaceSwitcher() {
     )
 }
 
-export function Sidebar() {
+export function Sidebar({ user }: { user?: SessionUser }) {
     const pathname = usePathname()
-    const { data: session } = useSession()
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
         // SSR safe — defaultOpen values only
         const init: Record<string, boolean> = {}
@@ -388,14 +391,17 @@ export function Sidebar() {
                 {/* User */}
                 <button
                     className="flex w-full items-center gap-2.5 rounded-lg p-2 text-left hover:bg-zinc-900/80 transition-colors"
-                    onClick={() => void signOut({ callbackUrl: '/login' })}
+                    onClick={() => {
+                        // redirect to login page — proper signout handled server-side via auth route
+                        window.location.href = '/api/auth/signout'
+                    }}
                 >
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-zinc-800 text-[11px] font-semibold text-zinc-300 ring-1 ring-inset ring-zinc-700/50">
-                        {(session?.user?.name ?? session?.user?.email ?? 'U').slice(0, 1).toUpperCase()}
+                        {(user?.name ?? user?.email ?? 'U').slice(0, 1).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-medium text-zinc-200">{session?.user?.name ?? 'User'}</p>
-                        <p className="truncate text-[10px] text-zinc-500">{session?.user?.email ?? ''}</p>
+                        <p className="truncate text-xs font-medium text-zinc-200">{user?.name ?? 'User'}</p>
+                        <p className="truncate text-[10px] text-zinc-500">{user?.email ?? ''}</p>
                     </div>
                 </button>
                 <div className="mt-1 px-2.5 pb-1">
