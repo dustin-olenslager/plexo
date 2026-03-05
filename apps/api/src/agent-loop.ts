@@ -177,11 +177,16 @@ async function processOneTask(): Promise<boolean> {
     logger.info({ taskId: task.id, type: task.type }, 'Task claimed')
     emit({ type: 'task_started', taskId: task.id, taskType: task.type })
 
-    const { credential, aiSettings } = await loadWorkspaceAISettings(task.workspaceId)
+    // claimTask uses raw SQL (RETURNING *) which returns snake_case column names,
+    // not camelCase Drizzle mappings. Handle both to be safe.
+    const taskWorkspaceId = task.workspaceId
+        ?? (task as Record<string, unknown>)['workspace_id'] as string | undefined
+
+    const { credential, aiSettings } = await loadWorkspaceAISettings(taskWorkspaceId ?? '')
     if (!credential) {
         await blockTask(task.id, 'No AI credential configured for workspace')
         emit({ type: 'task_blocked', taskId: task.id, reason: 'No AI credential' })
-        logger.warn({ taskId: task.id, workspaceId: task.workspaceId }, 'No credential — task blocked')
+        logger.warn({ taskId: task.id, workspaceId: taskWorkspaceId }, 'No credential — task blocked')
         return true
     }
 
@@ -190,7 +195,7 @@ async function processOneTask(): Promise<boolean> {
 
     const ctx: ExecutionContext = {
         taskId: task.id,
-        workspaceId: task.workspaceId,
+        workspaceId: taskWorkspaceId ?? '',
         userId: 'system',
         credential,
         tokenBudget: Math.floor((API_COST_CEILING * 1_000_000) / 15),
