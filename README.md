@@ -10,8 +10,8 @@ Plexo runs a persistent agent that handles real work autonomously — and interr
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=nextdotjs)](https://nextjs.org)
 [![Docker](https://img.shields.io/badge/self--hosted-Docker-2496ED?logo=docker&logoColor=white)](docker/compose.yml)
-[![Build](https://img.shields.io/badge/typecheck-passing-brightgreen)](https://github.com/dustin-olenslager/plexo)
-[![Phase](https://img.shields.io/badge/phase-26%20complete-brightgreen)](https://github.com/dustin-olenslager/plexo#roadmap)
+[![Build](https://img.shields.io/badge/typecheck-passing-brightgreen)](https://github.com/joeybuilt-official/plexo)
+[![Phase](https://img.shields.io/badge/phase-28%20complete-brightgreen)](https://github.com/joeybuilt-official/plexo#roadmap)
 [![Kapsel](https://img.shields.io/badge/Kapsel-Full%20compliant-6C47FF)](https://github.com/joeybuilt-official/kapsel)
 
 [**Managed hosting →**](https://getplexo.com) · [Docs](docs/) · [Kapsel SDK](packages/sdk/) · [Kapsel Protocol →](https://github.com/joeybuilt-official/kapsel) · [Architecture](docs/architecture.md)
@@ -47,7 +47,7 @@ A founder monitoring Stripe and generating weekly reports, an operator managing 
 ## Self-host in under 20 minutes
 
 ```bash
-git clone https://github.com/dustin-olenslager/plexo
+git clone https://github.com/joeybuilt-official/plexo
 cd plexo
 cp .env.example .env.local   # fill in 5 values
 docker compose -f docker/compose.yml up -d
@@ -364,7 +364,7 @@ pnpm typecheck         # tsc --noEmit across all packages — must pass before c
 
 ## Roadmap
 
-> Updated with every push. Last updated: 2026-03-04
+> Updated with every push. Last updated: 2026-03-04 (Phase 28)
 
 ### ✅ Phase 1 — Foundation
 - [x] pnpm workspace monorepo, Turborepo pipeline
@@ -503,7 +503,18 @@ pnpm typecheck         # tsc --noEmit across all packages — must pass before c
 - [x] **Log detail page** — `/logs/[id]` shows metrics grid, outcome summary, full context, per-step breakdown with tool calls
 - [x] **URL routing fix** — all settings pages now use `API_BASE` (port 3001) not relative Next.js paths
 
+### ✅ Phase 28 — Multi-LLM fallback, OAuth reliability, provider accuracy
+- [x] **Multi-LLM fallback chain** — agent-loop now passes `WorkspaceAISettings` to `executeTask`; `withFallback()` routes tasks through configured provider chain (Anthropic → OpenAI → Ollama) instead of blocking when the primary is unconfigured
+- [x] **Any-provider credential gate** — `loadWorkspaceAISettings` walks the full fallback chain; a configured OpenAI key unblocks task execution even if Anthropic is absent
+- [x] **Health check accuracy** — `pingAnthropic` reads only the Anthropic provider entry (not all providers); returns `ok: null` with `error: 'not_configured'` when no key is present so the UI renders `—` instead of `✗`
+- [x] **Ollama remote compatibility** — test-connection now discovers models via `GET /v1/models` first; if POST is blocked by a reverse proxy, model presence alone reports success
+- [x] **Anthropic key test fix** — API key passed directly to `buildTestModel`, not via env mutation; eliminates false `invalid x-api-key` errors on the test-connection endpoint
+- [x] **OAuth import fix** — added `UNIQUE (workspace_id, registry_id)` constraint to `installed_connections`; resolves `ON CONFLICT` hang in `storeAnthropicTokens` (import-cli was deadlocking on missing constraint)
+- [x] **Default workspace env var** — `NEXT_PUBLIC_DEFAULT_WORKSPACE` set in `.env.local`; web chat no longer sends empty `workspaceId` before localStorage is populated
+- [x] **Specs directory** — `specs/` added at repo root for structured feature planning; `specs/phase5-behavior-config.md` is the first entry
+
 ### 🔲 Backlog
+- [ ] **Agent Behavior Configuration System** (Phase 5 reboot) — replace flat `AGENTS.md` with a structured DB-backed rule graph: workspace → project → task inheritance layers, typed rule categories (safety / operational / communication / domain knowledge / persona / tool preference / quality gate), resolution engine that compiles to system prompt fragment, full CRUD UI with `SystemPromptPreview`, plugin-registered rule groups, snapshot version history. See `specs/phase5-behavior-config.md`.
 - [ ] External Kapsel Marketplace — separate hosted service; Plexo instances pull from it
 - [ ] `task_source: 'extension'` fully propagated — pending enum migration in all environments
 - [ ] Webchat widget refinements
@@ -519,9 +530,9 @@ The `/health` endpoint reports live service status, Kapsel compliance, and activ
 {
   "status": "ok",
   "services": {
-    "postgres": { "ok": true, "latencyMs": 1 },
-    "redis":    { "ok": true, "latencyMs": 1 },
-    "anthropic": { "ok": false, "latencyMs": 0 }
+    "postgres":  { "ok": true,  "latencyMs": 1 },
+    "redis":     { "ok": true,  "latencyMs": 1 },
+    "anthropic": { "ok": true,  "latencyMs": 312 }
   },
   "version": "0.1.0",
   "uptime": 864,
@@ -533,6 +544,8 @@ The `/health` endpoint reports live service status, Kapsel compliance, and activ
   }
 }
 ```
+
+`anthropic.ok` is `null` (not `false`) when no AI key is configured — the provider is simply not tested rather than reported as failed. Postgres and Redis down-states trigger `503 degraded`; Anthropic is non-critical.
 
 Anthropic is marked non-critical — the agent degrades to queue-only mode if the AI provider is unreachable.
 
