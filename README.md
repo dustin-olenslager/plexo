@@ -23,7 +23,7 @@
 
 ---
 
-## 1. The Paradigm Shift (The Visionary Lens)
+## 1. The Paradigm Shift
 
 Most AI tools are glorified chat interfaces. You ask. They answer. *You* still do the work. The ceiling of a chat UI is human bandwidth.
 
@@ -37,7 +37,7 @@ It is not an assistant; it is a persistent, scalable workforce that you complete
 
 ---
 
-## 2. Engineered For Trust (The Tech Founder Lens)
+## 2. Engineered For Trust
 
 An autonomous agent with write-access to your codebase and production systems is a profound liability without an obsessive focus on architecture and safety. Plexo was engineered from first principles to mitigate risk.
 
@@ -56,7 +56,7 @@ An autonomous agent with write-access to your codebase and production systems is
 
 ---
 
-## 3. The Extensibility Moat (The Open Source Lens)
+## 3. The Extensibility Moat
 
 A platform's survival depends on its ecosystem. Plexo natively adheres to [**Kapsel**](https://github.com/joeybuilt-official/kapsel), the definitive open standard for AI agent extensions.
 
