@@ -43,6 +43,14 @@ apps/web           → packages/ui only (no direct DB or agent access)
 plugins/core/*     → packages/sdk only (never packages/db or packages/agent)
 ```
 
+## Source of Truth
+- `/home/dustin/dev/plexo` is the canonical local repo. It is always the source of truth.
+- All changes go: local → `git push origin main` → VPS pulls from GitHub.
+- Never edit files directly on the VPS. Always edit locally, push, then pull on the VPS.
+- The VPS at `204.168.158.74` runs `plexo.metajibe.com`. Deploy = `git pull origin main` + `docker compose -f docker/compose.yml build <service> && up -d <service>`.
+- `/opt/plexo/docker/.env` is a symlink to `/opt/plexo/.env` — do not break this or `POSTGRES_PASSWORD` won't substitute.
+- Do NOT use Coolify (89.167.11.124). Not used for this project.
+
 ## Critical Rules
 - packages/sdk is a public API. Breaking changes require major version bump + migration guide.
 - Plugins cannot import from packages/db or packages/agent. SDK only.
