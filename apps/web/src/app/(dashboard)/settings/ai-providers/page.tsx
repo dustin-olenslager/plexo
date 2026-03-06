@@ -17,6 +17,7 @@ import {
     RefreshCw,
     Users,
     Key,
+    X,
 } from 'lucide-react'
 import { getModelCapabilities } from '@web/lib/models'
 import { CapabilityList } from '@web/components/capabilities'
@@ -200,6 +201,10 @@ export default function AIProvidersPage() {
     const [saving, setSaving] = useState(false)
     const [saved, setSaved] = useState(false)
     const [showRouting, setShowRouting] = useState(false)
+    const [editingKey, setEditingKey] = useState<Record<ProviderKey, boolean>>(
+        () => Object.fromEntries(PROVIDERS.map((p) => [p.key, false])) as Record<ProviderKey, boolean>
+    )
+    const [clearConfirm, setClearConfirm] = useState<ProviderKey | null>(null)
     const [loadError, setLoadError] = useState<string | null>(null)
     const [modelRouting, setModelRouting] = useState<Record<TaskType, string>>(
         { ...DEFAULT_MODELS }
@@ -318,6 +323,8 @@ export default function AIProvidersPage() {
                     ...(data.model ? { selectedModel: data.model } : {}),
                 }
                 updateState(selectedProvider, patch)
+                // Exit key-edit mode on success
+                setEditingKey((prev) => ({ ...prev, [selectedProvider]: false }))
                 // For Ollama: also fetch the model list so the dropdown is populated
                 if (selectedProvider === 'ollama') {
                     try {
@@ -620,7 +627,7 @@ export default function AIProvidersPage() {
                             <div className="flex flex-col gap-4">
 
                                 {/* Max/Pro subscription token callout — Anthropic only */}
-                                {selected.supportsSubscriptionToken && (
+                                {selected.supportsSubscriptionToken && editingKey[selectedProvider] && (
                                     <div className="flex flex-col gap-2 rounded-xl border border-violet-500/20 bg-violet-500/5 p-4">
                                         <div className="flex items-start gap-3">
                                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-500/15">
@@ -660,18 +667,92 @@ export default function AIProvidersPage() {
                                             </a>
                                         )}
                                     </div>
-                                    <input
-                                        type="password"
-                                        value={state.apiKey}
-                                        onChange={(e) => updateState(selectedProvider, { apiKey: e.target.value })}
-                                        onKeyDown={(e) => e.key === 'Enter' && void handleTest()}
-                                        placeholder={selected.supportsSubscriptionToken
-                                            ? 'sk-ant-api03-•••• or sk-ant-oat01-•••• (Max/Pro subscription token)'
-                                            : 'sk-••••••••'
-                                        }
-                                        autoComplete="new-password"
-                                        className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
-                                    />
+
+                                    {/* Configured pill — shown when a key is stored and not editing */}
+                                    {state.status !== 'unconfigured' && !editingKey[selectedProvider] ? (
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex-1 flex items-center gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/40 px-3 py-2">
+                                                <span className="text-zinc-600 tracking-[0.3em] text-sm select-none">••••••••••••••••••••</span>
+                                                <span className={`ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                                                    state.status === 'configured'
+                                                        ? 'bg-emerald-900/40 text-emerald-400'
+                                                        : 'bg-amber-900/40 text-amber-400'
+                                                }`}>
+                                                    {state.status === 'configured' ? 'Verified' : 'Saved'}
+                                                </span>
+                                            </div>
+                                            {clearConfirm === selectedProvider ? (
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                    <span className="text-[11px] text-zinc-500">Remove key?</span>
+                                                    <button
+                                                        onClick={async () => {
+                                                            setClearConfirm(null)
+                                                            updateState(selectedProvider, { apiKey: '__CLEAR__', status: 'unconfigured', testResult: null })
+                                                            await handleSave({ [selectedProvider]: { apiKey: '__CLEAR__', status: 'unconfigured' } } as Partial<Record<ProviderKey, Partial<ProviderState>>>)
+                                                            updateState(selectedProvider, { apiKey: '' })
+                                                        }}
+                                                        className="text-[11px] font-medium text-red-400 hover:text-red-300 transition-colors"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setClearConfirm(null)}
+                                                        className="text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <button
+                                                        onClick={() => setEditingKey((prev) => ({ ...prev, [selectedProvider]: true }))}
+                                                        className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                                                    >
+                                                        Change
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setClearConfirm(selectedProvider)}
+                                                        className="text-zinc-700 hover:text-red-400 transition-colors"
+                                                        title="Remove stored key"
+                                                    >
+                                                        <X className="h-3.5 w-3.5" />
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        /* Edit mode — show real input */
+                                        <div className="flex flex-col gap-1.5">
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="password"
+                                                    value={state.apiKey}
+                                                    onChange={(e) => updateState(selectedProvider, { apiKey: e.target.value })}
+                                                    onKeyDown={(e) => e.key === 'Enter' && void handleTest()}
+                                                    placeholder={selected.supportsSubscriptionToken
+                                                        ? 'sk-ant-api03-•••• or sk-ant-oat01-•••• (Max/Pro subscription token)'
+                                                        : 'sk-••••••••'
+                                                    }
+                                                    autoFocus
+                                                    autoComplete="new-password"
+                                                    className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                                                />
+                                                {editingKey[selectedProvider] && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setEditingKey((prev) => ({ ...prev, [selectedProvider]: false }))
+                                                            updateState(selectedProvider, { apiKey: '' })
+                                                        }}
+                                                        className="text-zinc-600 hover:text-zinc-400 transition-colors"
+                                                        title="Cancel"
+                                                    >
+                                                        <X className="h-4 w-4" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <p className="text-xs text-zinc-600">
                                         {selected.supportsSubscriptionToken
                                             ? 'Accepts a paid API key (sk-ant-api03-*) or a Max/Pro subscription token (sk-ant-oat01-*). Encrypted at rest (AES-256-GCM).'
@@ -752,42 +833,18 @@ export default function AIProvidersPage() {
                             </div>
                         )}
 
-                        {/* Primary action */}
-                        <div className="flex items-center gap-4">
-                            {selected.requiresKey ? (
-                                // Key-based providers: Save & Test is the primary CTA
-                                <button
-                                    onClick={() => void handleTest()}
-                                    disabled={testing || saving}
-                                    className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
-                                >
-                                    {testing
-                                        ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                        : <TestTube className="h-3.5 w-3.5" />
-                                    }
-                                    {testing ? 'Testing…' : saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save & Test'}
-                                </button>
-                            ) : (
-                                // Local providers (Ollama): no key to validate, just save
-                                <button
-                                    onClick={() => void handleTest()}
-                                    disabled={testing || saving}
-                                    className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
-                                >
-                                    {testing
-                                        ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                        : <TestTube className="h-3.5 w-3.5" />
-                                    }
-                                    {testing ? 'Testing…' : saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save & Test'}
-                                </button>
-                            )}
-                            {/* Secondary: save without re-testing (e.g. model or routing change only) */}
+                        {/* Primary action — Save & Test only */}
+                        <div className="flex items-center">
                             <button
-                                onClick={() => void handleSave()}
-                                disabled={saving || testing}
-                                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-40"
+                                onClick={() => void handleTest()}
+                                disabled={testing || saving}
+                                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
                             >
-                                {saving ? 'Saving…' : 'Save only'}
+                                {testing
+                                    ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                    : <TestTube className="h-3.5 w-3.5" />
+                                }
+                                {testing ? 'Testing…' : saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save & Test'}
                             </button>
                         </div>
 

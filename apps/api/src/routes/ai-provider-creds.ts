@@ -187,8 +187,17 @@ aiProviderCredsRouter.put('/', async (req, res) => {
                 if (e.apiKey === CONFIGURED_SENTINEL) {
                     e.apiKey = (current as ProviderEntry).apiKey
                 }
+                // '__CLEAR__' means the user explicitly removed the key
+                if (e.apiKey === '__CLEAR__') {
+                    delete e.apiKey
+                    e.status = 'unconfigured'
+                }
                 if (e.oauthToken === CONFIGURED_SENTINEL) {
                     e.oauthToken = (current as ProviderEntry).oauthToken
+                }
+                if (e.oauthToken === '__CLEAR__') {
+                    delete e.oauthToken
+                    e.status = 'unconfigured'
                 }
 
                 mergedProviders[key] = e
