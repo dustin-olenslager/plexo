@@ -262,7 +262,7 @@ export default function SetupPage() {
                 body: JSON.stringify({
                     workspaceId,
                     type: 'automation',
-                    source: 'setup-wizard',
+                    source: 'dashboard',
                     context: { description: testPrompt.trim() || 'Say "Plexo is ready!" and nothing else.' },
                     priority: 10,
                 }),
