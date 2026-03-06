@@ -1,7 +1,9 @@
 /**
  * PostHog client — anonymous crash reporting.
  *
- * PostHog is self-hosted on Plexo infrastructure. No data touches PostHog cloud.
+ * Events are forwarded through a keyless relay at telemetry.getplexo.com/ingest.
+ * The relay injects the PostHog API key server-side — no key is ever in this source.
+ * PostHog is self-hosted on Plexo infrastructure; no data touches PostHog cloud.
  * The client is a no-op when telemetry is disabled.
  */
 import { createClient as createRedis, type RedisClientType } from 'redis'
@@ -11,8 +13,8 @@ import { sanitize, type RawErrorContext, type TelemetryError } from './sanitize.
 
 const logger = pino({ name: 'telemetry' })
 
-const POSTHOG_HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://telemetry.getplexo.com'
-const POSTHOG_KEY = process.env.POSTHOG_API_KEY ?? 'phc_NNJrGRLnopoR73cofmbbHEG05S2kSfCz93nQVOJlxQH'
+// Points at the keyless relay — no API key in this codebase.
+const TELEMETRY_INGEST = `${process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://telemetry.getplexo.com'}/ingest`
 
 // In-memory config — loaded from workspace settings on init
 let _enabled = false
@@ -47,7 +49,7 @@ export function setTelemetryEnabled(enabled: boolean): void {
 /**
  * Capture a sanitized error event.
  * Always stores the last payload in Redis (for "view last report" UI).
- * Only POSTs to PostHog if telemetry is enabled.
+ * Only POSTs to the relay if telemetry is enabled.
  */
 export async function captureError(ctx: Omit<RawErrorContext, 'instanceId' | 'plexoVersion'>): Promise<void> {
     const payload = sanitize({ ...ctx, instanceId: _instanceId, plexoVersion: _plexoVersion })
@@ -58,15 +60,15 @@ export async function captureError(ctx: Omit<RawErrorContext, 'instanceId' | 'pl
     if (!_enabled) return
 
     try {
-        await fetch(`${POSTHOG_HOST}/capture/`, {
+        await fetch(TELEMETRY_INGEST, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
-                api_key: POSTHOG_KEY,
                 event: 'crash',
                 distinct_id: _instanceId,
                 properties: payload,
                 timestamp: new Date().toISOString(),
+                // no api_key — relay injects it server-side
             }),
             signal: AbortSignal.timeout(5000), // never block the process
         })
