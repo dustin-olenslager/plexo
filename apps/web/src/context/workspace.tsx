@@ -39,6 +39,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         const stored = localStorage.getItem(STORAGE_KEY)
         if (stored && stored !== workspaceId) {
             setTimeout(() => setWorkspaceId(stored), 0)
+        } else if (!stored && !workspaceId) {
+            const api = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
+            fetch(`${api}/api/v1/workspaces`, { cache: 'no-store' })
+                .then((r) => r.ok ? r.json() : null)
+                .then((d: { items?: { id: string, name: string }[] } | null) => {
+                    const first = d?.items?.[0]
+                    if (first) {
+                        localStorage.setItem(STORAGE_KEY, first.id)
+                        setWorkspaceId(first.id)
+                        setWorkspaceName(first.name)
+                    }
+                })
+                .catch(() => { /* non-fatal */ })
         }
     }, [workspaceId])
 

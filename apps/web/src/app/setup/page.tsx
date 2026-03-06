@@ -212,6 +212,7 @@ export default function SetupPage() {
             }
             const data = await res.json() as { workspaceId: string }
             setWorkspaceId(data.workspaceId)
+            localStorage.setItem('plexo_workspace_id', data.workspaceId)
             setStep('model')
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Unknown error')

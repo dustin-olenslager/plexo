@@ -118,18 +118,24 @@ authRouter.post('/sync-oauth', async (req, res) => {
         let [user] = await db.select().from(users).where(eq(users.email, email)).limit(1)
 
         if (!user) {
-            // First user gets admin role, rest get member
+            // First-run gate: only allow registration when no users exist yet
             const rows = await db.select({ count: sql<number>`count(*)` }).from(users)
-            const role = Number(rows[0]?.count || 0) === 0 ? 'admin' : 'member'
+            const count = Number(rows[0]?.count || 0)
+
+            if (count > 0) {
+                logger.warn({ email, provider }, 'Blocked OAuth registration - registration is closed')
+                res.status(403).json({ error: 'REGISTRATION_CLOSED', message: 'Registration is closed. Contact your administrator.' })
+                return
+            }
 
             const inserted = await db.insert(users).values({
                 email,
                 name: name ?? undefined,
                 image: image ?? undefined,
-                role,
+                role: 'admin',
             }).returning()
             user = inserted[0]!
-            logger.info({ userId: user.id, provider }, 'Created user from OAuth sync')
+            logger.info({ userId: user.id, provider }, 'Created user from OAuth sync (admin)')
         }
 
         const [existingAccount] = await db.select().from(accounts)
