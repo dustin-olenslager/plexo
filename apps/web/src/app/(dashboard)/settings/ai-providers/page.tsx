@@ -664,7 +664,7 @@ export default function AIProvidersPage() {
                                         type="password"
                                         value={state.apiKey}
                                         onChange={(e) => updateState(selectedProvider, { apiKey: e.target.value })}
-                                        onKeyDown={(e) => e.key === 'Enter' && void handleSave()}
+                                        onKeyDown={(e) => e.key === 'Enter' && void handleTest()}
                                         placeholder={selected.supportsSubscriptionToken
                                             ? 'sk-ant-api03-•••• or sk-ant-oat01-•••• (Max/Pro subscription token)'
                                             : 'sk-••••••••'
@@ -752,26 +752,42 @@ export default function AIProvidersPage() {
                             </div>
                         )}
 
-                        {/* Test button + result */}
-                        <div className="flex items-center gap-3">
-                            <button
-                                onClick={handleTest}
-                                disabled={testing}
-                                className="flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm font-medium text-zinc-300 hover:border-zinc-600 hover:text-zinc-100 transition-colors disabled:opacity-50"
-                            >
-                                {testing
-                                    ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                    : <TestTube className="h-3.5 w-3.5" />
-                                }
-                                {testing ? 'Testing…' : 'Test connection'}
-                            </button>
+                        {/* Primary action */}
+                        <div className="flex items-center gap-4">
+                            {selected.requiresKey ? (
+                                // Key-based providers: Save & Test is the primary CTA
+                                <button
+                                    onClick={() => void handleTest()}
+                                    disabled={testing || saving}
+                                    className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
+                                >
+                                    {testing
+                                        ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                        : <TestTube className="h-3.5 w-3.5" />
+                                    }
+                                    {testing ? 'Testing…' : saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save & Test'}
+                                </button>
+                            ) : (
+                                // Local providers (Ollama): no key to validate, just save
+                                <button
+                                    onClick={() => void handleTest()}
+                                    disabled={testing || saving}
+                                    className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
+                                >
+                                    {testing
+                                        ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                        : <TestTube className="h-3.5 w-3.5" />
+                                    }
+                                    {testing ? 'Testing…' : saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save & Test'}
+                                </button>
+                            )}
+                            {/* Secondary: save without re-testing (e.g. model or routing change only) */}
                             <button
                                 onClick={() => void handleSave()}
-                                disabled={saving}
-                                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
+                                disabled={saving || testing}
+                                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-40"
                             >
-                                <Save className="h-3.5 w-3.5" />
-                                {saving ? 'Saving…' : saved ? 'Saved' : 'Save'}
+                                {saving ? 'Saving…' : 'Save only'}
                             </button>
                         </div>
 
