@@ -43,7 +43,7 @@ export function PostHogProvider({ children, userId, userEmail, userName }: PostH
       capture_pageleave: true,
       person_profiles: 'identified_only',
       autocapture: false,
-      exception_autocapture: true,
+      capture_exceptions: true,
     })
   }, [])
 
