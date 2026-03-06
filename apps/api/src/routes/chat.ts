@@ -175,7 +175,12 @@ chatRouter.post('/message', async (req, res) => {
                     messages: history.map(m => ({ role: m.role, content: m.content })),
                     abortSignal: AbortSignal.timeout(30_000),
                 })
-                const replyText = result.text ?? "I'm having a bit of trouble right now — please try again in a moment."
+                const replyText = result.text
+                if (!replyText) {
+                    logger.warn({ workspaceId, providerKey }, 'Webchat conversational reply: empty response from model')
+                    res.json({ status: 'error', reply: 'The model returned an empty response. Try again or check your AI provider settings.' })
+                    return
+                }
                 history.push({ role: 'assistant', content: replyText })
                 if (history.length > 20) history.splice(0, history.length - 20)
                 sessionHistory.set(sid, history)
@@ -205,8 +210,9 @@ chatRouter.post('/message', async (req, res) => {
 
                 res.json({ status: 'complete', reply: replyText })
             } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err)
                 logger.error({ err, workspaceId }, 'Webchat conversational reply failed')
-                res.json({ status: 'complete', reply: "I'm having a bit of trouble right now — please try again in a moment." })
+                res.json({ status: 'error', reply: `AI error: ${msg.slice(0, 300)}` })
             }
             return
         }
