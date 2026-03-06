@@ -19,6 +19,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - **Intent Classification** — `chat` and `telegram` router classifiers now distinguish `PROJECT` intents along with `TASK` and `CONVERSATION`.
 - **Conversation Context in Routing** — Intent classifiers in webchat and Telegram now analyze full session history to properly route follow-up confirmations.
 - **Consultative Agent Prompt** — The conversational system prompt now prevents aggressive task creation by explicitly probing vague requests (e.g., troubleshooting) for more details first.
+- **README Redesign** — Rewrote the README.md to match the high-quality, polished style of top-tier open-source projects, improving visual hierarchy, copy crispness, and feature presentation while maintaining Plexo's unique value props.
 
 ---
 
