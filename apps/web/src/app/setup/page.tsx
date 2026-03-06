@@ -193,6 +193,7 @@ export default function SetupPage() {
     const [workspaceId, setWorkspaceId] = useState<string | null>(null)
     const [testing, setTesting] = useState(false)
     const [testResult, setTestResult] = useState<'ok' | 'fail' | null>(null)
+    const [testPrompt, setTestPrompt] = useState('Say "Plexo is ready!" and nothing else.')
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
@@ -262,7 +263,7 @@ export default function SetupPage() {
                     workspaceId,
                     type: 'automation',
                     source: 'setup-wizard',
-                    context: { description: 'Say "Plexo is ready!" and nothing else.' },
+                    context: { description: testPrompt.trim() || 'Say "Plexo is ready!" and nothing else.' },
                     priority: 10,
                 }),
             })
@@ -431,9 +432,12 @@ export default function SetupPage() {
                                 <h2 className="text-lg font-bold text-zinc-50">Test your agent</h2>
                                 <p className="mt-1 text-sm text-zinc-500">Submit a simple task to verify everything is connected.</p>
                             </div>
-                            <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-xs font-mono text-zinc-500">
-                                Say &quot;Plexo is ready!&quot; and nothing else.
-                            </div>
+                            <input
+                                type="text"
+                                value={testPrompt}
+                                onChange={(e) => setTestPrompt(e.target.value)}
+                                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-sm font-mono text-zinc-400 focus:border-indigo-500 focus:outline-none focus:text-zinc-200 transition-colors"
+                            />
                             {testResult === 'ok' && (
                                 <div className="flex items-center gap-2 rounded-lg bg-emerald-950/40 border border-emerald-900/50 px-4 py-3 text-sm text-emerald-400">
                                     <Check className="h-4 w-4 shrink-0" />
