@@ -441,6 +441,14 @@ function ChatContent() {
 
             const data = await res.json() as { taskId?: string; status?: string; reply?: string; intent?: string; description?: string }
 
+            // Error from AI provider — surface the actual message
+            if (data.status === 'error') {
+                setMessages((prev) => prev.map((m) =>
+                    m.id === pendingId ? { ...m, status: 'failed', content: data.reply ?? 'An error occurred.' } : m
+                ))
+                return
+            }
+
             // Action needs confirmation
             if (data.status === 'confirm_action' && data.intent && data.description) {
                 setMessages((prev) => prev.map((m) =>
