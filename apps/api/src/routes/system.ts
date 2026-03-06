@@ -47,27 +47,63 @@ interface GithubRelease {
     published_at: string
 }
 
-async function fetchLatestRelease(): Promise<GithubRelease | null> {
+async function fetchLatestRemote(): Promise<{ type: 'release' | 'commit'; version: string; url: string; date: string; message: string | null } | null> {
     try {
         const redis = await getRedis()
         const cached = await redis.get(VERSION_CACHE_KEY)
-        if (cached) return JSON.parse(cached) as GithubRelease
+        if (cached) return JSON.parse(cached)
 
-        const res = await fetch(
+        // Try releases first
+        const releaseRes = await fetch(
             `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`,
             {
                 headers: { 'User-Agent': 'plexo-self-host/1.0', Accept: 'application/vnd.github+json' },
-                signal: AbortSignal.timeout(8000),
+                signal: AbortSignal.timeout(4000),
             },
         )
-        if (!res.ok) return null
+        if (releaseRes.ok) {
+            const data = await releaseRes.json() as { tag_name: string; html_url: string; published_at: string; body: string }
+            const result = { type: 'release' as const, version: data.tag_name, url: data.html_url, date: data.published_at, message: data.body }
+            await redis.set(VERSION_CACHE_KEY, JSON.stringify(result), { EX: VERSION_CACHE_TTL })
+            return result
+        }
 
-        const data = (await res.json()) as GithubRelease
-        await redis.set(VERSION_CACHE_KEY, JSON.stringify(data), { EX: VERSION_CACHE_TTL })
-        return data
-    } catch (err) {
-        logger.warn({ err }, 'Failed to fetch latest GitHub release')
+        // Fall back to main branch commit
+        const commitRes = await fetch(
+            `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/commits/main`,
+            {
+                headers: { 'User-Agent': 'plexo-self-host/1.0', Accept: 'application/vnd.github+json' },
+                signal: AbortSignal.timeout(4000),
+            },
+        )
+        if (commitRes.ok) {
+            const data = await commitRes.json() as { sha: string; html_url: string; commit: { author: { date: string }; message: string } }
+            const result = { type: 'commit' as const, version: data.sha, url: data.html_url, date: data.commit.author.date, message: data.commit.message }
+            await redis.set(VERSION_CACHE_KEY, JSON.stringify(result), { EX: VERSION_CACHE_TTL })
+            return result
+        }
+
         return null
+    } catch (err) {
+        logger.warn({ err }, 'Failed to fetch latest remote version')
+        return null
+    }
+}
+
+import { exec } from 'node:child_process'
+import { promisify } from 'node:util'
+
+const execAsync = promisify(exec)
+
+async function getLocalVersion(): Promise<{ type: 'release' | 'commit'; version: string }> {
+    if (process.env.APP_VERSION && process.env.APP_VERSION !== 'dev') {
+        return { type: 'release', version: process.env.APP_VERSION }
+    }
+    try {
+        const { stdout } = await execAsync('git rev-parse HEAD', { cwd: process.cwd() })
+        return { type: 'commit', version: stdout.trim() }
+    } catch {
+        return { type: 'release', version: process.env.npm_package_version ?? '0.0.0' }
     }
 }
 
@@ -159,39 +195,53 @@ async function restartContainer(id: string): Promise<void> {
  * Returns current vs latest version info.
  */
 systemRouter.get('/version', async (_req, res) => {
-    const current = process.env.APP_VERSION ?? process.env.npm_package_version ?? '0.0.0'
-    const release = await fetchLatestRelease()
+    const local = await getLocalVersion()
+    const remote = await fetchLatestRemote()
 
-    if (!release) {
-        res.json({ current, latest: null, behind: false, error: 'github_unreachable' })
+    if (!remote) {
+        res.json({ current: local.version, latest: null, behind: false, error: 'github_unreachable' })
         return
     }
 
-    const latest = release.tag_name.replace(/^v/, '')
-    const behind = semverGt(latest, current)
+    let behind = false
+    let latest = remote.version
+
+    if (remote.type === 'release' && local.type === 'release') {
+        latest = remote.version.replace(/^v/, '')
+        const current = local.version.replace(/^v/, '')
+        behind = semverGt(latest, current)
+    } else if (remote.type === 'commit' && local.type === 'commit') {
+        behind = local.version !== remote.version
+        latest = remote.version.slice(0, 7)
+    } else if (remote.type === 'release' && local.type === 'commit') {
+        behind = true // assuming release is newer than source
+    }
 
     res.json({
-        current,
+        current: local.type === 'commit' ? local.version.slice(0, 7) : local.version,
         latest,
         behind,
-        releaseUrl: release.html_url,
-        publishedAt: release.published_at,
-        changelog: release.body?.slice(0, 2000) ?? null,
+        releaseUrl: remote.url,
+        publishedAt: remote.date,
+        changelog: remote.message?.slice(0, 2000) ?? null,
         dockerEnabled: process.env.DOCKER_SOCKET_ENABLED === 'true',
+        isGitSource: local.type === 'commit',
     })
 })
 
 /**
  * POST /api/v1/system/update
- * Pulls latest Docker images and restarts affected containers.
- * Requires DOCKER_SOCKET_ENABLED=true in env.
- * Streams progress as newline-delimited JSON.
+ * Pulls latest Docker images and restarts affected containers,
+ * OR runs `git pull` and restarts if running via source.
  */
 systemRouter.post('/update', async (_req, res) => {
-    if (process.env.DOCKER_SOCKET_ENABLED !== 'true') {
+    const isDocker = process.env.DOCKER_SOCKET_ENABLED === 'true'
+    const isGit = (await getLocalVersion()).type === 'commit'
+
+    if (!isDocker && !isGit) {
         res.status(403).json({
-            error: 'DOCKER_DISABLED',
-            message: 'One-click update requires DOCKER_SOCKET_ENABLED=true and the Docker socket mounted.',
+            error: 'UPDATE_UNSUPPORTED',
+            message: 'One-click update requires either DOCKER_SOCKET_ENABLED=true or running from a git clone.',
         })
         return
     }
@@ -206,39 +256,51 @@ systemRouter.post('/update', async (_req, res) => {
     }
 
     try {
-        send('status', { step: 'containers', message: 'Discovering running containers…' })
-        const containers = await getContainers()
-        send('status', { step: 'containers', message: `Found ${containers.length} container(s)` })
+        if (isDocker) {
+            send('status', { step: 'containers', message: 'Discovering running containers…' })
+            const containers = await getContainers()
+            send('status', { step: 'containers', message: `Found ${containers.length} container(s)` })
 
-        const images = [...new Set(containers.map(c => c.Image))]
+            const images = [...new Set(containers.map(c => c.Image))]
 
-        for (const image of images) {
-            send('status', { step: 'pull', message: `Pulling ${image}…` })
-            await pullImage(image, (line) => {
-                try {
-                    const parsed = JSON.parse(line) as { status?: string; progress?: string }
-                    if (parsed.status) send('progress', { image, status: parsed.status, progress: parsed.progress })
-                } catch { /* malformed line — skip */ }
-            })
-            send('status', { step: 'pull', message: `Pulled ${image}` })
-        }
+            for (const image of images) {
+                send('status', { step: 'pull', message: `Pulling ${image}…` })
+                await pullImage(image, (line) => {
+                    try {
+                        const parsed = JSON.parse(line) as { status?: string; progress?: string }
+                        if (parsed.status) send('progress', { image, status: parsed.status, progress: parsed.progress })
+                    } catch { /* malformed line — skip */ }
+                })
+                send('status', { step: 'pull', message: `Pulled ${image}` })
+            }
 
-        send('status', { step: 'restart', message: 'Restarting containers…' })
-        // Restart in reverse dependency order: web first (depends on api), then api
-        const sorted = [...containers].sort((a) =>
-            a.Names.some(n => n.includes('web')) ? -1 : 1,
-        )
-        for (const container of sorted) {
-            send('status', { step: 'restart', message: `Restarting ${container.Names[0]}…` })
-            await restartContainer(container.Id)
-            send('status', { step: 'restart', message: `Restarted ${container.Names[0]}` })
+            send('status', { step: 'restart', message: 'Restarting containers…' })
+            // Restart in reverse dependency order: web first (depends on api), then api
+            const sorted = [...containers].sort((a) =>
+                a.Names.some(n => n.includes('web')) ? -1 : 1,
+            )
+            for (const container of sorted) {
+                send('status', { step: 'restart', message: `Restarting ${container.Names[0]}…` })
+                await restartContainer(container.Id)
+                send('status', { step: 'restart', message: `Restarted ${container.Names[0]}` })
+            }
+        } else if (isGit) {
+            send('status', { step: 'git', message: 'Pulling latest changes from git…' })
+            const { stdout: pullOut } = await execAsync('git pull', { cwd: process.cwd() })
+            send('status', { step: 'git', message: pullOut.trim() })
+
+            send('status', { step: 'npm', message: 'Installing dependencies…' })
+            await execAsync('pnpm install', { cwd: process.cwd() })
+            send('status', { step: 'npm', message: 'Dependencies installed' })
+            
+            send('status', { step: 'restart', message: 'Note: You may need to restart the server manually if it does not auto-restart.' })
         }
 
         // Invalidate version cache so next check reflects the new version
         const redis = await getRedis()
         await redis.del(VERSION_CACHE_KEY)
 
-        send('done', { success: true, message: 'Update complete. Reload the page in a few seconds.' })
+        send('done', { success: true, message: isDocker ? 'Update complete. Reload the page in a few seconds.' : 'Update pulled. Server may restart automatically.' })
     } catch (err) {
         logger.error({ err }, 'In-app update failed')
         send('error', { message: err instanceof Error ? err.message : 'Unknown error during update' })

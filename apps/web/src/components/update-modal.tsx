@@ -22,6 +22,7 @@ interface VersionInfo {
     publishedAt: string | null
     changelog: string | null
     dockerEnabled: boolean
+    isGitSource: boolean
     error?: string
 }
 
@@ -249,7 +250,7 @@ export function UpdateModal() {
                     )}
 
                     {/* Manual update fallback */}
-                    {!versionInfo.dockerEnabled && !done && (
+                    {!versionInfo.dockerEnabled && !versionInfo.isGitSource && !done && (
                         <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3">
                             <p className="text-xs text-amber-400 font-medium mb-1.5">Manual update required</p>
                             <p className="text-xs text-zinc-400 mb-3">
@@ -278,7 +279,7 @@ export function UpdateModal() {
                         <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/5 border border-green-500/20">
                             <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />
                             <p className="text-sm text-green-400">
-                                Update complete — reload the page to use the new version.
+                                {versionInfo.dockerEnabled ? 'Update complete — reload the page to use the new version.' : 'Update pulled. Server may restart automatically.'}
                             </p>
                         </div>
                     )}
@@ -319,7 +320,7 @@ export function UpdateModal() {
                                     >
                                         Later
                                     </button>
-                                    {versionInfo.dockerEnabled && (
+                                    {(versionInfo.dockerEnabled || versionInfo.isGitSource) && (
                                         <button
                                             onClick={() => void handleUpdate()}
                                             disabled={updating}
