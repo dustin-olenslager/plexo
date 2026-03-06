@@ -17,8 +17,36 @@ export const authConfig: NextAuthConfig = {
         authorized({ auth }) {
             return !!auth
         },
-        async jwt({ token, user }) {
-            if (user) token.id = user.id
+        async jwt({ token, user, account }) {
+            const email = user?.email || (token.email as string | undefined)
+            const isUnsynced = token.id && typeof token.id === 'string' && !token.id.includes('-')
+
+            if ((user || isUnsynced) && email) {
+                const apiUrl = process.env.INTERNAL_API_URL ?? 'http://api:3001'
+                try {
+                    const res = await fetch(`${apiUrl}/api/v1/auth/sync-oauth`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            email: email,
+                            name: user?.name || (token.name as string | undefined),
+                            image: user?.image || (token.picture as string | undefined),
+                            provider: account?.provider || 'github',
+                            providerAccountId: account?.providerAccountId || (token.id as string),
+                        }),
+                    })
+                    if (res.ok) {
+                        const dbUser = await res.json() as { id: string }
+                        token.id = dbUser.id
+                    } else {
+                        if (user) token.id = user.id
+                    }
+                } catch {
+                    if (user) token.id = user.id
+                }
+            } else if (user) {
+                token.id = user.id
+            }
             return token
         },
         async session({ session, token }) {

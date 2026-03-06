@@ -1,8 +1,8 @@
 import { Router, type Router as RouterType } from 'express'
 import bcrypt from 'bcrypt'
 import { z } from 'zod'
-import { db, eq, sql } from '@plexo/db'
-import { users, workspaces } from '@plexo/db'
+import { db, eq, sql, and } from '@plexo/db'
+import { users, accounts, workspaces } from '@plexo/db'
 import { logger } from '../logger.js'
 
 export const authRouter: RouterType = Router()
@@ -95,6 +95,65 @@ authRouter.post('/verify-password', async (req, res) => {
     }
 
     res.json({ id: user.id, email: user.email, name: user.name })
+})
+
+const OAuthSyncSchema = z.object({
+    email: z.string().email(),
+    name: z.string().optional().nullable(),
+    image: z.string().optional().nullable(),
+    provider: z.string(),
+    providerAccountId: z.string(),
+})
+
+// POST /api/auth/sync-oauth - internal only route used by NextAuth to lazily provision OAuth users
+authRouter.post('/sync-oauth', async (req, res) => {
+    const parse = OAuthSyncSchema.safeParse(req.body)
+    if (!parse.success) {
+        res.status(400).json({ error: 'invalid body', issues: parse.error.issues })
+        return
+    }
+    const { email, name, image, provider, providerAccountId } = parse.data
+
+    try {
+        let [user] = await db.select().from(users).where(eq(users.email, email)).limit(1)
+
+        if (!user) {
+            // First user gets admin role, rest get member
+            const rows = await db.select({ count: sql<number>`count(*)` }).from(users)
+            const role = Number(rows[0]?.count || 0) === 0 ? 'admin' : 'member'
+
+            const inserted = await db.insert(users).values({
+                email,
+                name: name ?? undefined,
+                image: image ?? undefined,
+                role,
+            }).returning()
+            user = inserted[0]!
+            logger.info({ userId: user.id, provider }, 'Created user from OAuth sync')
+        }
+
+        const [existingAccount] = await db.select().from(accounts)
+            .where(
+                and(
+                    eq(accounts.provider, provider),
+                    eq(accounts.providerAccountId, providerAccountId)
+                )
+            ).limit(1)
+
+        if (!existingAccount) {
+            await db.insert(accounts).values({
+                userId: user.id,
+                type: 'oauth',
+                provider,
+                providerAccountId,
+            })
+        }
+
+        res.json({ id: user.id, email: user.email })
+    } catch (err) {
+        logger.error({ err }, 'POST /api/auth/sync-oauth failed')
+        res.status(500).json({ error: 'Internal server error' })
+    }
 })
 
 // POST /api/auth/workspace — create a workspace (used by setup wizard)
