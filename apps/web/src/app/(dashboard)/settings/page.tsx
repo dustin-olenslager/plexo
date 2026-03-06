@@ -108,6 +108,8 @@ export default function SettingsPage() {
     const [creatingWs, setCreatingWs] = useState(false)
     const [newWsName, setNewWsName] = useState('')
     const [creating, setCreating] = useState(false)
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+    const [deletingWs, setDeletingWs] = useState(false)
 
     const loadWorkspaceList = useCallback(async () => {
         setWsListLoading(true)
@@ -171,6 +173,17 @@ export default function SettingsPage() {
     // API key state (write-only — never read back)
     const [anthropicKey, setAnthropicKey] = useState('')
     const [openaiKey, setOpenaiKey] = useState('')
+
+    async function handleDeleteWorkspace(id: string) {
+        setDeletingWs(true)
+        try {
+            const res = await fetch(`${API_BASE}/api/v1/workspaces/${id}`, { method: 'DELETE' })
+            if (res.ok) {
+                setWsList(prev => prev.filter(ws => ws.id !== id))
+                setConfirmDeleteId(null)
+            }
+        } catch { /* non-fatal */ } finally { setDeletingWs(false) }
+    }
 
     async function handleCreateWorkspace() {
         if (!newWsName.trim()) return
@@ -381,15 +394,45 @@ export default function SettingsPage() {
                                                         <Check className="h-2.5 w-2.5" />
                                                         Active
                                                     </span>
+                                                ) : confirmDeleteId === ws.id ? (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="text-[11px] text-red-400">Delete?</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void handleDeleteWorkspace(ws.id)}
+                                                            disabled={deletingWs}
+                                                            className="flex items-center gap-1 rounded-lg bg-red-700/80 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
+                                                        >
+                                                            {deletingWs ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                                                            Confirm
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setConfirmDeleteId(null)}
+                                                            className="text-zinc-600 hover:text-zinc-300 text-[11px] transition-colors"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
                                                 ) : (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setWorkspace(ws.id, ws.name)}
-                                                        className="flex items-center gap-1 rounded-lg border border-zinc-700 px-2.5 py-1 text-[11px] text-zinc-400 hover:border-indigo-600/50 hover:text-indigo-400 transition-colors"
-                                                    >
-                                                        <LogIn className="h-3 w-3" />
-                                                        Switch
-                                                    </button>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setWorkspace(ws.id, ws.name)}
+                                                            className="flex items-center gap-1 rounded-lg border border-zinc-700 px-2.5 py-1 text-[11px] text-zinc-400 hover:border-indigo-600/50 hover:text-indigo-400 transition-colors"
+                                                        >
+                                                            <LogIn className="h-3 w-3" />
+                                                            Switch
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setConfirmDeleteId(ws.id)}
+                                                            className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                            title="Delete workspace"
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    </div>
                                                 )}
                                             </div>
                                         )

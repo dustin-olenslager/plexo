@@ -6,6 +6,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ## [Unreleased]
 
 ### Added
+- **Workspace deletion** — users can now delete non-active workspaces from Settings → Workspace. Trash icon appears on each non-active workspace row; clicking it triggers an inline confirmation before deletion. The active workspace and the last remaining workspace are protected from deletion. `DELETE /api/workspaces/:id` added to the backend with a last-workspace guard; all child rows cascade-delete via existing FK constraints.
 - BSL 1.1 license (converts to Apache 2.0 on 2030-03-03)
 - Commercial context + ZeroClaw parity gate in AGENTS.md
 - `.agents-local.md` gitignored for private operational notes

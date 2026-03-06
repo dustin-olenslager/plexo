@@ -83,6 +83,39 @@ workspacesRouter.post('/', async (req, res) => {
     }
 })
 
+// DELETE /api/workspaces/:id — permanently delete a workspace (cascades to all child rows)
+workspacesRouter.delete('/:id', async (req, res) => {
+    const { id } = req.params
+    if (!UUID_RE.test(id)) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Valid UUID required' } })
+        return
+    }
+    try {
+        // Guard: refuse to delete the last remaining workspace
+        const all = await db.select({ id: workspaces.id }).from(workspaces)
+        if (all.length <= 1) {
+            res.status(409).json({ error: { code: 'LAST_WORKSPACE', message: 'Cannot delete the last workspace' } })
+            return
+        }
+
+        const [existing] = await db
+            .select({ id: workspaces.id })
+            .from(workspaces)
+            .where(eq(workspaces.id, id))
+            .limit(1)
+
+        if (!existing) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Workspace not found' } })
+            return
+        }
+
+        await db.delete(workspaces).where(eq(workspaces.id, id))
+        res.json({ ok: true })
+    } catch (err) {
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete workspace' } })
+    }
+})
+
 // PATCH /api/workspaces/:id — update name and/or settings (deep-merges settings)
 workspacesRouter.patch('/:id', async (req, res) => {
     const { id } = req.params
