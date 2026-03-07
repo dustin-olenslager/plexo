@@ -158,7 +158,7 @@ function TelegramWizard({
                             value={fields.bot_token ?? ''}
                             onChange={(e) => onChange('bot_token', e.target.value)}
                             placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
-                            className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none font-mono"
+                            className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none font-mono"
                             autoComplete="new-password"
                         />
                     </div>
@@ -167,15 +167,15 @@ function TelegramWizard({
                             {verifyResult.ok ? `✓ ${verifyResult.botName ?? 'Bot verified'}` : '✗ Invalid token — check and try again'}
                         </div>
                     )}
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2">
                         <button
                             onClick={() => void verifyToken()}
                             disabled={verifying || !fields.bot_token?.trim()}
-                            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors flex flex-1 sm:flex-initial items-center justify-center min-h-[44px]"
                         >
                             {verifying ? 'Verifying…' : 'Verify token'}
                         </button>
-                        <button onClick={() => setStep(0)} className="text-sm text-zinc-600 hover:text-zinc-400 transition-colors">
+                        <button onClick={() => setStep(0)} className="text-sm text-zinc-600 hover:text-zinc-400 transition-colors flex flex-1 sm:flex-initial items-center justify-center min-h-[44px] py-2">
                             ← Back
                         </button>
                     </div>
@@ -198,7 +198,7 @@ function TelegramWizard({
                             value={fields.webhook_secret ?? ''}
                             onChange={(e) => onChange('webhook_secret', e.target.value)}
                             placeholder="Random secret for verifying webhook authenticity"
-                            className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none font-mono"
+                            className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none font-mono"
                             autoComplete="new-password"
                         />
                         <p className="text-xs text-zinc-600">Leave blank to auto-generate one. Plexo will register the webhook automatically on save.</p>
@@ -417,26 +417,26 @@ export default function ChannelsPage() {
                 </div>
             )}
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-xl font-bold text-zinc-50">Channels</h1>
                     <p className="mt-0.5 text-sm text-zinc-500">
                         Channel adapters that route messages from external platforms into tasks.
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
                     <button
                         onClick={() => void fetchChannels()}
                         disabled={loading}
-                        className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                        className="flex items-center justify-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-900 p-2 text-zinc-500 hover:text-zinc-300 transition-colors min-w-[44px] min-h-[44px] shrink-0"
                     >
-                        <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+                        <RefreshCw className={`h-4 w-4 sm:h-3.5 sm:w-3.5 ${loading ? 'animate-spin' : ''}`} />
                     </button>
                     <button
                         onClick={() => { setAdding(true); setSelected(null) }}
-                        className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"
+                        className="flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors min-h-[44px] flex-1 sm:flex-initial"
                     >
-                        <Plus className="h-3.5 w-3.5" />
+                        <Plus className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                         Add channel
                     </button>
                 </div>
@@ -455,21 +455,21 @@ export default function ChannelsPage() {
             />
 
             {/* Two-panel */}
-            <div className="flex gap-4 flex-1 min-h-0">
+            <div className="flex flex-col md:flex-row gap-4 flex-1 min-h-0">
                 {/* Left — channel list */}
-                <div className="w-[240px] shrink-0 flex flex-col gap-1 overflow-y-auto">
+                <div className="w-full md:w-[240px] shrink-0 flex flex-row md:flex-col gap-2 overflow-x-auto md:overflow-x-visible md:overflow-y-auto pb-4 md:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {loading ? (
-                        <div className="flex items-center justify-center py-12 text-sm text-zinc-600">
+                        <div className="flex items-center justify-center py-12 text-sm text-zinc-600 w-full min-w-[200px] md:min-w-0">
                             <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> Loading…
                         </div>
                     ) : displayed.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 gap-2 text-sm text-zinc-600 text-center px-4">
+                        <div className="flex flex-col items-center justify-center py-12 gap-2 text-sm text-zinc-600 text-center px-4 w-full min-w-[200px] md:min-w-0">
                             <Webhook className="h-6 w-6 text-zinc-700" />
                             {lf.hasFilters ? 'No channels match your filters' : 'No channels configured'}
                             {lf.hasFilters && (
                                 <button
                                     onClick={clearAll}
-                                    className="mt-2 text-xs text-indigo-400 hover:text-indigo-300"
+                                    className="mt-2 text-xs text-indigo-400 hover:text-indigo-300 min-h-[44px] px-4 -mx-4"
                                 >
                                     Clear filters
                                 </button>
@@ -487,7 +487,7 @@ export default function ChannelsPage() {
                             <button
                                 key={ch.id}
                                 onClick={() => { setSelected(ch); setAdding(false) }}
-                                className={`text-left rounded-xl border p-3 transition-all ${active
+                                className={`text-left rounded-xl border p-3 transition-all min-w-[200px] md:min-w-0 shrink-0 min-h-[44px] ${active
                                     ? 'border-indigo-500/50 bg-zinc-900'
                                     : 'border-zinc-800 bg-zinc-900/40 hover:border-zinc-700'
                                     }`}
@@ -535,7 +535,7 @@ export default function ChannelsPage() {
                                             <button
                                                 key={t}
                                                 onClick={() => setAddState((s) => ({ ...s, type: t }))}
-                                                className={`flex flex-col items-center gap-1.5 rounded-lg border p-2.5 transition-all ${addState.type === t
+                                                className={`flex flex-col items-center justify-center gap-1.5 rounded-lg border p-2.5 transition-all min-h-[44px] ${addState.type === t
                                                     ? 'border-indigo-500/50 bg-zinc-800'
                                                     : 'border-zinc-800 hover:border-zinc-700'
                                                     }`}
@@ -556,7 +556,7 @@ export default function ChannelsPage() {
                                     value={addState.name}
                                     onChange={(e) => setAddState((s) => ({ ...s, name: e.target.value }))}
                                     placeholder={`My ${CHANNEL_META[addState.type].label} bot`}
-                                    className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                                    className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
                                 />
                             </div>
 
@@ -576,7 +576,7 @@ export default function ChannelsPage() {
                                             onChange={(e) => setAddState((s) => ({ ...s, fields: { ...s.fields, [field]: e.target.value } }))}
                                             placeholder={field.includes('token') || field.includes('secret') ? '••••••••' : ''}
                                             autoComplete="new-password"
-                                            className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none font-mono"
+                                            className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm min-h-[44px] text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none font-mono"
                                         />
                                     </div>
                                 ))
@@ -588,18 +588,18 @@ export default function ChannelsPage() {
                                 </div>
                             )}
 
-                            <div className="flex gap-2">
+                            <div className="flex flex-col sm:flex-row gap-2">
                                 <button
                                     onClick={() => void handleAdd()}
                                     disabled={saving || !addState.name.trim()}
-                                    className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                                    className="flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial"
                                 >
-                                    {saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                                    {saving ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin" /> : <Plus className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}
                                     {saving ? 'Adding…' : 'Add'}
                                 </button>
                                 <button
                                     onClick={() => { setAdding(false); setMessage(null) }}
-                                    className="rounded-lg border border-zinc-800 px-3 py-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+                                    className="flex items-center justify-center rounded-lg border border-zinc-800 px-3 py-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors min-h-[44px] flex-1 sm:flex-initial"
                                 >
                                     Cancel
                                 </button>
@@ -616,7 +616,7 @@ export default function ChannelsPage() {
                         /* Channel detail */
                         <div className="p-5 flex flex-col gap-5">
                             {/* Header */}
-                            <div className="flex items-start justify-between pb-4 border-b border-zinc-800">
+                            <div className="flex flex-col sm:flex-row sm:items-start justify-between pb-4 border-b border-zinc-800 gap-4">
                                 <div className="flex items-center gap-3">
                                     {meta && <meta.icon className={`h-6 w-6 ${meta.color}`} />}
                                     <div>
@@ -624,18 +624,18 @@ export default function ChannelsPage() {
                                         <p className="text-xs text-zinc-500 capitalize">{meta?.label} · created {timeAgo(selected.createdAt)}</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 w-full sm:w-auto">
                                     <button
                                         onClick={() => void handleToggle(selected)}
                                         disabled={toggling === selected.id}
                                         title={selected.enabled ? 'Disable' : 'Enable'}
-                                        className="flex items-center gap-1.5 rounded-lg border border-zinc-800 px-2.5 py-1.5 text-xs transition-colors hover:border-zinc-700"
+                                        className="flex flex-1 sm:flex-initial items-center justify-center gap-1.5 rounded-lg border border-zinc-800 px-2.5 py-1.5 text-sm sm:text-xs transition-colors hover:border-zinc-700 min-h-[44px]"
                                     >
                                         {toggling === selected.id
-                                            ? <RefreshCw className="h-3.5 w-3.5 animate-spin text-zinc-500" />
+                                            ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin text-zinc-500" />
                                             : selected.enabled
-                                                ? <ToggleRight className="h-4 w-4 text-emerald-400" />
-                                                : <ToggleLeft className="h-4 w-4 text-zinc-500" />
+                                                ? <ToggleRight className="h-5 w-5 sm:h-4 sm:w-4 text-emerald-400" />
+                                                : <ToggleLeft className="h-5 w-5 sm:h-4 sm:w-4 text-zinc-500" />
                                         }
                                         <span className={selected.enabled ? 'text-emerald-400' : 'text-zinc-500'}>
                                             {selected.enabled ? 'Enabled' : 'Disabled'}
@@ -644,11 +644,11 @@ export default function ChannelsPage() {
                                     <button
                                         onClick={() => void handleDelete(selected.id)}
                                         disabled={deleting === selected.id}
-                                        className="flex items-center gap-1 rounded-lg border border-red-800/50 px-2.5 py-1.5 text-xs text-red-400 hover:border-red-700 transition-colors"
+                                        className="flex flex-1 sm:flex-initial items-center justify-center gap-1 rounded-lg border border-red-800/50 px-2.5 py-1.5 text-sm sm:text-xs text-red-400 hover:border-red-700 transition-colors min-h-[44px]"
                                     >
                                         {deleting === selected.id
-                                            ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                            : <Trash2 className="h-3.5 w-3.5" />
+                                            ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin" />
+                                            : <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                                         }
                                         Delete
                                     </button>
@@ -656,7 +656,7 @@ export default function ChannelsPage() {
                             </div>
 
                             {/* Stats */}
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-3">
                                     <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-1">Status</p>
                                     <p className={`text-sm font-semibold ${selected.enabled ? 'text-emerald-400' : 'text-zinc-500'}`}>

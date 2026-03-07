@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { useWorkspace } from '@web/context/workspace'
+import { getRuntimeContext } from '@plexo/ui/lib/runtime'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -139,7 +140,7 @@ function AttentionItem({ icon: Icon, iconColor, label, meta, href, actionLabel }
     return (
         <Link
             href={href}
-            className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-zinc-800/40 group"
+            className="flex items-center gap-3 rounded-lg px-3 py-3 md:py-2.5 min-h-[44px] transition-colors hover:bg-zinc-800/40 group shrink-0"
         >
             <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${iconColor}`}>
                 <Icon className="h-3.5 w-3.5" />
@@ -163,39 +164,41 @@ function ActiveWorkItem({ task }: { task: Task }) {
     const isRunning = task.status === 'running' || task.status === 'claimed'
 
     return (
-        <div className="flex items-center gap-3 px-3 py-2.5 group">
-            <div className="relative flex h-7 w-7 shrink-0 items-center justify-center">
-                {isRunning ? (
-                    <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />
-                ) : (
-                    <Clock className="h-4 w-4 text-amber-400" />
-                )}
-            </div>
-            <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] text-zinc-200">{description}</p>
-                <div className="flex items-center gap-2 text-[11px] text-zinc-600">
-                    <span className={`inline-flex items-center gap-1 ${isRunning ? 'text-blue-400' : 'text-amber-400'}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${isRunning ? 'bg-blue-400 animate-pulse' : 'bg-amber-400'}`} />
-                        {task.status}
-                    </span>
-                    <span>·</span>
-                    <span>{task.type}</span>
-                    <span>·</span>
-                    <span>{timeAgo(task.createdAt)}</span>
+        <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 px-3 py-3 md:py-2.5 group shrink-0 min-h-[44px]">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="relative flex h-7 w-7 shrink-0 items-center justify-center">
+                    {isRunning ? (
+                        <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />
+                    ) : (
+                        <Clock className="h-4 w-4 text-amber-400" />
+                    )}
+                </div>
+                <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] text-zinc-200">{description}</p>
+                    <div className="flex items-center gap-2 text-[11px] text-zinc-600">
+                        <span className={`inline-flex items-center gap-1 ${isRunning ? 'text-blue-400' : 'text-amber-400'}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${isRunning ? 'bg-blue-400 animate-pulse' : 'bg-amber-400'}`} />
+                            {task.status}
+                        </span>
+                        <span>·</span>
+                        <span>{task.type}</span>
+                        <span>·</span>
+                        <span>{timeAgo(task.createdAt)}</span>
+                    </div>
                 </div>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-2 md:gap-1.5 shrink-0 w-full md:w-auto mt-2 md:mt-0">
                 {task.projectId && (
                     <Link
                         href={`/projects/${task.projectId}`}
-                        className="rounded border border-zinc-700/50 bg-zinc-800/40 px-2 py-0.5 text-[10px] font-medium text-zinc-500 transition-all hover:border-violet-500/40 hover:bg-violet-500/10 hover:text-violet-400"
+                        className="flex items-center justify-center rounded border border-zinc-700/50 bg-zinc-800/40 px-3 py-2 md:px-2 md:py-0.5 min-h-[36px] min-w-[60px] md:min-h-0 md:min-w-0 text-xs md:text-[10px] font-medium text-zinc-500 transition-all hover:border-violet-500/40 hover:bg-violet-500/10 hover:text-violet-400 flex-1 md:flex-initial"
                     >
                         Project
                     </Link>
                 )}
                 <Link
                     href={`/tasks/${task.id}`}
-                    className="rounded border border-zinc-700/50 bg-zinc-800/40 px-2 py-0.5 text-[10px] font-medium text-zinc-500 transition-all hover:border-zinc-500/40 hover:bg-zinc-700/40 hover:text-zinc-300"
+                    className="flex items-center justify-center rounded border border-zinc-700/50 bg-zinc-800/40 px-3 py-2 md:px-2 md:py-0.5 min-h-[36px] min-w-[60px] md:min-h-0 md:min-w-0 text-xs md:text-[10px] font-medium text-zinc-500 transition-all hover:border-zinc-500/40 hover:bg-zinc-700/40 hover:text-zinc-300 flex-1 md:flex-initial"
                 >
                     Task
                 </Link>
@@ -223,7 +226,7 @@ function ProjectCard({ sprint, tasks: sprintTasks }: { sprint: Sprint; tasks: Ta
     return (
         <Link
             href={`/projects/${sprint.id}`}
-            className="flex flex-col rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm p-4 transition-all hover:border-zinc-700 hover:bg-zinc-900/60 min-w-[240px] max-w-[320px] flex-1"
+            className="flex flex-col rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm p-4 transition-all hover:border-zinc-700 hover:bg-zinc-900/60 min-w-[280px] md:min-w-[240px] max-w-[320px] flex-1 shrink-0 snap-center md:snap-start"
         >
             <div className="flex items-center justify-between mb-2">
                 <h4 className="text-[13px] font-medium text-zinc-200 truncate">{sprint.repo || sprint.request.slice(0, 40)}</h4>
@@ -260,30 +263,32 @@ function ProjectCard({ sprint, tasks: sprintTasks }: { sprint: Sprint; tasks: Ta
 function CompletedItem({ task }: { task: Task }) {
     const label = task.outcomeSummary ?? `${task.type} task via ${task.source}`
     return (
-        <div className="flex items-center gap-3 px-3 py-2.5 group">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-400">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-            </div>
-            <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] text-zinc-300">{label}</p>
-                <div className="flex items-center gap-2 text-[11px] text-zinc-600">
-                    <span>{task.type}</span>
-                    {task.completedAt && <><span>·</span><span>{timeAgo(task.completedAt)}</span></>}
-                    {task.qualityScore != null && <><span>·</span><span className="text-zinc-500">Q {Math.round(task.qualityScore * 100)}%</span></>}
+        <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 px-3 py-3 md:py-2.5 group shrink-0 min-h-[44px]">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-500/10 text-emerald-400">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] text-zinc-300">{label}</p>
+                    <div className="flex items-center gap-2 text-[11px] text-zinc-600">
+                        <span>{task.type}</span>
+                        {task.completedAt && <><span>·</span><span>{timeAgo(task.completedAt)}</span></>}
+                        {task.qualityScore != null && <><span>·</span><span className="text-zinc-500">Q {Math.round(task.qualityScore * 100)}%</span></>}
+                    </div>
                 </div>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-2 md:gap-1.5 shrink-0 w-full md:w-auto mt-2 md:mt-0">
                 {task.projectId && (
                     <Link
                         href={`/projects/${task.projectId}`}
-                        className="rounded border border-zinc-700/50 bg-zinc-800/40 px-2 py-0.5 text-[10px] font-medium text-zinc-500 transition-all hover:border-violet-500/40 hover:bg-violet-500/10 hover:text-violet-400"
+                        className="flex items-center justify-center rounded border border-zinc-700/50 bg-zinc-800/40 px-3 py-2 md:px-2 md:py-0.5 min-h-[36px] min-w-[60px] md:min-h-0 md:min-w-0 text-xs md:text-[10px] font-medium text-zinc-500 transition-all hover:border-violet-500/40 hover:bg-violet-500/10 hover:text-violet-400 flex-1 md:flex-initial"
                     >
                         Project
                     </Link>
                 )}
                 <Link
                     href={`/tasks/${task.id}`}
-                    className="rounded border border-zinc-700/50 bg-zinc-800/40 px-2 py-0.5 text-[10px] font-medium text-zinc-500 transition-all hover:border-zinc-500/40 hover:bg-zinc-700/40 hover:text-zinc-300"
+                    className="flex items-center justify-center rounded border border-zinc-700/50 bg-zinc-800/40 px-3 py-2 md:px-2 md:py-0.5 min-h-[36px] min-w-[60px] md:min-h-0 md:min-w-0 text-xs md:text-[10px] font-medium text-zinc-500 transition-all hover:border-zinc-500/40 hover:bg-zinc-700/40 hover:text-zinc-300 flex-1 md:flex-initial"
                 >
                     Task
                 </Link>
@@ -428,11 +433,85 @@ export function CommandCenter() {
         )
     }
 
+    const runtime = typeof window !== 'undefined' ? getRuntimeContext() : 'browser'
+
     const hasAttention = attentionItems.length > 0
     const hasActiveWork = activeWork.length > 0
     const hasProjects = activeSprints.length > 0
     const hasCompletedRecently = completedTasks.length > 0
 
+    if (runtime === 'capacitor') {
+        // Mobile layout: Recent Activity Feed only
+        const allFeedTasks = allTasks.slice(0, 50) // Limit feed
+        return (
+            <div className="flex flex-col gap-4 pb-20">
+                <h2 className="text-xl font-bold tracking-tight text-white mb-2">Recent Activity</h2>
+                {allFeedTasks.length === 0 ? (
+                    <div className="p-8 text-center text-zinc-500">No recent activity.</div>
+                ) : (
+                    <div className="divide-y divide-zinc-800/40 border border-zinc-800/60 rounded-xl bg-zinc-900/20 overflow-hidden">
+                        {allFeedTasks.map(t => (
+                            t.status === 'complete' ? <CompletedItem key={t.id} task={t} /> : <ActiveWorkItem key={t.id} task={t} />
+                        ))}
+                    </div>
+                )}
+            </div>
+        )
+    }
+
+    if (runtime === 'tauri') {
+        // Desktop Layout: Agent Status Card + Chat Side by Side
+        return (
+            <div className="flex flex-col md:flex-row gap-6 h-[calc(100vh-120px)]">
+                {/* Status Card */}
+                <div className="flex flex-col w-1/3 min-w-[300px] gap-4">
+                    <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-5 shadow-lg flex flex-col items-center">
+                        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500/20 to-violet-500/20 text-indigo-400 mb-4 ring-1 ring-inset ring-indigo-500/30">
+                            <Zap className="h-8 w-8" />
+                        </div>
+                        <h2 className="text-lg font-bold text-zinc-100 mb-1">Plexo</h2>
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-xs font-medium mb-6">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            Online & Ready
+                        </span>
+
+                        <div className="w-full grid grid-cols-2 gap-2 text-center text-sm">
+                            <div className="p-3 bg-zinc-950 rounded-lg border border-zinc-800/50">
+                                <div className="font-bold text-zinc-100">{activeTasks.length}</div>
+                                <div className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">Active Tasks</div>
+                            </div>
+                            <div className="p-3 bg-zinc-950 rounded-lg border border-zinc-800/50">
+                                <div className="font-bold text-zinc-100">{approvals.length}</div>
+                                <div className="text-[10px] text-zinc-500 uppercase tracking-widest mt-1">Approvals</div>
+                            </div>
+                        </div>
+                    </div>
+                    {/* Embedded task list if needed */}
+                    {hasAttention && (
+                        <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-4">
+                            <h3 className="text-[13px] font-semibold text-amber-400 mb-3 flex items-center gap-2">
+                                <ShieldAlert className="h-4 w-4" /> Attention Required
+                            </h3>
+                            <div className="divide-y divide-zinc-800/30">
+                                {attentionItems.map(item => (
+                                    <AttentionItem key={item.id} {...item} />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+                {/* Chat Frame - we proxy the Chat page by embedding an iframe or just telling them to go to chat, since we cannot easily embed the ChatPage Server component.
+                    For now, we'll embed the Chat Client or provide a prominent link/input. Actually the easiest way to embed the Chat in React is via an iframe to `/chat` or extracting the chat component.
+                    Since `apps/web/src/app/(dashboard)/chat/page.tsx` exists, we can use an iframe for flawless embedding without breaking Next.js layout!
+                */}
+                <div className="flex-1 rounded-xl border border-zinc-800/60 bg-zinc-950 flex overflow-hidden">
+                    <iframe src="/chat" className="w-full h-full border-0" />
+                </div>
+            </div>
+        )
+    }
+
+    // Default Browser Layout
     return (
         <div className="flex flex-col gap-5">
             {/* Greeting */}
@@ -517,7 +596,7 @@ export function CommandCenter() {
                                     <div className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
                                     <h3 className="text-[13px] font-semibold text-zinc-200">Active Work</h3>
                                 </div>
-                                <Link href="/tasks" className="text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors flex items-center gap-1">
+                                <Link href="/tasks" className="text-xs md:text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors flex items-center gap-1 min-h-[44px] md:min-h-0 -mr-2 md:-mr-0 pr-2 md:pr-0">
                                     All tasks <ArrowRight className="h-3 w-3" />
                                 </Link>
                             </div>
@@ -540,7 +619,7 @@ export function CommandCenter() {
                             View all <ArrowRight className="h-3 w-3" />
                         </Link>
                     </div>
-                    <div className="flex gap-3 overflow-x-auto pb-1">
+                    <div className="flex gap-3 overflow-x-auto pb-1 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                         {activeSprints.slice(0, 4).map(sprint => (
                             <ProjectCard
                                 key={sprint.id}
@@ -560,7 +639,7 @@ export function CommandCenter() {
                             <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
                             <h3 className="text-[13px] font-semibold text-zinc-200">Recently Completed</h3>
                         </div>
-                        <Link href="/tasks" className="text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors flex items-center gap-1">
+                        <Link href="/tasks" className="text-xs md:text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors flex items-center gap-1 min-h-[44px] md:min-h-0 -mr-2 md:-mr-0 pr-2 md:pr-0">
                             All tasks <ArrowRight className="h-3 w-3" />
                         </Link>
                     </div>

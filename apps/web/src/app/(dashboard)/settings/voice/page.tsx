@@ -176,7 +176,7 @@ export default function VoiceSettingsPage() {
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 overflow-hidden">
 
                 {/* Card header */}
-                <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-zinc-800">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 px-4 sm:px-6 py-4 sm:py-5 border-b border-zinc-800">
                     <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 border border-indigo-500/20">
                             <Mic className="h-5 w-5 text-indigo-400" />
@@ -202,7 +202,7 @@ export default function VoiceSettingsPage() {
                 </div>
 
                 {/* Card body */}
-                <div className="px-6 py-5 flex flex-col gap-5">
+                <div className="px-4 sm:px-6 py-4 sm:py-5 flex flex-col gap-5">
 
                     {/* Free credits callout */}
                     <div className="flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
@@ -243,31 +243,33 @@ export default function VoiceSettingsPage() {
 
                         {settings?.configured && !editing ? (
                             // Configured state — show locked field + Change button
-                            <div className="flex items-center gap-2">
-                                <div className="flex-1 flex items-center gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/30 px-3 py-2.5">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-2">
+                                <div className="flex-1 flex items-center gap-3 rounded-lg border border-zinc-700/50 bg-zinc-800/30 px-3 py-2.5 min-h-[44px]">
                                     <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                                    <span className="text-xs text-emerald-400 font-medium">Key saved and verified</span>
-                                    <span className="ml-auto font-mono text-xs text-zinc-600">••••••••••••••••••••••••</span>
+                                    <span className="text-xs text-emerald-400 font-medium whitespace-nowrap">Key saved and verified</span>
+                                    <span className="ml-auto font-mono text-xs text-zinc-600 truncate max-w-[50px] sm:max-w-none">••••••••••••••••••••••••</span>
                                 </div>
-                                <button
-                                    onClick={startEditing}
-                                    className="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2.5 text-xs text-zinc-300 hover:text-white hover:border-zinc-600 transition-colors"
-                                >
-                                    Change
-                                </button>
-                                <button
-                                    onClick={clearKey}
-                                    disabled={saving}
-                                    title="Remove key"
-                                    className="rounded-lg border border-zinc-700 bg-zinc-800 p-2.5 text-zinc-600 hover:text-red-400 hover:border-red-500/40 transition-colors"
-                                >
-                                    <X className="h-4 w-4" />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={startEditing}
+                                        className="flex-1 sm:flex-initial rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2.5 text-xs text-zinc-300 hover:text-white hover:border-zinc-600 transition-colors min-h-[44px]"
+                                    >
+                                        Change
+                                    </button>
+                                    <button
+                                        onClick={clearKey}
+                                        disabled={saving}
+                                        title="Remove key"
+                                        className="rounded-lg border border-zinc-700 bg-zinc-800 p-2.5 text-zinc-600 hover:text-red-400 hover:border-red-500/40 transition-colors shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                </div>
                             </div>
                         ) : (
                             // Input state
                             <div className="flex flex-col gap-2">
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                                     <div className="relative flex-1">
                                         <input
                                             ref={inputRef}
@@ -276,34 +278,36 @@ export default function VoiceSettingsPage() {
                                             onChange={e => setKeyInput(e.target.value)}
                                             onKeyDown={e => e.key === 'Enter' && void saveAndTest()}
                                             placeholder="Paste your Deepgram API key…"
-                                            className="w-full rounded-lg border border-zinc-700 bg-zinc-800/60 px-3 py-2.5 pr-9 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-colors font-mono"
+                                            className="w-full rounded-lg border border-zinc-700 bg-zinc-800/60 px-3 py-2.5 pr-11 text-[16px] sm:text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-colors font-mono min-h-[44px]"
                                         />
                                         <button
                                             type="button"
                                             onClick={() => setShowKey(v => !v)}
-                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+                                            className="absolute right-1 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 min-h-[44px] min-w-[44px] flex items-center justify-center p-0 m-0"
                                         >
                                             {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                         </button>
                                     </div>
 
-                                    <button
-                                        onClick={() => void saveAndTest()}
-                                        disabled={saving || (!keyInput.trim() && !settings?.configured)}
-                                        className="flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2.5 text-sm font-medium text-white transition-colors whitespace-nowrap"
-                                    >
-                                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                                        Save &amp; Test
-                                    </button>
-
-                                    {editing && (
+                                    <div className="flex items-center gap-2">
                                         <button
-                                            onClick={cancelEditing}
-                                            className="rounded-lg border border-zinc-700 bg-zinc-800 p-2.5 text-zinc-500 hover:text-zinc-300 transition-colors"
+                                            onClick={() => void saveAndTest()}
+                                            disabled={saving || (!keyInput.trim() && !settings?.configured)}
+                                            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2.5 text-sm font-medium text-white transition-colors whitespace-nowrap min-h-[44px]"
                                         >
-                                            <X className="h-4 w-4" />
+                                            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                                            Save &amp; Test
                                         </button>
-                                    )}
+
+                                        {editing && (
+                                            <button
+                                                onClick={cancelEditing}
+                                                className="rounded-lg border border-zinc-700 bg-zinc-800 p-2.5 text-zinc-500 hover:text-zinc-300 transition-colors shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                                 <p className="text-xs text-zinc-600">
                                     Encrypted at rest (AES-256-GCM). Leave blank to keep the existing key.
@@ -329,7 +333,7 @@ export default function VoiceSettingsPage() {
             </div>
 
             {/* How voice works */}
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 px-6 py-5">
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 px-4 sm:px-6 py-4 sm:py-5 mt-4">
                 <h2 className="text-sm font-semibold text-white mb-4">How voice processing works</h2>
                 <div className="flex flex-col gap-4">
                     {[

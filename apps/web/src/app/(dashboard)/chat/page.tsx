@@ -123,8 +123,8 @@ function MessageBubble({
             </div>
 
             {/* Bubble */}
-            <div className={`flex flex-col gap-1 max-w-[75%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                <div className={`relative rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.role === 'user'
+            <div className={`flex flex-col gap-1 max-w-[85%] md:max-w-[75%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                <div className={`relative w-full overflow-x-auto rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.role === 'user'
                     ? 'bg-indigo-600 text-white rounded-tr-md'
                     : msg.status === 'failed'
                         ? 'bg-red-950/30 border border-red-800/40 text-red-300 rounded-tl-md'
@@ -860,7 +860,7 @@ function ChatContent() {
     const wantsAttachment = checkAttachmentPrompt(input)
 
     return (
-        <div className="flex flex-col h-[calc(100vh-100px)]">
+        <div className="flex h-full flex-col">
             {/* Header */}
             <div className="flex items-center justify-between pb-4 border-b border-zinc-800 shrink-0">
                 <div>
@@ -1062,7 +1062,7 @@ function ChatContent() {
                         onClick={() => isListening ? voice.stop() : void voice.start()}
                         disabled={sending}
                         title={isListening ? 'Stop recording' : 'Voice input'}
-                        className={`shrink-0 rounded-xl p-3 transition-all duration-200 ${isListening
+                        className={`flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 transition-all duration-200 ${isListening
                             ? 'bg-red-500/20 border border-red-500/40 text-red-400 shadow-[0_0_16px_rgba(239,68,68,0.3)] animate-pulse'
                             : 'border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 bg-zinc-900'
                             } disabled:opacity-40 disabled:cursor-not-allowed`}
@@ -1083,7 +1083,7 @@ function ChatContent() {
                     placeholder={isListening ? 'Listening…' : 'Message your agent… (Enter to send, Shift+Enter for newline)'}
                     rows={1}
                     disabled={sending || isListening}
-                    className="flex-1 resize-none rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none disabled:opacity-50 max-h-32 leading-relaxed transition-colors"
+                    className="flex-1 resize-none rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-[16px] md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none disabled:opacity-50 max-h-32 leading-relaxed transition-colors"
                     style={{ minHeight: '48px' }}
                 />
 
@@ -1091,7 +1091,7 @@ function ChatContent() {
                     id="send-btn"
                     onClick={() => void sendMessage()}
                     disabled={sending || !input.trim() || isListening}
-                    className="shrink-0 rounded-xl bg-indigo-600 p-3 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl bg-indigo-600 p-3 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     aria-label="Send"
                 >
                     {sending

@@ -29,7 +29,7 @@ export function SystemHealth() {
             {/* Collapsible header */}
             <button
                 onClick={toggle}
-                className="flex w-full items-center justify-between px-4 py-3 transition-colors hover:bg-zinc-800/20"
+                className="flex w-full min-h-[44px] items-center justify-between px-4 py-3 transition-colors hover:bg-zinc-800/20"
             >
                 <div className="flex items-center gap-2.5">
                     <div className="flex h-6 w-6 items-center justify-center rounded-md bg-gradient-to-br from-zinc-600 to-zinc-700 text-zinc-300">

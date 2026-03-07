@@ -51,10 +51,10 @@ function Toggle({ id, checked, onChange }: { id: string; checked: boolean; onCha
             role="switch"
             aria-checked={checked}
             onClick={() => onChange(!checked)}
-            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${checked ? 'bg-indigo-600' : 'bg-zinc-700'
+            className={`relative inline-flex h-8 w-14 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 min-h-[44px] ${checked ? 'bg-indigo-600' : 'bg-zinc-700'
                 }`}
         >
-            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ml-0.5 ${checked ? 'translate-x-5' : 'translate-x-0'
+            <span className={`inline-block h-6 w-6 transform rounded-full bg-white shadow transition-transform duration-200 ml-1 ${checked ? 'translate-x-[24px]' : 'translate-x-0'
                 }`} />
         </button>
     )
@@ -82,8 +82,8 @@ function Modal({ open, onClose, title, children }: {
             <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-900 shadow-2xl">
                 <div className="flex items-center justify-between border-b border-zinc-800 px-6 py-4">
                     <h3 className="text-sm font-semibold text-zinc-100">{title}</h3>
-                    <button onClick={onClose} className="rounded-lg p-1 text-zinc-500 hover:text-zinc-200 transition-colors">
-                        <X className="h-4 w-4" />
+                    <button onClick={onClose} className="rounded-lg p-1 text-zinc-500 hover:text-zinc-200 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center -mr-3">
+                        <X className="h-5 w-5 sm:h-4 sm:w-4" />
                     </button>
                 </div>
                 <div className="p-6">{children}</div>
@@ -147,15 +147,15 @@ function RegenerateModal({ open, onClose, onConfirm, loading }: {
                 Regenerating creates a new anonymous ID. This doesn&apos;t affect your data, but previous
                 bug reports will no longer be associated with this instance.
             </p>
-            <div className="mt-6 flex gap-3">
-                <button onClick={onClose} className="flex-1 rounded-xl border border-zinc-700 py-2.5 text-sm text-zinc-400 hover:border-zinc-600 transition-colors">
+            <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                <button onClick={onClose} className="flex-1 rounded-xl border border-zinc-700 py-2.5 text-sm text-zinc-400 hover:border-zinc-600 transition-colors min-h-[44px]">
                     Cancel
                 </button>
                 <button
                     id="privacy-confirm-regenerate"
                     onClick={onConfirm}
                     disabled={loading}
-                    className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                    className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors disabled:opacity-40 flex items-center justify-center gap-2 min-h-[44px]"
                 >
                     {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                     {loading ? 'Regenerating…' : 'Regenerate ID'}
@@ -260,9 +260,9 @@ export default function PrivacyPage() {
 
             <div className="mx-auto max-w-2xl">
                 {/* Page header */}
-                <div className="mb-8 flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-zinc-800 border border-zinc-700">
-                        <ShieldCheck className="h-5 w-5 text-indigo-400" />
+                <div className="mb-8 flex flex-col sm:flex-row sm:items-center gap-3">
+                    <div className="flex h-12 w-12 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-800 border border-zinc-700">
+                        <ShieldCheck className="h-6 w-6 sm:h-5 sm:w-5 text-indigo-400" />
                     </div>
                     <div>
                         <h1 className="text-xl font-bold text-zinc-50">Privacy</h1>
@@ -274,7 +274,7 @@ export default function PrivacyPage() {
 
                     {/* ── Crash Reporting ── */}
                     <Section title="Crash Reporting">
-                        <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3.5">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3.5 gap-4 sm:gap-0">
                             <div>
                                 <p className="text-sm font-medium text-zinc-200">
                                     {config.enabled
@@ -288,7 +288,7 @@ export default function PrivacyPage() {
                                 </p>
                             </div>
                             <div className="flex items-center gap-3">
-                                {saving && <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-600" />}
+                                {saving && <Loader2 className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin text-zinc-600" />}
                                 <Toggle id="privacy-telemetry-toggle" checked={config.enabled} onChange={() => void toggleEnabled()} />
                             </div>
                         </div>
@@ -296,7 +296,7 @@ export default function PrivacyPage() {
                         <button
                             id="privacy-view-last-report"
                             onClick={() => setShowPayload(true)}
-                            className="mt-3 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                            className="mt-3 text-sm sm:text-xs text-indigo-400 hover:text-indigo-300 transition-colors min-h-[44px] px-2 -mx-2 flex flex-col justify-center w-fit"
                         >
                             View last report →
                         </button>
@@ -307,29 +307,30 @@ export default function PrivacyPage() {
                         title="Anonymous Instance ID"
                         description="This ID is randomly generated at install. It is not linked to your identity, IP address, or any account."
                     >
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                             <input
                                 id="privacy-instance-id"
                                 readOnly
                                 value={config.instanceId || '—'}
-                                className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs font-mono text-zinc-400 focus:outline-none"
+                                className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-[16px] sm:text-xs font-mono text-zinc-400 focus:outline-none min-h-[44px]"
                             />
                             <button
                                 id="privacy-copy-id"
                                 onClick={() => void copyId()}
                                 title="Copy to clipboard"
-                                className="rounded-lg border border-zinc-800 bg-zinc-950 p-2 text-zinc-500 hover:text-zinc-200 transition-colors"
+                                className="flex items-center justify-center rounded-lg border border-zinc-800 bg-zinc-950 p-2 text-zinc-500 hover:text-zinc-200 transition-colors min-h-[44px] sm:min-w-[44px] w-full sm:w-auto"
                             >
-                                {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                                {copied ? <Check className="h-4 w-4 text-emerald-400 mr-2 sm:mr-0" /> : <Copy className="h-4 w-4 mr-2 sm:mr-0" />}
+                                <span className="sm:hidden text-sm font-medium">{copied ? 'Copied' : 'Copy'}</span>
                             </button>
                         </div>
 
                         <button
                             id="privacy-regenerate-id"
                             onClick={() => setShowRegenerate(true)}
-                            className="mt-3 flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                            className="mt-3 flex items-center gap-1.5 text-sm sm:text-xs text-zinc-500 hover:text-zinc-300 transition-colors min-h-[44px] px-2 -mx-2 w-fit"
                         >
-                            <RefreshCcw className="h-3 w-3" />
+                            <RefreshCcw className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
                             Regenerate ID
                         </button>
                     </Section>

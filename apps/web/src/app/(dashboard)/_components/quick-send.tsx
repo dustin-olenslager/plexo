@@ -61,13 +61,13 @@ export function QuickSend() {
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     placeholder="Describe a task for your agent…"
-                    className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/50 disabled:opacity-50"
+                    className="flex-1 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2.5 text-[16px] md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/50 disabled:opacity-50 min-h-[44px]"
                     disabled={status === 'sending'}
                 />
                 <button
                     type="submit"
                     disabled={!text.trim() || status === 'sending'}
-                    className="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded-lg bg-indigo-600 px-4 py-2.5 text-[16px] md:text-sm font-medium text-white transition-all hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-40 min-h-[44px]"
                 >
                     {status === 'sending' ? '…' : 'Send'}
                 </button>

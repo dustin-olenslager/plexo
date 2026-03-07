@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { CommandCenter } from './_components/command-center'
 import { SystemHealth } from './_components/system-health'
 import { QuickSend } from './_components/quick-send'
+import { DashboardRouter } from './_components/dashboard-router'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -22,30 +23,32 @@ export default async function HomePage() {
     if (await isFirstRun()) redirect('/setup')
 
     return (
-        <div>
-            {/* Header */}
-            <div className="mb-6">
-                <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
-                <p className="mt-1 text-sm text-zinc-500">Your AI agent — live</p>
+        <DashboardRouter defaultContent={
+            <div>
+                {/* Header */}
+                <div className="mb-6">
+                    <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
+                    <p className="mt-1 text-sm text-zinc-500">Your AI agent — live</p>
+                </div>
+
+                {/* User-focused overview: projects, tasks, blockers, approvals */}
+                <CommandCenter />
+
+                {/* Quick Send */}
+                <div className="mt-6">
+                    <QuickSend />
+                </div>
+
+                {/* System Health — collapsible, below the user-focused overview */}
+                <div className="mt-6">
+                    <SystemHealth />
+                </div>
+
+                {/* Version */}
+                <p className="mt-6 text-center text-[10px] text-zinc-700">
+                    v{process.env.NEXT_PUBLIC_APP_VERSION ?? '0.8.0-beta.1'}{process.env.NODE_ENV === 'development' ? ' · dev' : ''}
+                </p>
             </div>
-
-            {/* User-focused overview: projects, tasks, blockers, approvals */}
-            <CommandCenter />
-
-            {/* Quick Send */}
-            <div className="mt-6">
-                <QuickSend />
-            </div>
-
-            {/* System Health — collapsible, below the user-focused overview */}
-            <div className="mt-6">
-                <SystemHealth />
-            </div>
-
-            {/* Version */}
-            <p className="mt-6 text-center text-[10px] text-zinc-700">
-                v{process.env.NEXT_PUBLIC_APP_VERSION ?? '0.8.0-beta.1'}{process.env.NODE_ENV === 'development' ? ' · dev' : ''}
-            </p>
-        </div>
+        } />
     )
 }
