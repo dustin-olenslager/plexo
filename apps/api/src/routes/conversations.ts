@@ -1,11 +1,35 @@
 import { Router, type Router as RouterType } from 'express'
-import { db, desc, sql } from '@plexo/db'
+import { db, desc, eq, sql } from '@plexo/db'
 import { conversations } from '@plexo/db'
 import { logger } from '../logger.js'
 
 export const conversationsRouter: RouterType = Router()
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// ── GET /api/v1/conversations/:id ─────────────────────────────────────────────
+// Returns a single conversation record by its ID (ULID).
+
+conversationsRouter.get('/:id', async (req, res) => {
+    const { id } = req.params
+    if (!id) {
+        res.status(400).json({ error: { code: 'MISSING_ID', message: 'id required' } })
+        return
+    }
+    try {
+        const [item] = await db.select().from(conversations)
+            .where(eq(conversations.id, id))
+            .limit(1)
+        if (!item) {
+            res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Conversation not found' } })
+            return
+        }
+        res.json(item)
+    } catch (err) {
+        logger.error({ err, id }, 'GET /api/v1/conversations/:id failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch conversation' } })
+    }
+})
 
 // ── GET /api/v1/conversations?workspaceId=&limit=&cursor= ─────────────────────
 // Returns all conversation records for a workspace, newest first.
