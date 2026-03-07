@@ -141,11 +141,13 @@ const sessionHistory = new Map<string, Array<{ role: 'user' | 'assistant'; conte
 // ── POST /api/chat/message ────────────────────────────────────────────────────
 
 chatRouter.post('/message', async (req, res) => {
-    const { workspaceId, message, sessionId } = req.body as {
+    const { workspaceId, message, sessionId, forceConversation } = req.body as {
         workspaceId?: string
         message?: string
         sessionId?: string
+        forceConversation?: boolean
     }
+
 
     if (!workspaceId || !UUID_RE.test(workspaceId)) {
         res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
@@ -186,45 +188,48 @@ chatRouter.post('/message', async (req, res) => {
         const model = buildModel(providerKey, config, 'summarization', aiSettings)
         const trimmedMsg = message.trim()
 
-        // Classify intent
-        let intent: 'TASK' | 'PROJECT' | 'CONVERSATION' = 'CONVERSATION'
+        // Classify intent — skip if caller forced CONVERSATION (e.g. "Just answer" button)
+        let intent: 'TASK' | 'PROJECT' | 'CONVERSATION' = forceConversation ? 'CONVERSATION' : 'CONVERSATION'
         const sid = sessionId ?? 'default'
         const history = sessionHistory.get(sid) ?? []
 
         let isComplex = false
         let suggestedCategory = 'general'
 
-        try {
-            const messages = [
-                ...history.map(m => ({ role: m.role, content: m.content })),
-                { role: 'user' as const, content: trimmedMsg }
-            ]
+        if (!forceConversation) {
+            try {
+                const messages = [
+                    ...history.map(m => ({ role: m.role, content: m.content })),
+                    { role: 'user' as const, content: trimmedMsg }
+                ]
 
-            const classifyResult = await generateText({
-                model,
-                system: CLASSIFY_SYSTEM,
-                messages,
-                abortSignal: AbortSignal.timeout(10_000),
-            })
-            const text = classifyResult.text?.trim() ?? ''
-            const upperText = text.toUpperCase()
-            const parts = text.split(/\s+/)
-            if (upperText.startsWith('TASK')) intent = 'TASK'
-            else if (upperText.startsWith('PROJECT')) intent = 'PROJECT'
-            else intent = 'CONVERSATION'
+                const classifyResult = await generateText({
+                    model,
+                    system: CLASSIFY_SYSTEM,
+                    messages,
+                    abortSignal: AbortSignal.timeout(10_000),
+                })
+                const text = classifyResult.text?.trim() ?? ''
+                const upperText = text.toUpperCase()
+                const parts = text.split(/\s+/)
+                if (upperText.startsWith('TASK')) intent = 'TASK'
+                else if (upperText.startsWith('PROJECT')) intent = 'PROJECT'
+                else intent = 'CONVERSATION'
 
-            if (parts[1]?.toUpperCase().startsWith('COMPLEX')) isComplex = true
+                if (parts[1]?.toUpperCase().startsWith('COMPLEX')) isComplex = true
 
-            // Extract suggested category for PROJECT (3rd word, lowercase)
-            if (intent === 'PROJECT' && parts[2]) {
-                const cat = parts[2].toLowerCase()
-                const validCats = ['code', 'research', 'writing', 'ops', 'data', 'marketing', 'general']
-                if (validCats.includes(cat)) suggestedCategory = cat
+                // Extract suggested category for PROJECT (3rd word, lowercase)
+                if (intent === 'PROJECT' && parts[2]) {
+                    const cat = parts[2].toLowerCase()
+                    const validCats = ['code', 'research', 'writing', 'ops', 'data', 'marketing', 'general']
+                    if (validCats.includes(cat)) suggestedCategory = cat
+                }
+            } catch {
+                // On classification failure, default to CONVERSATION
+                intent = 'CONVERSATION'
             }
-        } catch {
-            // On classification failure, default to CONVERSATION
-            intent = 'CONVERSATION'
         }
+
 
         // Consultative routing: Check for recommended model
         let recommendedSwitch = ''
