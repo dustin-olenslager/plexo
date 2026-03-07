@@ -420,7 +420,8 @@ export default function AIProvidersPage() {
                     setBorrowing(sd.borrowing ?? [])
                 }
                 if (wsRes.ok) {
-                    const wd = await wsRes.json() as OwnWorkspace[]
+                    const data = await wsRes.json() as { items?: OwnWorkspace[] } | OwnWorkspace[]
+                    const wd = Array.isArray(data) ? data : (data.items ?? [])
                     setOwnWorkspaces(wd.filter((w) => w.id !== WS_ID))
                 }
             } catch { /* non-fatal */ }
