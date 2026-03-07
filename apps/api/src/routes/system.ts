@@ -126,33 +126,34 @@ import { promisify } from 'node:util'
 
 const execAsync = promisify(exec)
 
-async function getLocalVersion(): Promise<{ type: 'release' | 'commit'; version: string; buildTime: string | null }> {
+async function getLocalVersion(): Promise<{ type: 'release' | 'commit'; version: string; buildTime: string | null; sourceCommit: string | null }> {
     const { readFile } = await import('node:fs/promises')
 
-    // Read build timestamp (baked at Docker build time)
     let buildTime: string | null = null
+    let sourceCommit: string | null = null
     try {
         buildTime = (await readFile('/app/.build-time', 'utf8')).trim() || null
-    } catch { /* dev environment */ }
+        sourceCommit = (await readFile('/app/.source-commit', 'utf8')).trim() || null
+    } catch { /* dev environment or missing files */ }
 
     // Primary: version baked into image at build time from package.json
     try {
         const baked = (await readFile('/app/.version', 'utf8')).trim()
         if (baked && baked !== 'auto' && baked !== 'dev') {
-            return { type: 'release', version: baked, buildTime }
+            return { type: 'release', version: baked, buildTime, sourceCommit }
         }
     } catch { /* not in a Docker container — continue */ }
 
     // Secondary: APP_VERSION env var
     if (process.env.APP_VERSION && process.env.APP_VERSION !== 'dev' && process.env.APP_VERSION !== 'auto') {
-        return { type: 'release', version: process.env.APP_VERSION, buildTime }
+        return { type: 'release', version: process.env.APP_VERSION, buildTime, sourceCommit }
     }
     // Tertiary: git commit hash (source checkout)
     try {
         const { stdout } = await execAsync('git rev-parse HEAD', { cwd: process.cwd() })
-        return { type: 'commit', version: stdout.trim(), buildTime }
+        return { type: 'commit', version: stdout.trim(), buildTime, sourceCommit: stdout.trim() }
     } catch {
-        return { type: 'release', version: process.env.npm_package_version ?? '0.0.0', buildTime }
+        return { type: 'release', version: process.env.npm_package_version ?? '0.0.0', buildTime, sourceCommit }
     }
 }
 
@@ -286,8 +287,18 @@ systemRouter.get('/version', async (_req, res) => {
             publishedAt = latestCommit.date
             changelog = latestCommit.message
             updateType = 'commit'
+        } else if (local.sourceCommit && local.sourceCommit !== 'unknown') {
+            // Docker image with baked commit hash (most reliable, avoids clock skew issues)
+            if (local.sourceCommit !== latestCommit.sha && !local.sourceCommit.startsWith(latestCommit.shortSha)) {
+                behind = true
+                latest = latestCommit.shortSha
+                releaseUrl = latestCommit.url
+                publishedAt = latestCommit.date
+                changelog = latestCommit.message
+                updateType = 'commit'
+            }
         } else if (local.buildTime) {
-            // Docker image: compare build timestamp to latest commit date
+            // Legacy Docker image: fallback to comparing build timestamp to latest commit date
             const commitDate = new Date(latestCommit.date).getTime()
             const buildDate = new Date(local.buildTime).getTime()
             if (commitDate > buildDate) {
