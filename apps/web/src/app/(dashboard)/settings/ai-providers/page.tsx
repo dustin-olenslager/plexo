@@ -174,13 +174,77 @@ const TASK_LABELS: Record<TaskType, string> = {
     logAnalysis: 'Log analysis',
 }
 
-const DEFAULT_MODELS: Record<TaskType, string> = {
-    planning: 'claude-sonnet-4-5',
-    codeGeneration: 'claude-sonnet-4-5',
-    verification: 'claude-sonnet-4-5',
-    summarization: 'claude-haiku-4-5',
-    classification: 'claude-haiku-4-5',
-    logAnalysis: 'claude-haiku-4-5',
+// Per-provider smart defaults for each task type.
+// These are used as placeholder / initial values — never hard-wired Claude IDs on non-Anthropic providers.
+const PROVIDER_DEFAULT_ROUTING: Partial<Record<ProviderKey, Record<TaskType, string>>> = {
+    anthropic: {
+        planning: 'claude-sonnet-4-5',
+        codeGeneration: 'claude-sonnet-4-5',
+        verification: 'claude-sonnet-4-5',
+        summarization: 'claude-haiku-4-5',
+        classification: 'claude-haiku-4-5',
+        logAnalysis: 'claude-haiku-4-5',
+    },
+    openai: {
+        planning: 'gpt-4.1',
+        codeGeneration: 'gpt-4.1',
+        verification: 'gpt-4.1',
+        summarization: 'gpt-4.1-mini',
+        classification: 'gpt-4o-mini',
+        logAnalysis: 'gpt-4.1-mini',
+    },
+    google: {
+        planning: 'gemini-2.5-pro',
+        codeGeneration: 'gemini-2.5-pro',
+        verification: 'gemini-2.5-pro',
+        summarization: 'gemini-2.5-flash',
+        classification: 'gemini-2.5-flash',
+        logAnalysis: 'gemini-2.5-flash',
+    },
+    groq: {
+        planning: 'llama-3.3-70b-versatile',
+        codeGeneration: 'llama-3.3-70b-versatile',
+        verification: 'llama-3.3-70b-versatile',
+        summarization: 'llama-3.1-8b-instant',
+        classification: 'llama-3.1-8b-instant',
+        logAnalysis: 'llama-3.1-8b-instant',
+    },
+    mistral: {
+        planning: 'mistral-large-latest',
+        codeGeneration: 'mistral-large-latest',
+        verification: 'mistral-large-latest',
+        summarization: 'mistral-small-latest',
+        classification: 'mistral-small-latest',
+        logAnalysis: 'mistral-small-latest',
+    },
+    deepseek: {
+        planning: 'deepseek-reasoner',
+        codeGeneration: 'deepseek-chat',
+        verification: 'deepseek-chat',
+        summarization: 'deepseek-chat',
+        classification: 'deepseek-chat',
+        logAnalysis: 'deepseek-chat',
+    },
+    xai: {
+        planning: 'grok-3',
+        codeGeneration: 'grok-3',
+        verification: 'grok-3',
+        summarization: 'grok-3-mini',
+        classification: 'grok-3-mini',
+        logAnalysis: 'grok-3-mini',
+    },
+    openrouter: {
+        planning: 'openai/gpt-4o',
+        codeGeneration: 'openai/gpt-4o',
+        verification: 'openai/gpt-4o',
+        summarization: 'openai/gpt-4o-mini',
+        classification: 'openai/gpt-4o-mini',
+        logAnalysis: 'openai/gpt-4o-mini',
+    },
+}
+
+function getDefaultModelsForProvider(providerKey: ProviderKey): Record<TaskType, string> {
+    return PROVIDER_DEFAULT_ROUTING[providerKey] ?? PROVIDER_DEFAULT_ROUTING.anthropic!
 }
 
 // ── Status indicator ──────────────────────────────────────────────────────────
@@ -221,7 +285,7 @@ export default function AIProvidersPage() {
     const [clearConfirm, setClearConfirm] = useState<ProviderKey | null>(null)
     const [loadError, setLoadError] = useState<string | null>(null)
     const [modelRouting, setModelRouting] = useState<Record<TaskType, string>>(
-        { ...DEFAULT_MODELS }
+        () => ({ ...getDefaultModelsForProvider('anthropic') })
     )
     const [fallbackOrder, setFallbackOrder] = useState<ProviderKey[]>(PROVIDERS.map((p) => p.key))
     const [wsDefaultCostCeiling, setWsDefaultCostCeiling] = useState('')
@@ -267,8 +331,19 @@ export default function AIProvidersPage() {
                 const aiCfg = data.aiProviders
                 if (!aiCfg) return
                 const primary = aiCfg.primary ?? aiCfg.primaryProvider
-                if (primary) setPrimaryProvider(primary)
-                if (aiCfg.modelRouting) setModelRouting((prev) => ({ ...prev, ...aiCfg.modelRouting }))
+                if (primary) {
+                    setPrimaryProvider(primary)
+                    if (!aiCfg.modelRouting) {
+                        setModelRouting({ ...getDefaultModelsForProvider(primary as ProviderKey) })
+                    }
+                }
+                if (aiCfg.modelRouting) {
+                    setModelRouting((prev) => ({
+                        ...getDefaultModelsForProvider((primary ?? 'anthropic') as ProviderKey),
+                        ...prev,
+                        ...aiCfg.modelRouting,
+                    }))
+                }
                 const order = aiCfg.fallbackOrder ?? aiCfg.fallbackChain
                 if (order?.length) setFallbackOrder(order)
                 // Load workspace budget defaults
@@ -676,7 +751,7 @@ export default function AIProvidersPage() {
                             </div>
                         </div>
                         <button
-                            onClick={() => setPrimaryProvider(selectedProvider)}
+                            onClick={() => { setPrimaryProvider(selectedProvider); setModelRouting({ ...getDefaultModelsForProvider(selectedProvider) }) }}
                             className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${primaryProvider === selectedProvider
                                 ? 'border-indigo-500/50 bg-indigo-500/10 text-indigo-400'
                                 : 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
@@ -1039,26 +1114,49 @@ export default function AIProvidersPage() {
                         ))}
                     </div>
                     {/* Model routing — collapsible */}
-                    {showRouting && (
-                        <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
-                            <div className="px-4 py-2.5 border-b border-zinc-800">
-                                <p className="text-xs text-zinc-500">Map each task type to a specific model. Leave blank to use the primary provider&apos;s default.</p>
+                    {showRouting && (() => {
+                        // Models to populate the routing dropdowns — primary provider's list.
+                        const primaryConfig = PROVIDERS.find((p) => p.key === primaryProvider)
+                        const primaryState = providerStates[primaryProvider]
+                        const routingModels: string[] = [
+                            ...(primaryConfig?.staticModels ?? []),
+                            ...(primaryState?.dynamicModels ?? []),
+                        ]
+                        const defaults = getDefaultModelsForProvider(primaryProvider)
+                        return (
+                            <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+                                <div className="px-4 py-2.5 border-b border-zinc-800 flex items-center justify-between">
+                                    <p className="text-xs text-zinc-500">Per-task model override. Defaults are chosen for your active provider.</p>
+                                    <button
+                                        onClick={() => setModelRouting({ ...getDefaultModelsForProvider(primaryProvider) })}
+                                        className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors"
+                                    >Reset to defaults</button>
+                                </div>
+                                <table className="w-full text-sm">
+                                    <thead><tr className="border-b border-zinc-800"><th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Task type</th><th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Model</th></tr></thead>
+                                    <tbody>
+                                        {(Object.entries(TASK_LABELS) as [TaskType, string][]).map(([taskType, label]) => (
+                                            <tr key={taskType} className="border-b border-zinc-800/50 last:border-0">
+                                                <td className="px-4 py-2.5 text-zinc-400">{label}</td>
+                                                <td className="px-4 py-2.5">
+                                                    <select
+                                                        value={modelRouting[taskType]}
+                                                        onChange={(e) => setModelRouting((prev) => ({ ...prev, [taskType]: e.target.value }))}
+                                                        className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-100 focus:border-indigo-500 focus:outline-none"
+                                                    >
+                                                        <option value="">Provider default ({defaults[taskType]})</option>
+                                                        {routingModels.map((m) => (
+                                                            <option key={m} value={m}>{m}</option>
+                                                        ))}
+                                                    </select>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
-                            <table className="w-full text-sm">
-                                <thead><tr className="border-b border-zinc-800"><th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Task type</th><th className="px-4 py-2.5 text-left text-xs font-medium text-zinc-500">Model</th></tr></thead>
-                                <tbody>
-                                    {(Object.entries(TASK_LABELS) as [TaskType, string][]).map(([taskType, label]) => (
-                                        <tr key={taskType} className="border-b border-zinc-800/50 last:border-0">
-                                            <td className="px-4 py-2.5 text-zinc-400">{label}</td>
-                                            <td className="px-4 py-2.5">
-                                                <input type="text" value={modelRouting[taskType]} onChange={(e) => setModelRouting((prev) => ({ ...prev, [taskType]: e.target.value }))} className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none" placeholder={DEFAULT_MODELS[taskType]} />
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
+                        )
+                    })()}
                     </div>}
                 </div>
             )}

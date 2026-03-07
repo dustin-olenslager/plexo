@@ -50,7 +50,7 @@ const SprintTaskSchema = z.object({
 
 const SprintPlanSchema = z.object({
     tasks: z.array(SprintTaskSchema).max(8),
-    parallelism_note: z.string().optional(),
+    parallelism_note: z.string(),   // required by OpenAI strict JSON schema mode (no optional fields)
 })
 
 // ── Planner ───────────────────────────────────────────────────────────────────
