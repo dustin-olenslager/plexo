@@ -22,6 +22,7 @@ export type ProviderKey =
     | 'xai'
     | 'deepseek'
     | 'ollama'
+    | 'ollama_cloud'
 
 export type TaskType =
     | 'planning'
@@ -90,6 +91,7 @@ const PROVIDER_DEFAULT_MODELS: Partial<Record<ProviderKey, string>> = {
     xai: 'grok-3-mini',
     deepseek: 'deepseek-chat',
     ollama: 'llama3.2',
+    ollama_cloud: 'gpt-oss:20b-cloud',
     // Free tier default — works with any key, no credits required.
     // deepseek-chat-v3-0324:free is generally available regardless of OR privacy settings.
     openrouter: 'deepseek/deepseek-chat-v3-0324:free',
@@ -164,6 +166,16 @@ export function buildModel(
                 baseURL: (config.baseUrl ?? 'http://localhost:11434').replace(/\/+$/, '') + '/v1',
             })
             return ol(modelId)
+        }
+        case 'ollama_cloud': {
+            const oc = createOpenAICompatible({
+                name: 'ollama_cloud',
+                baseURL: 'https://ollama.com/v1',
+                headers: {
+                    Authorization: `Bearer ${config.apiKey ?? ''}`,
+                },
+            })
+            return oc(modelId)
         }
         default: {
             const exhaustive: never = providerKey
@@ -289,6 +301,7 @@ const DEFAULT_TEST_MODELS: Record<ProviderKey, string> = {
     xai: 'grok-2',
     deepseek: 'deepseek-chat',
     ollama: 'llama3.2',
+    ollama_cloud: 'gpt-oss:20b-cloud',
 }
 
 // Map provider → env var name (used to temporarily inject a user-supplied key)
@@ -342,6 +355,13 @@ function buildTestModel(providerKey: ProviderKey, modelId: string, baseUrl?: str
             const base = (baseUrl ?? 'http://localhost:11434').replace(/\/+$/, '') + '/v1'
             return createOpenAICompatible({ name: 'ollama', baseURL: base })(modelId)
         }
+        case 'ollama_cloud': {
+            return createOpenAICompatible({
+                name: 'ollama_cloud',
+                baseURL: 'https://ollama.com/v1',
+                headers: { Authorization: `Bearer ${apiKey ?? ''}` },
+            })(modelId)
+        }
         default: {
             const exhaustive: never = providerKey
             throw new Error(`Unknown provider: ${String(exhaustive)}`)
@@ -369,7 +389,7 @@ export async function testProvider(
     const { generateText: gt } = await import('ai')
     const start = Date.now()
 
-    // ── Ollama: discover models via GET, pick one, then test ──────────────────
+    // ── Ollama local: discover models via GET, pick one, then test ───────────
     if (providerKey === 'ollama') {
         const baseURL = (opts.baseUrl ?? 'http://localhost:11434').replace(/\/+$/, '') + '/v1'
         try {
@@ -400,6 +420,50 @@ export async function testProvider(
             } catch {
                 // POST blocked or generation failed — but server responded to GET, so it's reachable
                 return { ok: true, message: `Reachable — ${models.length} model(s) available (generation test skipped)`, latencyMs: Date.now() - start, model: modelId }
+            }
+        } catch (err) {
+            const message = err instanceof Error ? err.message.slice(0, 200) : 'Connection failed'
+            return { ok: false, message, latencyMs: Date.now() - start, model: opts.model ?? '' }
+        }
+    }
+
+    // ── Ollama Cloud: hit https://ollama.com/api/tags with bearer key ─────────
+    if (providerKey === 'ollama_cloud') {
+        if (!opts.apiKey) {
+            return { ok: false, message: 'Ollama Cloud requires an API key. Get one at ollama.com/settings/keys.', latencyMs: 0, model: '' }
+        }
+        try {
+            // Discover available cloud models first
+            const tagsRes = await fetch('https://ollama.com/api/tags', {
+                headers: { Authorization: `Bearer ${opts.apiKey}` },
+                signal: AbortSignal.timeout(timeoutMs),
+            })
+            if (!tagsRes.ok) {
+                const msg = tagsRes.status === 401 || tagsRes.status === 403
+                    ? 'Invalid API key — check ollama.com/settings/keys'
+                    : `Server returned ${tagsRes.status}`
+                return { ok: false, message: msg, latencyMs: Date.now() - start, model: '' }
+            }
+            const tagsData = await tagsRes.json() as { models?: { name: string }[] }
+            const models = (tagsData.models ?? []).map(m => m.name)
+            const modelId = opts.model && models.includes(opts.model)
+                ? opts.model
+                : models[0] ?? 'gpt-oss:20b-cloud'
+            // Attempt a generation via OpenAI-compat endpoint
+            try {
+                const oc = createOpenAICompatible({
+                    name: 'ollama_cloud',
+                    baseURL: 'https://ollama.com/v1',
+                    headers: { Authorization: `Bearer ${opts.apiKey}` },
+                })(modelId)
+                const ac = new AbortController()
+                const timer = setTimeout(() => ac.abort(), Math.max(timeoutMs - (Date.now() - start), 5000))
+                await gt({ model: oc, prompt: 'Say "ok".', maxOutputTokens: 20, abortSignal: ac.signal })
+                clearTimeout(timer)
+                return { ok: true, message: `Connected — ${models.length} cloud model(s) available`, latencyMs: Date.now() - start, model: modelId }
+            } catch {
+                // Tags worked but generation failed — still report reachable
+                return { ok: true, message: `Reachable — ${models.length} cloud model(s) available (generation test skipped)`, latencyMs: Date.now() - start, model: modelId }
             }
         } catch (err) {
             const message = err instanceof Error ? err.message.slice(0, 200) : 'Connection failed'
