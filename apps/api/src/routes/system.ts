@@ -262,6 +262,7 @@ systemRouter.get('/version', async (_req, res) => {
     let releaseUrl: string | null = null
     let publishedAt: string | null = null
     let changelog: string | null = null
+    let updateType: 'release' | 'commit' = 'release'
 
     if (release) {
         if (release.type === 'release' && local.type === 'release') {
@@ -271,6 +272,7 @@ systemRouter.get('/version', async (_req, res) => {
         } else if (release.type === 'commit' && local.type === 'commit') {
             behind = local.version !== release.version
             latest = release.version.slice(0, 7)
+            updateType = 'commit'
         } else if (release.type === 'release' && local.type === 'commit') {
             behind = true
             latest = release.version.replace(/^v/, '')
@@ -291,6 +293,7 @@ systemRouter.get('/version', async (_req, res) => {
             releaseUrl = latestCommit.url
             publishedAt = latestCommit.date
             changelog = latestCommit.message
+            updateType = 'commit'
         }
     }
 
@@ -298,6 +301,7 @@ systemRouter.get('/version', async (_req, res) => {
         current: local.type === 'commit' ? local.version.slice(0, 7) : local.version,
         latest,
         behind,
+        updateType,
         releaseUrl,
         publishedAt,
         changelog,

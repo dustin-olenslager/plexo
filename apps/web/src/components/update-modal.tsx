@@ -18,6 +18,7 @@ interface VersionInfo {
     current: string
     latest: string | null
     behind: boolean
+    updateType: 'release' | 'commit'
     releaseUrl: string | null
     publishedAt: string | null
     changelog: string | null
@@ -178,7 +179,9 @@ export function UpdateModal() {
                                 Update Available
                             </h2>
                             <p className="text-xs text-zinc-400 mt-0.5">
-                                A new version of Plexo is ready to install.
+                                {versionInfo.updateType === 'commit'
+                                    ? 'Unreleased changes are ready to install.'
+                                    : 'A new version of Plexo is ready to install.'}
                             </p>
                         </div>
                     </div>
@@ -194,9 +197,15 @@ export function UpdateModal() {
                             <p className="text-xs text-zinc-500 mb-1">Latest</p>
                             <div className="flex items-center gap-2">
                                 <code className="text-sm font-mono text-violet-400">v{versionInfo.latest}</code>
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400 border border-violet-500/20 font-medium">
-                                    NEW
-                                </span>
+                                {versionInfo.updateType === 'commit' ? (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
+                                        PATCH
+                                    </span>
+                                ) : (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400 border border-violet-500/20 font-medium">
+                                        NEW
+                                    </span>
+                                )}
                             </div>
                         </div>
                         {versionInfo.publishedAt && (
