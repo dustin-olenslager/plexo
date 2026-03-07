@@ -38,6 +38,7 @@ type ProviderKey =
     | 'xai'
     | 'deepseek'
     | 'ollama'
+    | 'ollama_cloud'
 
 type ProviderStatus = 'configured' | 'untested' | 'unconfigured'
 
@@ -79,6 +80,7 @@ const PROVIDER_LINKS: Partial<Record<ProviderKey, { label: string; url: string }
     mistral: { label: 'Get API key', url: 'https://console.mistral.ai/api-keys/' },
     deepseek: { label: 'Get API key', url: 'https://platform.deepseek.com/api_keys' },
     xai: { label: 'Get API key', url: 'https://console.x.ai/' },
+    ollama_cloud: { label: 'Get API key', url: 'https://ollama.com/settings/keys' },
 }
 
 // ── Provider definitions ─────────────────────────────────────────────────────
@@ -163,6 +165,25 @@ const PROVIDERS: ProviderConfig[] = [
         badge: 'Local',
         badgeColor: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
         requiresKey: false,
+    },
+    {
+        key: 'ollama_cloud',
+        name: 'Ollama Cloud',
+        description: 'gpt-oss, deepseek, kimi, glm — free tier included',
+        badge: 'Free tier',
+        badgeColor: 'bg-sky-500/15 text-sky-400 border border-sky-500/30',
+        requiresKey: true,
+        staticModels: [
+            // Well-known cloud models (updated periodically)
+            'gpt-oss:20b-cloud',
+            'gpt-oss:120b-cloud',
+            'deepseek-v3.1:671b-cloud',
+            'kimi-k2:1t-cloud',
+            'glm-4.6:cloud',
+            'qwen3-vl:235b-cloud',
+            'devstral-small-2:cloud',
+            'minimax-m2:cloud',
+        ],
     },
 ]
 
@@ -379,7 +400,7 @@ export default function AIProvidersPage() {
                         }
                         return next
                     })
-                    // Auto-fetch Ollama models if it was previously configured
+                    // Auto-fetch Ollama local models if previously configured
                     if (ollamaEntry?.status === 'configured') {
                         const ollamaBase = ollamaEntry.baseUrl ?? 'http://localhost:11434'
                         void (async () => {
@@ -391,6 +412,24 @@ export default function AIProvidersPage() {
                                         setProviderStates((prev) => ({
                                             ...prev,
                                             ollama: { ...prev.ollama, dynamicModels: md.models! },
+                                        }))
+                                    }
+                                }
+                            } catch { /* non-fatal */ }
+                        })()
+                    }
+                    // Auto-fetch Ollama Cloud models if previously configured
+                    const ollamaCloudEntry = aiCfg.providers['ollama_cloud' as ProviderKey]
+                    if (ollamaCloudEntry?.status === 'configured') {
+                        void (async () => {
+                            try {
+                                const mr = await fetch(`${API_BASE}/api/v1/settings/ai-providers/models?provider=ollama_cloud`)
+                                if (mr.ok) {
+                                    const md = await mr.json() as { ok: boolean; models?: string[] }
+                                    if (md.ok && md.models?.length) {
+                                        setProviderStates((prev) => ({
+                                            ...prev,
+                                            ollama_cloud: { ...prev.ollama_cloud, dynamicModels: md.models! },
                                         }))
                                     }
                                 }
@@ -482,15 +521,25 @@ export default function AIProvidersPage() {
         updateState(providerKey, { status: 'unconfigured', apiKey: '' })
     }
 
-    // Fetch models from a URL-based provider (Ollama, etc.) without running a test.
+    // Fetch models from a URL-based provider (Ollama local) without running a test.
+    // Also handles Ollama Cloud by hitting the /models endpoint with bearer key.
     // Populates dynamicModels so the dropdown appears before Save & Test.
     async function handleConnect() {
         setConnecting(true)
         try {
-            const baseUrl = providerStates[selectedProvider].baseUrl || 'http://localhost:11434'
-            const res = await fetch(
-                `${API_BASE}/api/v1/settings/ai-providers/models?provider=${selectedProvider}&baseUrl=${encodeURIComponent(baseUrl)}`
-            )
+            let url: string
+            if (selectedProvider === 'ollama_cloud') {
+                // For cloud, the API key is already in state — pass as query param so
+                // the backend can forward it as a Bearer token
+                const key = providerStates.ollama_cloud.apiKey
+                url = `${API_BASE}/api/v1/settings/ai-providers/models?provider=ollama_cloud${
+                    key ? `&apiKey=${encodeURIComponent(key)}` : ''
+                }`
+            } else {
+                const baseUrl = providerStates[selectedProvider].baseUrl || 'http://localhost:11434'
+                url = `${API_BASE}/api/v1/settings/ai-providers/models?provider=${selectedProvider}&baseUrl=${encodeURIComponent(baseUrl)}`
+            }
+            const res = await fetch(url)
             if (res.ok) {
                 const data = await res.json() as { ok: boolean; models?: string[]; error?: string }
                 if (data.ok && data.models?.length) {
@@ -500,7 +549,7 @@ export default function AIProvidersPage() {
                         status: 'untested',
                     })
                 } else {
-                    updateState(selectedProvider, { testResult: `✗ ${data.error ?? 'No models found — is Ollama running?'}` })
+                    updateState(selectedProvider, { testResult: `✗ ${data.error ?? 'No models found — check your API key'}` })
                 }
             } else {
                 updateState(selectedProvider, { testResult: '✗ Could not reach the server — check the URL and try again' })
@@ -537,7 +586,7 @@ export default function AIProvidersPage() {
                 updateState(selectedProvider, patch)
                 // Exit key-edit mode on success
                 setEditingKey((prev) => ({ ...prev, [selectedProvider]: false }))
-                // For Ollama: also fetch the model list so the dropdown is populated
+                // For local Ollama or Ollama Cloud: also fetch the model list so the dropdown is populated
                 if (selectedProvider === 'ollama') {
                     try {
                         const modelsRes = await fetch(`${API_BASE}/api/v1/settings/ai-providers/models?provider=ollama&baseUrl=${encodeURIComponent(state.baseUrl || 'http://localhost:11434')}`)
@@ -547,6 +596,24 @@ export default function AIProvidersPage() {
                                 const firstModel = modelsData.models[0]!
                                 patch.dynamicModels = modelsData.models
                                 if (!patch.selectedModel) patch.selectedModel = firstModel
+                                updateState(selectedProvider, { dynamicModels: modelsData.models, selectedModel: patch.selectedModel })
+                            }
+                        }
+                    } catch { /* non-fatal */ }
+                }
+                if (selectedProvider === 'ollama_cloud') {
+                    try {
+                        const key = state.apiKey
+                        const modelsRes = await fetch(
+                            `${API_BASE}/api/v1/settings/ai-providers/models?provider=ollama_cloud${
+                                key ? `&apiKey=${encodeURIComponent(key)}` : ''
+                            }`
+                        )
+                        if (modelsRes.ok) {
+                            const modelsData = await modelsRes.json() as { ok: boolean; models?: string[] }
+                            if (modelsData.ok && modelsData.models?.length) {
+                                patch.dynamicModels = modelsData.models
+                                if (!patch.selectedModel) patch.selectedModel = modelsData.models[0]!
                                 updateState(selectedProvider, { dynamicModels: modelsData.models, selectedModel: patch.selectedModel })
                             }
                         }
@@ -889,6 +956,28 @@ export default function AIProvidersPage() {
                                     </div>
                                 )}
 
+                                {/* Ollama Cloud: free tier + key info */}
+                                {selectedProvider === 'ollama_cloud' && editingKey[selectedProvider] && (
+                                    <div className="flex flex-col gap-2 rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
+                                        <div className="flex items-start gap-3">
+                                            <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-sky-400" />
+                                            <div>
+                                                <p className="text-sm font-medium text-sky-300">Free tier available — sign in at ollama.com</p>
+                                                <p className="mt-1 text-xs text-zinc-500 leading-relaxed">
+                                                    Ollama Cloud gives you access to large hosted models (gpt-oss, deepseek, kimi, glm…)
+                                                    without running them locally. The free plan covers light usage — chat, quick
+                                                    questions, and trying models.
+                                                </p>
+                                                <p className="mt-1.5 text-xs text-zinc-500 leading-relaxed">
+                                                    Get your API key at{' '}
+                                                    <a href="https://ollama.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2">ollama.com/settings/keys</a>.
+                                                    After saving, Plexo will fetch your available cloud models automatically.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* API key / subscription token field */}
                                 <div className="flex flex-col gap-1.5">
                                     <div className="flex items-center justify-between">
@@ -1049,7 +1138,9 @@ export default function AIProvidersPage() {
                                     </div>
                                 )}
                                 {state.dynamicModels.length > 0 && !selected.staticModels && (
-                                    <p className="text-xs text-zinc-600">{state.dynamicModels.length} models available from your Ollama instance.</p>
+                                    <p className="text-xs text-zinc-600">
+                                        {state.dynamicModels.length} models available {selectedProvider === 'ollama_cloud' ? 'from Ollama Cloud' : 'from your Ollama instance'}.
+                                    </p>
                                 )}
                             </div>
                         )}
