@@ -20,8 +20,9 @@ import { logger } from '../logger.js'
 import { pushTask } from '@plexo/queue'
 import { emitToWorkspace } from '../sse-emitter.js'
 import { generateText } from 'ai'
-import { withFallback } from '@plexo/agent/providers/registry'
+import { withFallback, resolveModel } from '@plexo/agent/providers/registry'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
+import { runSprint } from '@plexo/agent/sprint/runner'
 
 // ── Conversation helpers ──────────────────────────────────────────────────────
 
@@ -411,6 +412,25 @@ chatRouter.post('/execute-action', async (req, res) => {
             }).returning()
             if (!sprint) throw new Error('Sprint insert returned no rows')
             logger.info({ workspaceId, sprintId: sprint.id, category: resolvedCategory }, 'Webchat project explicitly confirmed and created')
+
+            // Resolve planner model and kick off the sprint runner (fire-and-forget)
+            let plannerModel: ReturnType<typeof resolveModel> | undefined
+            try {
+                const { aiSettings } = await loadWorkspaceAISettings(workspaceId)
+                if (aiSettings) plannerModel = resolveModel('planning', aiSettings)
+            } catch (err) {
+                logger.warn({ err, sprintId: sprint.id }, 'Could not resolve AI settings for sprint planner — using env fallback')
+            }
+            runSprint({
+                sprintId: sprint.id,
+                workspaceId,
+                category: resolvedCategory,
+                request: description,
+                plannerModel,
+            }).catch((err: unknown) => {
+                logger.error({ err, sprintId: sprint.id }, 'Sprint run failed')
+            })
+
             res.status(201).json({ sprintId: sprint.id, status: 'created', category: resolvedCategory })
         } else {
             res.status(400).json({ error: { code: 'INVALID_INTENT', message: 'intent must be TASK or PROJECT' } })

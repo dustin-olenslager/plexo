@@ -82,7 +82,7 @@ dashboardRouter.get('/summary', async (req, res) => {
         // Ensemble quality coverage — count tasks by judge mode stored in context JSONB
         const ensembleRows = await db.execute<{ mode: string; count: string; avg_delta: string }>(sql`
           SELECT
-            context->>'_judge'->>'mode' as mode,
+            context->'_judge'->>'mode' as mode,
             COUNT(*) as count,
             AVG(
               CASE
@@ -95,7 +95,7 @@ dashboardRouter.get('/summary', async (req, res) => {
           WHERE workspace_id = ${workspaceId}
             AND status = 'complete'
             AND context ? '_judge'
-          GROUP BY context->>'_judge'->>'mode'
+          GROUP BY context->'_judge'->>'mode'
         `)
 
         const byMode: Record<string, number> = {}
