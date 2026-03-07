@@ -10,6 +10,7 @@ import { sprints, sprintTasks } from '@plexo/db'
 import { resolveModelFromEnv } from '../providers/registry.js'
 import { MODEL_ROUTING } from '../constants.js'
 import { categoryPlannerPrompt } from './categories.js'
+import { buildCapabilityManifest, manifestToPromptBlock } from '../capabilities/manifest.js'
 
 const logger = pino({ name: 'sprint-planner' })
 
@@ -79,13 +80,21 @@ export async function planSprint(params: {
         contextFiles.length > 0 ? `\nKey files:\n${contextFiles.slice(0, 50).join('\n')}` : null,
     ].filter((s): s is string => s !== null).join('\n')
 
+    // Phase D: inject capability manifest so the planner won't assign tasks
+    // requiring capabilities that aren't installed (e.g. video_generation)
+    let capabilityNote = ''
+    try {
+        const manifest = await buildCapabilityManifest(workspaceId)
+        capabilityNote = '\n\n' + manifestToPromptBlock(manifest) + '\n\nIMPORTANT: Only plan tasks achievable with the above capabilities. If a requested task would require video_generation, image_generation, audio_generation, or any connection not listed, substitute it with a text/document deliverable instead (e.g. "video script" instead of "video").'
+    } catch { /* non-fatal */ }
+
     let rawPlan: SprintPlan
     try {
         const result = await generateObject({
             model,
             schema: SprintPlanSchema,
             system: systemPrompt,
-            prompt: userMessage,
+            prompt: userMessage + capabilityNote,
         })
         rawPlan = result.object
     } catch (err) {

@@ -10,6 +10,8 @@ import { loadPluginTools } from '../plugins/bridge.js'
 import { assignVariant, recordVariantOutcome } from '../memory/ab-variants.js'
 import { getPromptOverrides } from '../memory/prompt-improvement.js'
 import { requestApproval, waitForDecision } from '../one-way-door.js'
+import { searchMemory } from '../memory/store.js'
+import { buildCapabilityManifest, manifestToPromptBlock } from '../capabilities/manifest.js'
 
 import type { ExecutionContext, ExecutionPlan, ExecutionResult, StepResult } from '../types.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
@@ -109,6 +111,25 @@ function buildTools(ctx: ExecutionContext) {
             execute: async (input) =>
                 dispatchTool('task_complete', input as Record<string, unknown>, ctx),
         }),
+        // Phase C: write_asset — writes to disk at /tmp/plexo-assets/{taskId}/{filename}
+        // until MinIO is wired in. File path returned so agent can reference it.
+        write_asset: tool({
+            description: 'Save a completed deliverable (document, script, HTML, email copy, etc.) as a named asset file. Use this for any output the user should receive.',
+            inputSchema: z.object({
+                filename: z.string().describe('Filename with extension, e.g. email-sequence.md'),
+                content: z.string().describe('Full file content'),
+                mimeType: z.string().optional().default('text/plain').describe('MIME type'),
+            }),
+            execute: async (input) => {
+                const { mkdirSync, writeFileSync } = await import('node:fs')
+                const { join } = await import('node:path')
+                const dir = `/tmp/plexo-assets/${ctx.taskId}`
+                mkdirSync(dir, { recursive: true })
+                const filePath = join(dir, input.filename as string)
+                writeFileSync(filePath, input.content as string, 'utf8')
+                return `Asset saved: ${filePath} (${(input.content as string).length} bytes)`
+            },
+        }),
     }
 }
 
@@ -198,23 +219,52 @@ export async function executeTask(
         }
     }
 
-    // Load workspace personality settings (non-fatal)
-    let agentName = 'Plexo'
-    let personaPrefix = ''
+    // ── Phase A: Use context already loaded by agent-loop ────────────────────────
+    // agent-loop.ts loads these from DB before building ExecutionContext.
+    // We only fall back to DB here if fields are missing (direct executor calls in tests).
+    let agentName = ctx.agentName ?? 'Plexo'
+    let personaPrefix = ctx.agentPersona ? ctx.agentPersona + '\n\n' : ''
     let systemPromptExtra = ''
+    if (!ctx.agentName) {
+        // Direct call path (tests/sprint runner) — load from DB as before
+        try {
+            const { workspaces } = await import('@plexo/db')
+            const { db: dbInst, eq: eqFn } = await import('@plexo/db')
+            const [ws] = await dbInst.select({ settings: workspaces.settings }).from(workspaces)
+                .where(eqFn(workspaces.id, ctx.workspaceId)).limit(1)
+            if (ws?.settings) {
+                const s = ws.settings as Record<string, unknown>
+                if (typeof s.agentName === 'string' && s.agentName) agentName = s.agentName
+                if (typeof s.agentPersona === 'string' && s.agentPersona) personaPrefix = s.agentPersona + '\n\n'
+                if (typeof s.systemPromptExtra === 'string' && s.systemPromptExtra) systemPromptExtra = '\n\n' + s.systemPromptExtra
+            }
+        } catch { /* non-fatal */ }
+    }
+
+    // ── Phase B: Read prior memory before building system prompt ──────────────
+    let memoryBlock = ''
     try {
-        const { workspaces } = await import('@plexo/db')
-        const { db: dbInst, eq: eqFn } = await import('@plexo/db')
-        const [ws] = await dbInst.select({ settings: workspaces.settings }).from(workspaces)
-            .where(eqFn(workspaces.id, ctx.workspaceId)).limit(1)
-        if (ws?.settings) {
-            const s = ws.settings as Record<string, unknown>
-            if (typeof s.agentName === 'string' && s.agentName) agentName = s.agentName
-            if (typeof s.agentPersona === 'string' && s.agentPersona) personaPrefix = s.agentPersona + '\n\n'
-            if (typeof s.systemPromptExtra === 'string' && s.systemPromptExtra) systemPromptExtra = '\n\n' + s.systemPromptExtra
+        const priorMemory = await searchMemory({
+            workspaceId: ctx.workspaceId,
+            query: plan.goal,
+            limit: 3,
+        })
+        if (priorMemory.length > 0) {
+            const entries = priorMemory
+                .map((m) => `- ${m.content.split('\n').slice(0, 3).join(' | ')}`)
+                .join('\n')
+            memoryBlock = `\n\nPRIOR WORK CONTEXT (from memory):\n${entries}`
         }
     } catch { /* non-fatal */ }
 
+    // ── Phase D: Capability manifest in executor prompt ──────────────────
+    let capabilityBlock = ''
+    try {
+        const manifest = await buildCapabilityManifest(ctx.workspaceId)
+        capabilityBlock = '\n\n' + manifestToPromptBlock(manifest)
+    } catch { /* non-fatal */ }
+
+    // ── Phase A/B variant assignment (self-improvement) ─────────────────
     // Phase 15 — A/B variant assignment for recursive self-improvement
     // Assigns this task to control (A) or challenger (B) prompt at 80/20 split.
     // Challenger overrides are merged on top of workspace systemPromptExtra.
@@ -233,14 +283,16 @@ export async function executeTask(
         .join('')
 
     const systemPrompt = `${personaPrefix}You are ${agentName}, an autonomous AI agent executing a task.
+${ctx.workspaceName ? `\nWorkspace: ${ctx.workspaceName}` : ''}${ctx.workspaceSummary ? `\nWorkspace purpose: ${ctx.workspaceSummary}` : ''}${ctx.sprintGoal ? `\nActive project goal: ${ctx.sprintGoal}` : ''}
 
 Task goal: ${plan.goal}
 
 You have ${plan.steps.length} planned steps. Work through them carefully.
 - Use tools to make progress. Read before writing.
+- Use write_asset to save any deliverable the user should receive (documents, scripts, email copy, HTML, etc.).
 - When you have completed all steps, call task_complete.
 - Be conservative. If something seems wrong, stop and report it.
-- NEVER output credentials, secrets, or tokens in any tool call or message.${systemPromptExtra}${variantExtra}`
+- NEVER output credentials, secrets, or tokens in any tool call or message.${capabilityBlock}${memoryBlock}${systemPromptExtra}${variantExtra}`
 
     const planSummary = plan.steps
         .map((s) => `Step ${s.stepNumber}: ${s.description}`)

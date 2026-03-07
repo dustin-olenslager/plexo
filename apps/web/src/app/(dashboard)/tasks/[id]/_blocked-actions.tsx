@@ -1,9 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { RefreshCw, XCircle, ExternalLink, AlertTriangle, ArrowRight } from 'lucide-react'
+import {
+    RefreshCw, XCircle, ExternalLink, AlertTriangle, ArrowRight,
+    Lightbulb, ChevronRight, CheckCircle2, Zap,
+} from 'lucide-react'
 
 // ── Root-cause resolution map ─────────────────────────────────────────────────
 // Maps known outcome patterns to a fix destination and human-readable label.
@@ -39,6 +42,116 @@ function resolveBlocker(outcomeSummary: string | null) {
     return RESOLUTION_MAP.find(r => r.pattern.test(outcomeSummary)) ?? null
 }
 
+// ── Clarification types ────────────────────────────────────────────────────────
+
+interface ClarificationAlternative {
+    label: string
+    description: string
+    taskDescription: string
+}
+
+interface ClarificationPayload {
+    type: 'clarification'
+    message: string
+    alternatives: ClarificationAlternative[]
+}
+
+// ── Clarification panel ────────────────────────────────────────────────────────
+
+function ClarificationPanel({ taskId, clarification }: {
+    taskId: string
+    clarification: ClarificationPayload
+}) {
+    const router = useRouter()
+    const apiBase = typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL ?? 'http://localhost:3001')
+    const [choosing, setChoosing] = useState<number | null>(null)
+    const [chosen, setChosen] = useState<number | null>(null)
+    const [error, setError] = useState<string | null>(null)
+
+    async function handleChoose(idx: number) {
+        setChoosing(idx)
+        setError(null)
+        try {
+            const res = await fetch(`${apiBase}/api/v1/tasks/${taskId}/clarification/respond`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ alternativeIndex: idx }),
+            })
+            if (!res.ok) {
+                const body = await res.json() as { error?: string }
+                throw new Error(body.error ?? 'Failed to submit choice')
+            }
+            const { newTaskId } = await res.json() as { newTaskId: string }
+            setChosen(idx)
+            setTimeout(() => router.push(`/tasks/${newTaskId}`), 800)
+        } catch (e) {
+            setError(e instanceof Error ? e.message : 'Unknown error')
+        } finally {
+            setChoosing(null)
+        }
+    }
+
+    if (chosen !== null) {
+        return (
+            <div className="rounded-xl border border-emerald-800/40 bg-emerald-950/30 px-4 py-3 flex items-center gap-2 text-sm text-emerald-400">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                Alternative queued — redirecting to new task…
+            </div>
+        )
+    }
+
+    return (
+        <div className="rounded-xl border border-amber-900/40 bg-amber-950/10 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-start gap-3 border-b border-amber-900/30 px-4 py-3.5">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-500/15 text-amber-400 mt-0.5">
+                    <Lightbulb className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-semibold text-amber-300">Capability gap detected</p>
+                    <p className="text-[12px] text-amber-500/80 mt-0.5 leading-relaxed">{clarification.message}</p>
+                </div>
+            </div>
+
+            {/* Alternatives */}
+            <div className="px-4 py-3">
+                <p className="text-[11px] text-zinc-500 mb-2 uppercase tracking-wide font-medium">Here's what I can do instead:</p>
+                <div className="flex flex-col gap-2">
+                    {clarification.alternatives.map((alt, idx) => (
+                        <button
+                            key={idx}
+                            onClick={() => void handleChoose(idx)}
+                            disabled={choosing !== null}
+                            className="group flex items-center gap-3 rounded-lg border border-zinc-800/60 bg-zinc-900/60 px-3.5 py-3 text-left hover:bg-zinc-800/80 hover:border-zinc-700/60 transition-all disabled:opacity-50"
+                        >
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-indigo-500/15 text-indigo-400">
+                                {choosing === idx ? (
+                                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                    <Zap className="h-3.5 w-3.5" />
+                                )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[13px] font-medium text-zinc-200 group-hover:text-white transition-colors">
+                                    {alt.label}
+                                </p>
+                                <p className="text-[11px] text-zinc-500 mt-0.5 leading-relaxed">{alt.description}</p>
+                            </div>
+                            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-zinc-600 group-hover:text-zinc-400 transition-colors" />
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {error && (
+                <div className="border-t border-amber-900/30 px-4 py-2 text-[11px] text-red-400 bg-red-950/20">
+                    {error}
+                </div>
+            )}
+        </div>
+    )
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function BlockedActions({ taskId, outcomeSummary }: {
@@ -53,8 +166,26 @@ export function BlockedActions({ taskId, outcomeSummary }: {
     const [retried, setRetried] = useState(false)
     const [dismissed, setDismissed] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [clarification, setClarification] = useState<ClarificationPayload | null>(null)
+    const [clarificationLoading, setClarificationLoading] = useState(true)
 
     const resolution = resolveBlocker(outcomeSummary)
+
+    // Try to fetch clarification payload if this is a capability-blocked task
+    useEffect(() => {
+        if (!taskId) return
+        void (async () => {
+            try {
+                const res = await fetch(`${apiBase}/api/v1/tasks/${taskId}/clarification`)
+                if (res.ok) {
+                    const body = await res.json() as { clarification: ClarificationPayload }
+                    setClarification(body.clarification)
+                }
+            } catch { /* non-fatal */ } finally {
+                setClarificationLoading(false)
+            }
+        })()
+    }, [taskId, apiBase])
 
     async function handleRetry() {
         setRetrying(true)
@@ -108,88 +239,98 @@ export function BlockedActions({ taskId, outcomeSummary }: {
     }
 
     return (
-        <div className="rounded-xl border border-red-900/40 bg-red-950/20 overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center gap-2.5 border-b border-red-900/30 px-4 py-3">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" />
-                <div>
-                    <p className="text-[13px] font-semibold text-red-300">This task is blocked</p>
-                    <p className="text-[11px] text-red-500/70 mt-0.5">
-                        {outcomeSummary ?? 'The agent could not continue. Choose an action below.'}
-                    </p>
-                </div>
-            </div>
+        <div className="flex flex-col gap-3">
+            {/* Clarification panel — shown when planner returned capability gap */}
+            {!clarificationLoading && clarification && (
+                <ClarificationPanel taskId={taskId} clarification={clarification} />
+            )}
 
-            {/* Actions */}
-            <div className="flex flex-col divide-y divide-red-900/20">
-                {/* Fix root cause — only shown when we know what to fix */}
-                {resolution && (
-                    <Link
-                        href={resolution.fixHref}
-                        className="group flex items-start gap-3 px-4 py-3.5 hover:bg-red-950/40 transition-colors"
+            {/* Standard blocked panel */}
+            <div className="rounded-xl border border-red-900/40 bg-red-950/20 overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center gap-2.5 border-b border-red-900/30 px-4 py-3">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-red-400" />
+                    <div>
+                        <p className="text-[13px] font-semibold text-red-300">This task is blocked</p>
+                        <p className="text-[11px] text-red-500/70 mt-0.5">
+                            {outcomeSummary ?? 'The agent could not continue. Choose an action below.'}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex flex-col divide-y divide-red-900/20">
+                    {/* Fix root cause — only shown when we know what to fix */}
+                    {resolution && (
+                        <Link
+                            href={resolution.fixHref}
+                            className="group flex items-start gap-3 px-4 py-3.5 hover:bg-red-950/40 transition-colors"
+                        >
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-indigo-500/15 text-indigo-400 mt-0.5">
+                                <ExternalLink className="h-3.5 w-3.5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[13px] font-medium text-zinc-200 group-hover:text-white transition-colors">
+                                    {resolution.fixLabel}
+                                </p>
+                                <p className="text-[11px] text-zinc-500 mt-0.5 leading-relaxed">
+                                    {resolution.fixDescription}
+                                </p>
+                            </div>
+                            <ArrowRight className="h-3.5 w-3.5 shrink-0 text-zinc-600 group-hover:text-zinc-400 transition-colors mt-1" />
+                        </Link>
+                    )}
+
+                    {/* Retry — hidden when clarification is shown (user should pick an alternative instead) */}
+                    {!clarification && (
+                        <button
+                            onClick={() => void handleRetry()}
+                            disabled={retrying || dismissing}
+                            className="group flex items-start gap-3 px-4 py-3.5 hover:bg-red-950/40 transition-colors text-left disabled:opacity-40"
+                        >
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-500/15 text-amber-400 mt-0.5">
+                                <RefreshCw className={`h-3.5 w-3.5 ${retrying ? 'animate-spin' : ''}`} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-[13px] font-medium text-zinc-200 group-hover:text-white transition-colors">
+                                    {retrying ? 'Re-queuing…' : 'Retry task'}
+                                </p>
+                                <p className="text-[11px] text-zinc-500 mt-0.5 leading-relaxed">
+                                    {resolution
+                                        ? 'After fixing the issue above, re-queue this task with the same parameters.'
+                                        : 'Re-queue this task with the same parameters.'}
+                                </p>
+                            </div>
+                        </button>
+                    )}
+
+                    {/* Dismiss */}
+                    <button
+                        onClick={() => void handleDismiss()}
+                        disabled={retrying || dismissing}
+                        className="group flex items-start gap-3 px-4 py-3.5 hover:bg-red-950/40 transition-colors text-left disabled:opacity-40"
                     >
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-indigo-500/15 text-indigo-400 mt-0.5">
-                            <ExternalLink className="h-3.5 w-3.5" />
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-zinc-500/15 text-zinc-500 mt-0.5">
+                            <XCircle className="h-3.5 w-3.5" />
                         </div>
                         <div className="min-w-0 flex-1">
-                            <p className="text-[13px] font-medium text-zinc-200 group-hover:text-white transition-colors">
-                                {resolution.fixLabel}
+                            <p className="text-[13px] font-medium text-zinc-400 group-hover:text-zinc-300 transition-colors">
+                                {dismissing ? 'Dismissing…' : 'Dismiss'}
                             </p>
-                            <p className="text-[11px] text-zinc-500 mt-0.5 leading-relaxed">
-                                {resolution.fixDescription}
+                            <p className="text-[11px] text-zinc-600 mt-0.5 leading-relaxed">
+                                Cancel and clear this blocked task from your queue.
                             </p>
                         </div>
-                        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-zinc-600 group-hover:text-zinc-400 transition-colors mt-1" />
-                    </Link>
-                )}
-
-                {/* Retry */}
-                <button
-                    onClick={() => void handleRetry()}
-                    disabled={retrying || dismissing}
-                    className="group flex items-start gap-3 px-4 py-3.5 hover:bg-red-950/40 transition-colors text-left disabled:opacity-40"
-                >
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-amber-500/15 text-amber-400 mt-0.5">
-                        <RefreshCw className={`h-3.5 w-3.5 ${retrying ? 'animate-spin' : ''}`} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-medium text-zinc-200 group-hover:text-white transition-colors">
-                            {retrying ? 'Re-queuing…' : 'Retry task'}
-                        </p>
-                        <p className="text-[11px] text-zinc-500 mt-0.5 leading-relaxed">
-                            {resolution
-                                ? 'After fixing the issue above, re-queue this task with the same parameters.'
-                                : 'Re-queue this task with the same parameters.'}
-                        </p>
-                    </div>
-                </button>
-
-                {/* Dismiss */}
-                <button
-                    onClick={() => void handleDismiss()}
-                    disabled={retrying || dismissing}
-                    className="group flex items-start gap-3 px-4 py-3.5 hover:bg-red-950/40 transition-colors text-left disabled:opacity-40"
-                >
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-zinc-500/15 text-zinc-500 mt-0.5">
-                        <XCircle className="h-3.5 w-3.5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-medium text-zinc-400 group-hover:text-zinc-300 transition-colors">
-                            {dismissing ? 'Dismissing…' : 'Dismiss'}
-                        </p>
-                        <p className="text-[11px] text-zinc-600 mt-0.5 leading-relaxed">
-                            Cancel and clear this blocked task from your queue.
-                        </p>
-                    </div>
-                </button>
-            </div>
-
-            {/* Inline error */}
-            {error && (
-                <div className="border-t border-red-900/30 px-4 py-2 text-[11px] text-red-400 bg-red-950/20">
-                    {error}
+                    </button>
                 </div>
-            )}
+
+                {/* Inline error */}
+                {error && (
+                    <div className="border-t border-red-900/30 px-4 py-2 text-[11px] text-red-400 bg-red-950/20">
+                        {error}
+                    </div>
+                )}
+            </div>
         </div>
     )
 }

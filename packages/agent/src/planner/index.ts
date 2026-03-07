@@ -1,19 +1,25 @@
+/**
+ * Task planner — Phase D: Capability-aware with ClarificationRequest output.
+ *
+ * Returns either:
+ *   { type: 'plan', plan: ExecutionPlan }        — task is achievable, proceed
+ *   { type: 'clarification', message, alternatives } — gap detected, ask user
+ *
+ * The planner receives the workspace capability manifest so it can self-limit
+ * to what is actually achievable. If a required capability is missing, it
+ * returns a ClarificationRequest instead of a plan — the queue treats this as
+ * status: 'blocked' and surfaces the alternatives to the user via their channel.
+ */
 import { generateObject } from 'ai'
 import { z } from 'zod'
 import { withFallback } from '../providers/registry.js'
 import { SAFETY_LIMITS } from '../constants.js'
 import { PlexoError } from '../errors.js'
-import type { ExecutionPlan, ExecutionContext, PlanStep, OneWayDoor } from '../types.js'
+import { buildCapabilityManifest, manifestToPromptBlock } from '../capabilities/manifest.js'
+import type { ExecutionPlan, ExecutionContext, PlanStep, OneWayDoor, PlannerResult } from '../types.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
 
-const PLANNER_SYSTEM = `You are Plexo's execution planner. Your job is to analyze a task and produce a detailed, safe, reversible execution plan.
-
-Rules:
-- Prefer reversible actions. Flag irreversible ones as one-way doors requiring approval.
-- Break work into atomic steps that can be verified independently.
-- Be conservative with confidence scores — only give 0.9+ if the path is fully clear.
-- Identify all external dependencies, file changes, and potential side effects.
-- Steps should be independently verifiable.`
+// ── Schemas ────────────────────────────────────────────────────────────────────
 
 const PlanStepSchema = z.object({
     stepNumber: z.number().int().positive(),
@@ -30,7 +36,8 @@ const OneWayDoorSchema = z.object({
     requiresApproval: z.boolean(),
 })
 
-const ExecutionPlanSchema = z.object({
+const ExecutionPlanShape = z.object({
+    type: z.literal('plan'),
     goal: z.string(),
     steps: z.array(PlanStepSchema).min(1),
     oneWayDoors: z.array(OneWayDoorSchema),
@@ -39,10 +46,46 @@ const ExecutionPlanSchema = z.object({
     risks: z.array(z.string()),
 })
 
-/**
- * Default workspace AI settings — Anthropic via env key, no fallback chain.
- * Used when the workspace has no AI provider config stored (legacy / phase 2 mode).
- */
+const ClarificationShape = z.object({
+    type: z.literal('clarification'),
+    message: z.string().describe('Explain what you cannot do and why, in one or two sentences.'),
+    alternatives: z.array(z.object({
+        label: z.string().describe('Short button label, e.g. "Write a video script"'),
+        description: z.string().describe('One sentence: what will be delivered'),
+        taskDescription: z.string().describe('Full task description to queue if user picks this'),
+    })).min(1).max(4),
+})
+
+const PlannerOutputSchema = z.discriminatedUnion('type', [ExecutionPlanShape, ClarificationShape])
+
+// ── System prompt builder ──────────────────────────────────────────────────────
+
+function buildPlannerSystem(
+    capabilityBlock: string,
+    workspaceName?: string,
+    sprintGoal?: string,
+): string {
+    const contextBlock = [
+        workspaceName ? `Workspace: ${workspaceName}` : null,
+        sprintGoal ? `Active project goal: ${sprintGoal}` : null,
+    ].filter(Boolean).join('\n')
+
+    return `You are Plexo's execution planner. Analyze a task and produce either a safe execution plan or a clarification request.
+
+${capabilityBlock}
+
+${contextBlock ? `CONTEXT:\n${contextBlock}\n` : ''}
+RULES:
+- If the task requires capabilities NOT listed in the manifest above (e.g. video_generation, image_generation, audio_generation, voice_synthesis, or any service not in Active connections), you MUST return type: "clarification" — never attempt a plan for work you cannot deliver.
+- When returning clarification: provide 1–4 concrete alternatives you CAN deliver with the available tools. Always include a written/text alternative.
+- When returning a plan: prefer reversible actions, flag irreversible ones as one-way doors.
+- Break work into atomic steps that can be verified independently.
+- Be conservative with confidence scores — only give 0.9+ if the path is fully clear.
+- Steps should reference only tools listed in the capability manifest.`
+}
+
+// ── Default workspace AI settings ─────────────────────────────────────────────
+
 function defaultSettings(): WorkspaceAISettings {
     return {
         primaryProvider: 'anthropic',
@@ -53,13 +96,27 @@ function defaultSettings(): WorkspaceAISettings {
     }
 }
 
+// ── Planner ────────────────────────────────────────────────────────────────────
+
 export async function planTask(
     ctx: ExecutionContext,
     taskDescription: string,
     taskContext: Record<string, unknown>,
     aiSettings?: WorkspaceAISettings,
-): Promise<ExecutionPlan> {
+): Promise<PlannerResult> {
     const settings = aiSettings ?? defaultSettings()
+
+    // Build capability manifest (Phase D)
+    const manifest = await buildCapabilityManifest(ctx.workspaceId).catch(() => ({
+        tools: ['read_file', 'write_file', 'shell', 'task_complete', 'write_asset'],
+        connections: [],
+        models: [{ provider: 'anthropic', model: 'claude', supports: ['text', 'code'], missing: ['image_generation', 'video_generation'] }],
+        skills: [],
+        allCapabilities: new Set(['read_file', 'write_file', 'shell', 'text', 'code']),
+    }))
+
+    const capabilityBlock = manifestToPromptBlock(manifest)
+    const systemPrompt = buildPlannerSystem(capabilityBlock, ctx.workspaceName, ctx.sprintGoal)
 
     const userPrompt = JSON.stringify({
         task: taskDescription,
@@ -70,31 +127,43 @@ export async function planTask(
         },
     })
 
-    const { object: plan } = await withFallback(settings, 'planning', async (model) => {
+    const raw = await withFallback(settings, 'planning', async (model) => {
         return generateObject({
             model,
-            system: PLANNER_SYSTEM,
+            system: systemPrompt,
             prompt: userPrompt,
-            schema: ExecutionPlanSchema,
+            schema: PlannerOutputSchema,
         })
     })
 
-    if (plan.steps.length > SAFETY_LIMITS.MAX_PLAN_STEPS) {
+    // Clarification path — return as-is for the queue to handle
+    if (raw.object.type === 'clarification') {
+        return {
+            type: 'clarification',
+            message: raw.object.message,
+            alternatives: raw.object.alternatives,
+        }
+    }
+
+    // Plan path
+    if (raw.object.steps.length > SAFETY_LIMITS.MAX_PLAN_STEPS) {
         throw new PlexoError(
-            `Plan has ${plan.steps.length} steps — exceeds safety limit of ${SAFETY_LIMITS.MAX_PLAN_STEPS}`,
+            `Plan has ${raw.object.steps.length} steps — exceeds safety limit of ${SAFETY_LIMITS.MAX_PLAN_STEPS}`,
             'PLAN_TOO_LARGE',
             'user',
             400,
         )
     }
 
-    return {
+    const plan: ExecutionPlan = {
         taskId: ctx.taskId,
-        goal: plan.goal,
-        steps: plan.steps as PlanStep[],
-        oneWayDoors: (plan.oneWayDoors ?? []) as OneWayDoor[],
-        estimatedDurationMs: plan.estimatedDurationMs ?? 0,
-        confidenceScore: Math.min(1, Math.max(0, plan.confidenceScore ?? 0.5)),
-        risks: plan.risks ?? [],
+        goal: raw.object.goal,
+        steps: raw.object.steps as PlanStep[],
+        oneWayDoors: (raw.object.oneWayDoors ?? []) as OneWayDoor[],
+        estimatedDurationMs: raw.object.estimatedDurationMs ?? 0,
+        confidenceScore: Math.min(1, Math.max(0, raw.object.confidenceScore ?? 0.5)),
+        risks: raw.object.risks ?? [],
     }
+
+    return { type: 'plan', plan }
 }
