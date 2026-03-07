@@ -362,48 +362,49 @@ systemRouter.post('/update', async (_req, res) => {
             }
 
             send('status', { step: 'restart', message: 'Restarting containers…' })
-            // Sort: web first (can restart while API is still streaming), API/Caddy last
-            // so the SSE stream stays alive long enough to deliver the done event.
-            const sorted = [...containers].sort((a) =>
-                a.Names.some(n => n.includes('web')) ? -1 : 1,
-            )
-            const apiContainer = sorted.find(c => c.Names.some(n => n.includes('api')))
-            const caddyContainer = sorted.find(c => c.Names.some(n => n.includes('caddy')))
-            const others = sorted.filter(c => !c.Names.some(n => n.includes('api') || n.includes('caddy')))
+            // Sort: web first (can restart safely), then db/redis/others, Caddy, API last
+            const sorted = [...containers].sort((a, b) => {
+                const nameA = a.Names[0] ?? ''
+                const nameB = b.Names[0] ?? ''
+                if (nameA.includes('web')) return -1
+                if (nameB.includes('web')) return 1
+                if (nameA.includes('api')) return 1
+                if (nameB.includes('api')) return -1
+                if (nameA.includes('caddy')) return 1
+                if (nameB.includes('caddy')) return -1
+                return 0
+            })
 
-            for (const container of others) {
+            // Emit UI logs for restart intents first
+            for (const container of sorted) {
                 const name = container.Names[0]?.replace(/^\//, '') ?? 'container'
                 send('status', { step: 'restart', message: `Restarting ${name}…` })
-                await restartContainer(container.Id)
-                send('status', { step: 'restart', message: `Restarted ${name}` })
             }
 
             // Invalidate version cache before restarting API
             const redisPre = await getRedis()
             await redisPre.del(VERSION_CACHE_KEY)
 
-            if (caddyContainer) {
-                const name = caddyContainer.Names[0]?.replace(/^\//, '') ?? 'container'
-                send('status', { step: 'restart', message: `Restarting ${name}…` })
-            }
-            if (apiContainer) {
-                const name = apiContainer.Names[0]?.replace(/^\//, '') ?? 'container'
-                send('status', { step: 'restart', message: `Restarting ${name}…` })
-            }
-
-            // Send done BEFORE restarting the API container — the connection
-            // will drop when the API/Caddy restarts, but the client will have already
-            // received the success event.
+            // Send done BEFORE actually restarting any containers.
+            // If we restart Redis first, the API crashes immediately on socket close,
+            // never sending the 'done' event to the user.
             send('done', { success: true, message: 'Update complete. Reload the page in a few seconds.' })
             res.end()
 
-            if (apiContainer || caddyContainer) {
-                // Small delay so the SSE frame makes it through the TCP buffer before we die
-                await new Promise(r => setTimeout(r, 1500))
-                if (caddyContainer) await restartContainer(caddyContainer.Id).catch(() => {})
-                if (apiContainer) await restartContainer(apiContainer.Id).catch(() => { /* container restart will kill us anyway */ })
-            }
-            return // skip the duplicate send/res.end below
+            // Perform the restarts detached in the background
+            setTimeout(() => {
+                void (async () => {
+                    for (const container of sorted) {
+                        try {
+                            await restartContainer(container.Id)
+                        } catch {
+                            // ignore — restarting the API container will kill us anyway
+                        }
+                    }
+                })()
+            }, 1500)
+
+            return // done
         } else if (isGit) {
             send('status', { step: 'git', message: 'Pulling latest changes from git…' })
             const { stdout: pullOut } = await execAsync('git pull', { cwd: process.cwd() })
