@@ -6,7 +6,7 @@ import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import {
     Code2, Search, PenLine, Server, BarChart2, Megaphone, Sparkles,
-    Plus, RefreshCw, X, Loader2,
+    Plus, RefreshCw, X, Loader2, Play, Square, Trash2,
 } from 'lucide-react'
 import { getCategoryDef } from '@web/lib/project-categories'
 import { useWorkspace } from '@web/context/workspace'
@@ -83,7 +83,7 @@ function formatAge(iso: string) {
     return `${Math.round(h / 24)}d ago`
 }
 
-function ProjectCard({ sprint }: { sprint: Sprint }) {
+function ProjectCard({ sprint, onAction }: { sprint: Sprint, onAction: (action: 'start'|'stop'|'delete', id: string) => void }) {
     const def = getCategoryDef(sprint.category ?? 'code')
     const pct = sprint.totalTasks > 0
         ? Math.round((sprint.completedTasks / sprint.totalTasks) * 100)
@@ -111,9 +111,38 @@ function ProjectCard({ sprint }: { sprint: Sprint }) {
                         </div>
                     </div>
                 </div>
-                <span className={`shrink-0 text-xs font-medium ${STATUS_TEXT[sprint.status] ?? 'text-zinc-400'}`}>
-                    {sprint.status}
-                </span>
+                <div className="flex items-center gap-3">
+                    <span className={`shrink-0 text-xs font-medium ${STATUS_TEXT[sprint.status] ?? 'text-zinc-400'}`}>
+                        {sprint.status}
+                    </span>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.preventDefault()}>
+                        {['cancelled', 'failed'].includes(sprint.status) && (
+                            <button
+                                onClick={(e) => { e.preventDefault(); onAction('start', sprint.id) }}
+                                className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-500 hover:text-indigo-400 transition-colors"
+                                title="Restart project"
+                            >
+                                <Play className="h-4 w-4" />
+                            </button>
+                        )}
+                        {['planning', 'running', 'finalizing'].includes(sprint.status) && (
+                            <button
+                                onClick={(e) => { e.preventDefault(); onAction('stop', sprint.id) }}
+                                className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-500 hover:text-amber-500 transition-colors"
+                                title="Stop project"
+                            >
+                                <Square className="h-4 w-4" />
+                            </button>
+                        )}
+                        <button
+                            onClick={(e) => { e.preventDefault(); onAction('delete', sprint.id) }}
+                            className="p-1.5 rounded-md hover:bg-zinc-800 text-zinc-500 hover:text-red-400 transition-colors"
+                            title="Delete project"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </button>
+                    </div>
+                </div>
             </div>
 
             {sprint.totalTasks > 0 && (
@@ -167,6 +196,29 @@ export default function ProjectsPage() {
     }
 
     useEffect(() => { void load() }, [workspaceId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ── Actions ───────────────────────────────────────────────────────────────
+    const handleAction = async (action: 'start'|'stop'|'delete', id: string) => {
+        if (!workspaceId) return
+        try {
+            if (action === 'start') {
+                await fetch(`${apiBase}/api/v1/sprints/${id}/run`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ workspaceId })
+                })
+            } else if (action === 'stop') {
+                if (!confirm('Stop this project? All tasks will be cancelled.')) return
+                await fetch(`${apiBase}/api/v1/sprints/${id}`, { method: 'DELETE' })
+            } else if (action === 'delete') {
+                if (!confirm('Permanently delete this project and all its history? This cannot be undone.')) return
+                await fetch(`${apiBase}/api/v1/sprints/${id}?hardDelete=true`, { method: 'DELETE' })
+            }
+            void load(true)
+        } catch (err) {
+            console.error(err)
+        }
+    }
 
     // Auto-refresh while active projects exist
     useEffect(() => {
@@ -345,7 +397,7 @@ export default function ProjectsPage() {
             ) : (
                 <div className="flex flex-col gap-3">
                     {displayed.map((sprint) => (
-                        <ProjectCard key={sprint.id} sprint={sprint} />
+                        <ProjectCard key={sprint.id} sprint={sprint} onAction={handleAction} />
                     ))}
                 </div>
             )}

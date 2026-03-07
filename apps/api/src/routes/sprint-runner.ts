@@ -83,6 +83,7 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
 
 sprintRunnerRouter.delete('/:id', async (req, res) => {
     const { id: sprintId } = req.params
+    const hardDelete = req.query.hardDelete === 'true'
 
     try {
         const [sprint] = await db
@@ -93,6 +94,28 @@ sprintRunnerRouter.delete('/:id', async (req, res) => {
 
         if (!sprint) {
             res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Sprint not found' } })
+            return
+        }
+
+        if (hardDelete) {
+            // Cancel any actively running task to prevent background ghost execution
+            const allTaskIds = await db
+                .select({ id: tasks.id })
+                .from(tasks)
+                .where(eq(tasks.projectId, sprintId))
+                .then((rows) => rows.map((r) => r.id))
+
+            for (const taskId of allTaskIds) {
+                cancelActiveTask(taskId)
+            }
+
+            // Hard delete the sprint row (cascade triggers on sprintTasks and sprintLogs)
+            // Note: tasks.projectId is SET NULL by the db so tasks themselves aren't deleted.
+            await db.delete(sprints).where(eq(sprints.id, sprintId))
+            
+            logger.info({ sprintId }, 'Sprint hard deleted')
+            emitToWorkspace(sprint.workspaceId ?? '', { type: 'sprint_deleted', sprintId })
+            res.json({ ok: true, hardDeleted: true })
             return
         }
 
