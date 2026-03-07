@@ -6,6 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'www',
   server: {
     allowNavigation: ['*'],
+    errorPath: 'error.html',
   },
   plugins: {
     PushNotifications: {
