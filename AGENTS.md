@@ -69,9 +69,13 @@ plugins/core/*     → packages/sdk only (never packages/db or packages/agent)
 ## Deploy sequence (non-negotiable)
 1. Commit locally
 2. `git push origin main`
-3. On VPS: `git pull origin main`
-4. `docker compose -f docker/compose.yml build <service> && up -d <service>`
-Never skip steps or reorder. Never edit files directly on the VPS.
+3. Single SSH command: `git pull origin main && docker compose -f docker/compose.yml build <service> && docker compose -f docker/compose.yml up -d <service>`
+
+Rules:
+- `git pull` and `docker compose build/up` MUST be in the same SSH invocation, chained with `&&`.
+- Never issue `docker compose build` or `up -d` as a separate follow-up SSH command — that skips the pull.
+- Never edit files directly on the VPS.
+- If the SSH connection drops mid-deploy, re-issue the full sequence from step 3, not just the build/up portion.
 
 ## Known Issues
 *None.*
