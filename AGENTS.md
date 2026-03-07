@@ -303,3 +303,15 @@ This has implications for every decision:
 
 - **Root Cause**: Running multiple terminal agents executing `pnpm dev` or `tsx watch` concurrently spawns duplicate Next.js / API servers. These fight over port 3000 and Hot Module Replacement (HMR) WebSockets, causing constant `[Fast Refresh]` loops and UI flashing (e.g., the sidebar/nav rapidly appearing and disappearing).
 - **Resolution**: Ran `killall -9 node tsx turbo next pnpm` to cleanly tear down all servers, then executed a single `pnpm dev` process. Next.js HMR stabilized (settling at ~600ms per build-up) without infinite refresh loops.
+
+### 2026-03 — Version Check + Release Infrastructure
+
+- **Root cause of all prior version-check failures**: GitHub Releases API `/releases/latest` returns 404 when no releases exist, and also skips pre-releases. The existing `system.ts` fell back to commit SHA comparison, which only triggers when the local SHA differs from HEAD on main — never "behind" for a dev clone on HEAD.
+- **Fix (API endpoint)**: Changed from `/releases/latest` to `/releases?per_page=1` in `apps/api/src/routes/system.ts`. This returns the most recently published release including pre-releases, which is correct for a beta project.
+- **Fix (version source of truth)**: `NEXT_PUBLIC_APP_VERSION` now injected in `apps/web/next.config.ts` from root `package.json`. Sidebar (`sidebar.tsx`) and dashboard footer (`(dashboard)/page.tsx`) both read from this env var. No more hardcoded version strings or direct `package.json` imports in components.
+- **GitHub Release**: First release tagged `v0.8.0-beta.1` (matching all `package.json` files). Published as pre-release. Tag pushed to origin.
+- **`scripts/self-update.sh`**: Handles git pull → pnpm install → db:migrate → docker compose build + up. Checks `PLEXO_MANAGED=true` to skip Docker steps on managed instances. Gracefully handles missing Docker binary.
+- **UpdateModal architecture**: Already implemented before this task. Polls `GET /api/v1/system/version` every 6h. Opens automatically when `behind: true`. Handles streaming SSE update log from `POST /api/v1/system/update`. Manual command copy-to-clipboard for non-Docker/non-git installs.
+- **Redis keys**: `plexo:system:latest_version` (1h TTL, cleared after update). No DB table needed — Redis is the correct store for ephemeral version cache.
+- **`/releases/latest` cannot return pre-releases**: This is a GitHub API constraint. Always use `/releases?per_page=1` for version checks in projects that use pre-release tags.
+
