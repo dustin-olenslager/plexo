@@ -27,7 +27,7 @@ Replace `<service>` with the affected container(s): `web`, `api`, or both (run t
 
 4. Smoke test:
 ```bash
-curl -sm5 https://APP_DOMAIN/api/v1/health
+curl -sm5 https://APP_DOMAIN/health
 ```
 
 Expect `200` with `postgres` and `redis` status ok. If not, check `docker compose logs <service> --tail 50` on the VPS.
