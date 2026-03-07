@@ -28,11 +28,19 @@ const WorkspaceContext = createContext<WorkspaceContextValue>({
     setWorkspace: () => undefined,
 })
 
-export function WorkspaceProvider({ children }: { children: ReactNode }) {
+export function WorkspaceProvider({ 
+    children,
+    initialId,
+    initialName,
+}: { 
+    children: ReactNode
+    initialId?: string
+    initialName?: string
+}) {
     const envId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
 
-    const [workspaceId, setWorkspaceId] = useState(envId)
-    const [workspaceName, setWorkspaceName] = useState('')
+    const [workspaceId, setWorkspaceId] = useState(initialId || envId)
+    const [workspaceName, setWorkspaceName] = useState(initialName || '')
 
     // Hydrate from localStorage after mount (avoids SSR mismatch)
     useEffect(() => {
