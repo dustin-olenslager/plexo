@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import rootPkg from "../../package.json";
+import localPkg from "./package.json";
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
     root: "../../",
   },
   env: {
-    NEXT_PUBLIC_APP_VERSION: rootPkg.version,
+    NEXT_PUBLIC_APP_VERSION: localPkg.version,
   },
   async rewrites() {
     return [
