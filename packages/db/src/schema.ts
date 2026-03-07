@@ -264,6 +264,30 @@ export const tasks = pgTable('tasks', {
     index('tasks_project_id_idx').on(table.projectId),
 ])
 
+/**
+ * conversations — chat/channel interaction log.
+ * Separate from tasks: a conversation is a logged exchange, not an agent work item.
+ * Tasks are only created when a user explicitly triggers agent execution.
+ */
+export const conversations = pgTable('conversations', {
+    id: text('id').primaryKey(), // ulid
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    sessionId: text('session_id'),
+    source: text('source').notNull().default('dashboard'), // dashboard | telegram | slack | discord | api | widget
+    message: text('message').notNull(),
+    reply: text('reply'),
+    errorMsg: text('error_msg'),
+    status: text('status').notNull().default('complete'), // complete | failed | pending
+    intent: text('intent'), // CONVERSATION | TASK | PROJECT — classifier output
+    taskId: text('task_id').references((): any => tasks.id, { onDelete: 'set null' }), // eslint-disable-line @typescript-eslint/no-explicit-any
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('conversations_workspace_idx').on(table.workspaceId),
+    index('conversations_workspace_created_idx').on(table.workspaceId, table.createdAt),
+])
+
 export const taskSteps = pgTable('task_steps', {
     id: uuid('id').defaultRandom().primaryKey(),
     taskId: text('task_id')

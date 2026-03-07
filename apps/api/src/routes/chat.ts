@@ -14,14 +14,43 @@
  */
 import { Router, type Router as RouterType } from 'express'
 import { db, eq, desc, sql } from '@plexo/db'
-import { workspaces, tasks, taskSteps, sprints, modelsKnowledge } from '@plexo/db'
+import { workspaces, tasks, taskSteps, sprints, modelsKnowledge, conversations } from '@plexo/db'
 import { ulid } from 'ulid'
 import { logger } from '../logger.js'
-import { pushTask, completeTask, blockTask } from '@plexo/queue'
+import { pushTask } from '@plexo/queue'
 import { emitToWorkspace } from '../sse-emitter.js'
 import { generateText } from 'ai'
 import { buildModel } from '@plexo/agent/providers/registry'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
+
+// ── Conversation helpers ──────────────────────────────────────────────────────
+
+async function recordConversation(params: {
+    workspaceId: string
+    sessionId?: string | null
+    source: string
+    message: string
+    reply?: string | null
+    errorMsg?: string | null
+    status: 'complete' | 'failed' | 'pending'
+    intent?: string | null
+    taskId?: string | null
+}): Promise<string> {
+    const id = ulid()
+    await db.insert(conversations).values({
+        id,
+        workspaceId: params.workspaceId,
+        sessionId: params.sessionId ?? null,
+        source: params.source,
+        message: params.message,
+        reply: params.reply ?? null,
+        errorMsg: params.errorMsg ?? null,
+        status: params.status,
+        intent: params.intent ?? null,
+        taskId: params.taskId ?? null,
+    })
+    return id
+}
 
 export const chatRouter: RouterType = Router()
 
@@ -205,31 +234,9 @@ chatRouter.post('/message', async (req, res) => {
         logger.info({ workspaceId, intent, message: trimmedMsg.slice(0, 80) }, 'Webchat intent classified')
 
         if (intent === 'CONVERSATION') {
-            // Direct conversational reply — no task queue yet (Projects and Tasks need consultative clarification if unclear)
             history.push({ role: 'user', content: trimmedMsg })
             if (history.length > 20) history.splice(0, history.length - 20)
             sessionHistory.set(sid, history)
-
-            // Create the task record immediately — ensures it always appears in Conversations
-            // regardless of whether the AI call succeeds or fails.
-            let taskId: string | null = null
-            try {
-                taskId = await pushTask({
-                    workspaceId,
-                    type: 'online',
-                    source: 'dashboard',
-                    status: 'queued',
-                    context: {
-                        description: trimmedMsg,
-                        message: trimmedMsg,
-                        sessionId: sessionId ?? null,
-                        channel: 'web',
-                    },
-                    priority: 2,
-                })
-            } catch (dbErr) {
-                logger.error({ dbErr, workspaceId }, 'Webchat: failed to create task record')
-            }
 
             try {
                 logger.info({ workspaceId, providerKey, modelId: config.model }, 'Webchat: generating conversational reply')
@@ -245,13 +252,11 @@ chatRouter.post('/message', async (req, res) => {
                 })
                 const replyText = result.text
                 if (!replyText) {
-                    logger.warn({ workspaceId, providerKey }, 'Webchat conversational reply: empty response from model')
+                    logger.warn({ workspaceId, providerKey }, 'Webchat: empty response from model')
                     const classified = classifyAIError(new Error('Empty response from model — the model returned no text.'))
-                    // Mark the pre-created task as blocked
-                    if (taskId) {
-                        try { await blockTask(taskId, `[provider error] ${classified.message}`) } catch { /* non-fatal */ }
-                        emitToWorkspace(workspaceId, { type: 'task_failed', taskId, source: 'dashboard' })
-                    }
+                    try {
+                        await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent })
+                    } catch { /* non-fatal */ }
                     res.json({ status: 'error', reply: classified.message, fixUrl: classified.fixUrl, fixLabel: classified.fixLabel, technicalDetail: classified.technical })
                     return
                 }
@@ -259,61 +264,31 @@ chatRouter.post('/message', async (req, res) => {
                 if (history.length > 20) history.splice(0, history.length - 20)
                 sessionHistory.set(sid, history)
 
-                // Mark the pre-created task as complete
-                if (taskId) {
-                    await completeTask(taskId, {
-                        qualityScore: 1,
-                        outcomeSummary: replyText,
-                        tokensIn: 0,
-                        tokensOut: 0,
-                        costUsd: 0,
-                    })
-                    emitToWorkspace(workspaceId, { type: 'task_complete', taskId, source: 'dashboard' })
-                }
+                // Record the conversation — NOT a task
+                try {
+                    await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply: replyText, status: 'complete', intent })
+                } catch { /* non-fatal */ }
 
                 res.json({ status: 'complete', reply: replyText })
             } catch (err) {
                 const classified = classifyAIError(err)
                 logger.error({ err, workspaceId, errorType: classified.type }, 'Webchat conversational reply failed')
-                // Mark the pre-created task as blocked so it appears in Conversations with the error
-                if (taskId) {
-                    try { await blockTask(taskId, `[provider error] ${classified.message}`) } catch { /* non-fatal */ }
-                    emitToWorkspace(workspaceId, { type: 'task_failed', taskId, source: 'dashboard' })
-                }
+                try {
+                    await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent })
+                } catch { /* non-fatal */ }
                 res.json({ status: 'error', reply: classified.message, fixUrl: classified.fixUrl, fixLabel: classified.fixLabel, technicalDetail: classified.technical })
             }
             return
         }
 
-        // TASK or PROJECT — Ask for confirmation via UI
-        // Log the query as a conversation interaction so it's not lost if the user cancels
+        // TASK or PROJECT — Record the conversation exchange, no task yet (user must confirm)
+        const confirmReply = intent === 'TASK'
+            ? 'I can execute this as an automated task. Do you want me to proceed?' + recommendedSwitch
+            : 'I can create a project to track this larger goal. Do you want me to set that up?' + recommendedSwitch
         try {
-            const taskId = await pushTask({
-                workspaceId,
-                type: 'online',
-                source: 'dashboard',
-                status: 'complete',
-                context: {
-                    description: trimmedMsg,
-                    message: trimmedMsg,
-                    sessionId: sessionId ?? null,
-                    channel: 'web',
-                },
-                priority: 2,
-            })
-            const replyText = intent === 'TASK'
-                ? 'I can execute this as an automated task. Do you want me to proceed?' + recommendedSwitch
-                : 'I can create a project to track this larger goal. Do you want me to set that up?' + recommendedSwitch
-            await completeTask(taskId, {
-                qualityScore: 1,
-                outcomeSummary: replyText,
-                tokensIn: 0,
-                tokensOut: 0,
-                costUsd: 0,
-            })
-            emitToWorkspace(workspaceId, { type: 'task_complete', taskId, source: 'dashboard' })
+            await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply: confirmReply, status: 'complete', intent })
         } catch (err) {
-            logger.error({ err, workspaceId }, 'Failed to log Webchat interaction to DB')
+            logger.error({ err, workspaceId }, 'Webchat: failed to record pre-confirmation conversation')
         }
 
         res.json({
