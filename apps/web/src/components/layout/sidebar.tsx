@@ -145,7 +145,7 @@ interface WorkspaceSummary {
 
 const VERSION = `v${process.env.NEXT_PUBLIC_APP_VERSION ?? '0.8.0-beta.1'}`
 
-function WorkspaceSwitcher() {
+function WorkspaceSwitcher({ className = '' }: { className?: string }) {
     const { workspaceId, workspaceName, setWorkspace } = useWorkspace()
     const [open, setOpen] = useState(false)
     const [list, setList] = useState<WorkspaceSummary[]>([])
@@ -204,7 +204,7 @@ function WorkspaceSwitcher() {
             <button
                 id="workspace-switcher"
                 onClick={() => setOpen((o) => !o)}
-                className="flex h-14 w-full items-center gap-2.5 border-b border-zinc-800/50 px-3 hover:bg-zinc-900/60 transition-colors"
+                className={`flex h-14 w-full items-center gap-2.5 px-3 hover:bg-zinc-900/60 transition-colors ${className}`}
             >
                 {/* App icon */}
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-lg font-bold text-white uppercase leading-none pb-[1px]">
@@ -336,7 +336,7 @@ export function Sidebar({ user }: { user?: SessionUser }) {
         <>
         <aside className="hidden md:flex h-screen w-[220px] shrink-0 flex-col border-r border-zinc-800/50 bg-zinc-950">
             {/* Workspace switcher */}
-            <WorkspaceSwitcher />
+            <WorkspaceSwitcher className="border-b border-zinc-800/50" />
 
             {/* Navigation */}
             <nav className="flex-1 overflow-y-auto px-3 py-2">
@@ -408,6 +408,19 @@ export function Sidebar({ user }: { user?: SessionUser }) {
                 </div>
             </div>
         </aside>
+
+        {/* Mobile Top Header */}
+        <header 
+            className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center border-b border-zinc-800/60 bg-zinc-950/90 backdrop-blur-xl"
+            style={{ 
+                height: 'calc(56px + env(safe-area-inset-top))',
+                paddingTop: 'env(safe-area-inset-top)'
+            }}
+        >
+            <div className="flex-1 w-full max-w-[240px]">
+                <WorkspaceSwitcher />
+            </div>
+        </header>
 
         {/* Mobile Bottom Tab Bar */}
         <nav 
