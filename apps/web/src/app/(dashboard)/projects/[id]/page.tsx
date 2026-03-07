@@ -716,7 +716,7 @@ export default function ProjectControlRoom() {
                 {tab === 'tasks' && (
                     <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
                         {tasks.length === 0 ? (
-                            <p className="py-8 text-center text-sm text-zinc-600">No tasks yet.</p>
+                            <p className="py-8 text-center text-sm text-zinc-600">No {def.unitPlural.toLowerCase()} yet.</p>
                         ) : (
                             <table className="w-full text-sm">
                                 <thead>
