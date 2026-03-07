@@ -5,8 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Plexo',
   webDir: 'www',
   server: {
-    url: "https://app.getplexo.com",
-    cleartext: false,
+    allowNavigation: ['*'],
   },
   plugins: {
     PushNotifications: {
