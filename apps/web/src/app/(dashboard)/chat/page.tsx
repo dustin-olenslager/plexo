@@ -26,6 +26,15 @@ import {
     FileUp,
     Sparkles,
     X,
+    Copy,
+    Check,
+    Code2,
+    Search,
+    PenLine,
+    Server,
+    BarChart2,
+    Megaphone,
+    FolderOpen,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useWorkspace } from '@web/context/workspace'
@@ -44,6 +53,8 @@ interface Message {
     status?: 'queued' | 'running' | 'complete' | 'failed' | 'pending' | 'confirm_action'
     intent?: 'TASK' | 'PROJECT'
     actionDescription?: string
+    suggestedCategory?: string    // AI-suggested project category
+    selectedCategory?: string     // user-selected category (overrides suggestedCategory)
     // Actionable error fields
     fixUrl?: string
     fixLabel?: string
@@ -56,6 +67,184 @@ function fmt(ms: number): string {
     if (s < 60) return `${s}s ago`
     if (s < 3600) return `${Math.floor(s / 60)}m ago`
     return `${Math.floor(s / 3600)}h ago`
+}
+
+// ── Category constants used in the bubble UI ───────────────────────────────────
+const PROJECT_CATS = [
+    { id: 'code',      label: 'Code',      Icon: Code2,     },
+    { id: 'research',  label: 'Research',  Icon: Search,    },
+    { id: 'writing',   label: 'Writing',   Icon: PenLine,   },
+    { id: 'ops',       label: 'Ops',       Icon: Server,    },
+    { id: 'data',      label: 'Data',      Icon: BarChart2, },
+    { id: 'marketing', label: 'Marketing', Icon: Megaphone, },
+    { id: 'general',   label: 'General',   Icon: FolderOpen,},
+] as const
+
+// ── MessageBubble ─────────────────────────────────────────────────────────────
+
+function MessageBubble({
+    msg,
+    onExecute,
+    onCancel,
+    onSelectCategory,
+}: {
+    msg: Message
+    onExecute: (id: string, intent: 'TASK' | 'PROJECT', desc: string, cat?: string) => void
+    onCancel: (id: string) => void
+    onSelectCategory: (id: string, cat: string) => void
+}) {
+    const [copied, setCopied] = useState(false)
+    function copyMsg() {
+        const text = msg.actionDescription
+            ? `${msg.content}\n${msg.actionDescription}`
+            : msg.content
+        navigator.clipboard.writeText(text).then(() => {
+            setCopied(true)
+            setTimeout(() => setCopied(false), 1500)
+        })
+    }
+
+    const sel = msg.selectedCategory ?? msg.suggestedCategory ?? 'general'
+
+    return (
+        <div
+            key={msg.id}
+            className={`group flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
+        >
+            {/* Avatar */}
+            <div className={`shrink-0 h-8 w-8 rounded-full flex items-center justify-center ${msg.role === 'user'
+                ? 'bg-zinc-700'
+                : 'bg-gradient-to-br from-indigo-500 to-purple-600'
+                }`}>
+                {msg.role === 'user'
+                    ? <User className="h-4 w-4 text-zinc-300" />
+                    : <Bot className="h-4 w-4 text-white" />
+                }
+            </div>
+
+            {/* Bubble */}
+            <div className={`flex flex-col gap-1 max-w-[75%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                <div className={`relative rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.role === 'user'
+                    ? 'bg-indigo-600 text-white rounded-tr-md'
+                    : msg.status === 'failed'
+                        ? 'bg-red-950/30 border border-red-800/40 text-red-300 rounded-tl-md'
+                        : 'bg-zinc-800 text-zinc-200 rounded-tl-md'
+                    }`}>
+                    {msg.status === 'queued' ? (
+                        <div className="flex items-center gap-2">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-500" />
+                            <span className="text-zinc-500 text-sm italic">Queued…</span>
+                        </div>
+                    ) : msg.status === 'running' ? (
+                        <div className="flex items-start gap-2">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-400 shrink-0 mt-0.5" />
+                            <span className="text-zinc-400 text-sm italic">
+                                {msg.content || 'Working…'}
+                            </span>
+                        </div>
+                    ) : msg.status === 'failed' ? (
+                        <div className="flex flex-col gap-2">
+                            <div className="flex items-start gap-1.5">
+                                <XCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                <span className="leading-snug">{msg.content || 'Failed.'}</span>
+                            </div>
+                            {msg.fixUrl && (
+                                <Link
+                                    href={msg.fixUrl}
+                                    className="inline-flex items-center gap-1 self-start rounded-md bg-red-900/40 border border-red-700/40 px-2.5 py-1 text-xs font-medium text-red-300 hover:bg-red-900/60 hover:text-red-200 transition-colors"
+                                >
+                                    {msg.fixLabel ?? 'Fix this'} →
+                                </Link>
+                            )}
+                            {msg.technicalDetail && (
+                                <details className="group/td mt-0.5">
+                                    <summary className="text-[10px] text-red-400/50 cursor-pointer hover:text-red-400/70 list-none flex items-center gap-1">
+                                        <span className="group-open/td:hidden">▸ Technical details</span>
+                                        <span className="hidden group-open/td:inline">▾ Technical details</span>
+                                    </summary>
+                                    <code className="block mt-1.5 text-[10px] text-red-400/50 font-mono break-all leading-relaxed bg-red-950/30 rounded p-2">
+                                        {msg.technicalDetail}
+                                    </code>
+                                </details>
+                            )}
+                        </div>
+                    ) : msg.status === 'confirm_action' && msg.intent ? (
+                        <div className="flex flex-col gap-3">
+                            <span className="font-medium text-zinc-200">{msg.content}</span>
+                            <span className="text-sm text-zinc-400 italic">&quot;{msg.actionDescription}&quot;</span>
+
+                            {/* Project category picker */}
+                            {msg.intent === 'PROJECT' && (
+                                <div className="flex flex-wrap gap-1.5">
+                                    {PROJECT_CATS.map(({ id, label, Icon }) => (
+                                        <button
+                                            key={id}
+                                            onClick={() => onSelectCategory(msg.id, id)}
+                                            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium border transition-all ${
+                                                sel === id
+                                                    ? 'bg-indigo-600 border-indigo-500 text-white'
+                                                    : 'bg-zinc-700/50 border-zinc-600/50 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
+                                            }`}
+                                        >
+                                            <Icon className="h-3 w-3" />
+                                            {label}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => onExecute(msg.id, msg.intent!, msg.actionDescription!, sel)}
+                                    className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"
+                                >
+                                    Confirm {msg.intent === 'TASK' ? 'Task' : 'Project'}
+                                </button>
+                                <button
+                                    onClick={() => onCancel(msg.id)}
+                                    className="rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-600 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <span className="whitespace-pre-wrap">{msg.content}</span>
+                    )}
+
+                    {/* Copy button — hover-visible */}
+                    {msg.status !== 'queued' && msg.status !== 'running' && msg.status !== 'confirm_action' && msg.content && (
+                        <button
+                            onClick={copyMsg}
+                            className="absolute -top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity rounded-md bg-zinc-700 border border-zinc-600 p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-600"
+                            title="Copy"
+                        >
+                            {copied
+                                ? <Check className="h-3 w-3 text-emerald-400" />
+                                : <Copy className="h-3 w-3" />
+                            }
+                        </button>
+                    )}
+                </div>
+
+                {/* Meta */}
+                <div className="flex items-center gap-2 text-[10px] text-zinc-600">
+                    <span>{fmt(msg.at)}</span>
+                    {msg.taskId && (
+                        <Link
+                            href={`/tasks/${msg.taskId}`}
+                            className="hover:text-zinc-400 transition-colors font-mono"
+                        >
+                            {msg.taskId.slice(0, 8)} ↗
+                        </Link>
+                    )}
+                    {msg.status === 'complete' && (
+                        <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                    )}
+                </div>
+            </div>
+        </div>
+    )
 }
 
 function StatusChip({ status }: { status: Message['status'] }) {
@@ -358,24 +547,43 @@ function ChatContent() {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages])
 
-    // Load context from ?context=<taskId> (continue conversation from Conversations page)
+    // Load context from ?context=<conversationId> (continue conversation from Conversations page)
     useEffect(() => {
-        const contextTaskId = searchParams.get('context')
-        if (!contextTaskId || messages.length > 0) return
+        const contextId = searchParams.get('context')
+        if (!contextId || messages.length > 0) return
         async function loadContext() {
             try {
-                const res = await fetch(`${API}/api/v1/chat/reply/${contextTaskId}`)
+                const res = await fetch(`${API}/api/v1/conversations/${contextId}`)
                 if (!res.ok) return
-                const data = await res.json() as { status: string; reply: string | null }
+                const data = await res.json() as {
+                    id: string
+                    message: string
+                    reply: string | null
+                    sessionId: string | null
+                    status: string
+                }
+                const loaded: Message[] = []
+                if (data.message) {
+                    loaded.push({
+                        id: `ctx-user-${Date.now()}`,
+                        role: 'user',
+                        content: data.message,
+                        status: 'complete',
+                        at: Date.now() - 1,
+                    })
+                }
                 if (data.reply) {
-                    setMessages([{
-                        id: `ctx-${Date.now()}`,
+                    loaded.push({
+                        id: `ctx-agent-${Date.now()}`,
                         role: 'agent',
-                        content: `*Previous conversation:*\n\n${data.reply}`,
+                        content: data.reply,
                         status: 'complete',
                         at: Date.now(),
-                    }])
+                    })
                 }
+                if (loaded.length > 0) setMessages(loaded)
+                // Restore the original session ID so in-memory history continues
+                if (data.sessionId) sessionId.current = data.sessionId
             } catch { /* ignore */ }
         }
         void loadContext()
@@ -459,7 +667,7 @@ function ChatContent() {
     }, [tts])
 
 
-    async function executeConfirmedAction(msgId: string, intent: 'TASK' | 'PROJECT', description: string) {
+    async function executeConfirmedAction(msgId: string, intent: 'TASK' | 'PROJECT', description: string, category?: string) {
         setMessages((prev) => prev.map((m) =>
             m.id === msgId ? { ...m, status: 'queued', content: '', intent: undefined, actionDescription: undefined } : m
         ))
@@ -467,7 +675,7 @@ function ChatContent() {
             const res = await fetch(`${API}/api/v1/chat/execute-action`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ workspaceId: WS_ID, intent, description, sessionId: sessionId.current }),
+                body: JSON.stringify({ workspaceId: WS_ID, intent, description, sessionId: sessionId.current, category }),
             })
             if (!res.ok) throw new Error('Failed to execute')
             const data = await res.json() as { taskId?: string; sprintId?: string; status?: string }
@@ -557,13 +765,18 @@ function ChatContent() {
 
             // Action needs confirmation
             if (data.status === 'confirm_action' && data.intent && data.description) {
+                const typedData = data as { status: string; intent?: string; description?: string; suggestedCategory?: string }
                 setMessages((prev) => prev.map((m) =>
                     m.id === pendingId ? {
                         ...m,
                         status: 'confirm_action',
-                        content: 'Please confirm creation of this ' + data.intent!.toLowerCase() + ':',
+                        content: data.intent === 'PROJECT'
+                            ? `I can create a **${typedData.suggestedCategory ?? 'general'}** project for this. Pick a type or confirm:`
+                            : 'Please confirm creation of this task:',
                         intent: data.intent as 'TASK' | 'PROJECT',
-                        actionDescription: data.description
+                        actionDescription: data.description,
+                        suggestedCategory: typedData.suggestedCategory ?? 'general',
+                        selectedCategory: typedData.suggestedCategory ?? 'general',
                     } : m
                 ))
                 return
@@ -724,110 +937,15 @@ function ChatContent() {
                 )}
 
                 {messages.map((msg) => (
-                    <div
+                    <MessageBubble
                         key={msg.id}
-                        className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
-                    >
-                        {/* Avatar */}
-                        <div className={`shrink-0 h-8 w-8 rounded-full flex items-center justify-center ${msg.role === 'user'
-                            ? 'bg-zinc-700'
-                            : 'bg-gradient-to-br from-indigo-500 to-purple-600'
-                            }`}>
-                            {msg.role === 'user'
-                                ? <User className="h-4 w-4 text-zinc-300" />
-                                : <Bot className="h-4 w-4 text-white" />
-                            }
-                        </div>
-
-                        {/* Bubble */}
-                        <div className={`flex flex-col gap-1 max-w-[75%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                            <div className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.role === 'user'
-                                ? 'bg-indigo-600 text-white rounded-tr-md'
-                                : msg.status === 'failed'
-                                    ? 'bg-red-950/30 border border-red-800/40 text-red-300 rounded-tl-md'
-                                    : 'bg-zinc-800 text-zinc-200 rounded-tl-md'
-                                }`}>
-                                {msg.status === 'queued' ? (
-                                    <div className="flex items-center gap-2">
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-500" />
-                                        <span className="text-zinc-500 text-sm italic">Queued…</span>
-                                    </div>
-                                ) : msg.status === 'running' ? (
-                                    <div className="flex items-start gap-2">
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-400 shrink-0 mt-0.5" />
-                                        <span className="text-zinc-400 text-sm italic">
-                                            {msg.content || 'Working…'}
-                                        </span>
-                                    </div>
-
-                                ) : msg.status === 'failed' ? (
-                                    <div className="flex flex-col gap-2">
-                                        <div className="flex items-start gap-1.5">
-                                            <XCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                                            <span className="leading-snug">{msg.content || 'Failed.'}</span>
-                                        </div>
-                                        {msg.fixUrl && (
-                                            <Link
-                                                href={msg.fixUrl}
-                                                className="inline-flex items-center gap-1 self-start rounded-md bg-red-900/40 border border-red-700/40 px-2.5 py-1 text-xs font-medium text-red-300 hover:bg-red-900/60 hover:text-red-200 transition-colors"
-                                            >
-                                                {msg.fixLabel ?? 'Fix this'} →
-                                            </Link>
-                                        )}
-                                        {msg.technicalDetail && (
-                                            <details className="group mt-0.5">
-                                                <summary className="text-[10px] text-red-400/50 cursor-pointer hover:text-red-400/70 list-none flex items-center gap-1">
-                                                    <span className="group-open:hidden">▸ Technical details</span>
-                                                    <span className="hidden group-open:inline">▾ Technical details</span>
-                                                </summary>
-                                                <code className="block mt-1.5 text-[10px] text-red-400/50 font-mono break-all leading-relaxed bg-red-950/30 rounded p-2">
-                                                    {msg.technicalDetail}
-                                                </code>
-                                            </details>
-                                        )}
-                                    </div>
-                                ) : msg.status === 'confirm_action' && msg.intent ? (
-                                    <div className="flex flex-col gap-2">
-                                        <span className="font-semibold text-zinc-100">{msg.content}</span>
-                                        <span className="text-sm text-zinc-300 italic">&quot;{msg.actionDescription}&quot;</span>
-                                        <div className="flex items-center gap-2 mt-2">
-                                            <button
-                                                onClick={() => executeConfirmedAction(msg.id, msg.intent!, msg.actionDescription!)}
-                                                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"
-                                            >
-                                                Confirm {msg.intent === 'TASK' ? 'Task' : 'Project'}
-                                            </button>
-                                            <button
-                                                onClick={() => cancelAction(msg.id)}
-                                                className="rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-600 transition-colors"
-                                            >
-                                                Cancel
-                                            </button>
-                                        </div>
-                                    </div>
-                                ) : (
-
-                                    <span className="whitespace-pre-wrap">{msg.content}</span>
-                                )}
-                            </div>
-
-                            {/* Meta */}
-                            <div className="flex items-center gap-2 text-[10px] text-zinc-600">
-                                <span>{fmt(msg.at)}</span>
-                                {msg.taskId && (
-                                    <Link
-                                        href={`/tasks/${msg.taskId}`}
-                                        className="hover:text-zinc-400 transition-colors font-mono"
-                                    >
-                                        {msg.taskId.slice(0, 8)} ↗
-                                    </Link>
-                                )}
-                                {msg.status === 'complete' && (
-                                    <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                                )}
-                            </div>
-                        </div>
-                    </div>
+                        msg={msg}
+                        onExecute={executeConfirmedAction}
+                        onCancel={cancelAction}
+                        onSelectCategory={(id, cat) => setMessages((prev) => prev.map((m) =>
+                            m.id === id ? { ...m, selectedCategory: cat } : m
+                        ))}
+                    />
                 ))}
                 <div ref={bottomRef} />
             </div>

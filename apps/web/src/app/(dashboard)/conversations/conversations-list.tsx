@@ -9,8 +9,9 @@ import {
     XCircle,
     Loader2,
     MessageSquare,
-    Info,
     MessageCircle,
+    ExternalLink,
+    Info,
 } from 'lucide-react'
 import Link from 'next/link'
 import { useListFilter, ListToolbar } from '@web/components/list-toolbar'
@@ -290,7 +291,11 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                                         <span className="mt-0.5 shrink-0">
                                             {STATUS_ICON[item.status] ?? STATUS_ICON['pending']}
                                         </span>
-                                        <div className="flex-1 min-w-0">
+                                        {/* Clickable body → detail page */}
+                                        <Link
+                                            href={`/conversations/${encodeURIComponent(item.id)}`}
+                                            className="flex-1 min-w-0 block hover:opacity-80 transition-opacity"
+                                        >
                                             {/* User message */}
                                             <p className="text-sm text-zinc-200 leading-snug line-clamp-2">{item.message}</p>
                                             {/* Reply or error */}
@@ -312,18 +317,28 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                                                     {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                             </div>
-                                        </div>
+                                        </Link>
 
                                         <div className="flex items-center gap-1 shrink-0">
+                                            {/* Linked task */}
                                             {item.taskId && (
                                                 <Link
                                                     href={`/tasks/${item.taskId}`}
                                                     className="rounded-lg p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
                                                     title="View spawned task"
                                                 >
-                                                    <Info className="h-4 w-4" />
+                                                    <ExternalLink className="h-4 w-4" />
                                                 </Link>
                                             )}
+                                            {/* Conversation info / detail */}
+                                            <Link
+                                                href={`/conversations/${encodeURIComponent(item.id)}`}
+                                                className="rounded-lg p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+                                                title="Conversation info"
+                                            >
+                                                <Info className="h-4 w-4" />
+                                            </Link>
+                                            {/* Continue in chat */}
                                             <Link
                                                 href={`/chat?context=${encodeURIComponent(item.id)}`}
                                                 className="rounded-lg p-1.5 text-zinc-500 hover:text-indigo-400 hover:bg-zinc-800 transition-colors"

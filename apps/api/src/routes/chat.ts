@@ -116,10 +116,24 @@ Also determine the complexity: SIMPLE or COMPLEX.
 COMPLEX means the task requires reasoning, complex coding, architecture, or multi-step logic.
 SIMPLE means it's a routine task, summary, reading, file editing, or basic query.
 
-Reply with EXACTLY two words separated by a space:
+For PROJECT intent, also determine the best category from: code, research, writing, ops, data, marketing, general.
+- code: software development, coding, building apps, APIs, refactoring
+- research: investigation, analysis, competitive research, synthesis
+- writing: content creation, blog posts, documentation, copywriting
+- ops: infrastructure, deployment, DevOps, system operations
+- data: data analysis, queries, transformations, datasets
+- marketing: campaigns, social copy, launch plans, go-to-market
+- general: anything else
+
+For TASK or CONVERSATION: Reply with EXACTLY two words separated by a space:
 [INTENT] [COMPLEXITY]
 Example: TASK COMPLEX
-Example: CONVERSATION SIMPLE`
+Example: CONVERSATION SIMPLE
+
+For PROJECT: Reply with EXACTLY three words separated by spaces:
+PROJECT [COMPLEXITY] [CATEGORY]
+Example: PROJECT COMPLEX marketing
+Example: PROJECT SIMPLE general`
 
 // Per-session conversation history (last 20 messages, in-memory)
 const sessionHistory = new Map<string, Array<{ role: 'user' | 'assistant'; content: string }>>()
@@ -178,6 +192,7 @@ chatRouter.post('/message', async (req, res) => {
         const history = sessionHistory.get(sid) ?? []
 
         let isComplex = false
+        let suggestedCategory = 'general'
 
         try {
             const messages = [
@@ -191,13 +206,21 @@ chatRouter.post('/message', async (req, res) => {
                 messages,
                 abortSignal: AbortSignal.timeout(10_000),
             })
-            const text = classifyResult.text?.trim().toUpperCase() ?? ''
+            const text = classifyResult.text?.trim() ?? ''
+            const upperText = text.toUpperCase()
             const parts = text.split(/\s+/)
-            if (parts[0]?.startsWith('TASK')) intent = 'TASK'
-            else if (parts[0]?.startsWith('PROJECT')) intent = 'PROJECT'
+            if (upperText.startsWith('TASK')) intent = 'TASK'
+            else if (upperText.startsWith('PROJECT')) intent = 'PROJECT'
             else intent = 'CONVERSATION'
 
-            if (parts[1]?.startsWith('COMPLEX')) isComplex = true
+            if (parts[1]?.toUpperCase().startsWith('COMPLEX')) isComplex = true
+
+            // Extract suggested category for PROJECT (3rd word, lowercase)
+            if (intent === 'PROJECT' && parts[2]) {
+                const cat = parts[2].toLowerCase()
+                const validCats = ['code', 'research', 'writing', 'ops', 'data', 'marketing', 'general']
+                if (validCats.includes(cat)) suggestedCategory = cat
+            }
         } catch {
             // On classification failure, default to CONVERSATION
             intent = 'CONVERSATION'
@@ -284,7 +307,7 @@ chatRouter.post('/message', async (req, res) => {
         // TASK or PROJECT — Record the conversation exchange, no task yet (user must confirm)
         const confirmReply = intent === 'TASK'
             ? 'I can execute this as an automated task. Do you want me to proceed?' + recommendedSwitch
-            : 'I can create a project to track this larger goal. Do you want me to set that up?' + recommendedSwitch
+            : `I can create a **${suggestedCategory}** project to track this larger goal. Do you want me to set that up?` + recommendedSwitch
         try {
             await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply: confirmReply, status: 'complete', intent })
         } catch (err) {
@@ -295,6 +318,7 @@ chatRouter.post('/message', async (req, res) => {
             status: 'confirm_action',
             intent,
             description: trimmedMsg,
+            suggestedCategory: intent === 'PROJECT' ? suggestedCategory : undefined,
         })
     } catch (err) {
         logger.error({ err }, 'POST /api/chat/message failed')
@@ -303,12 +327,16 @@ chatRouter.post('/message', async (req, res) => {
 })
 
 // ── POST /api/chat/execute-action ──────────────────────────────────────────────
+
+const VALID_CATEGORIES = new Set(['code', 'research', 'writing', 'ops', 'data', 'marketing', 'general'])
+
 chatRouter.post('/execute-action', async (req, res) => {
-    const { workspaceId, intent, description, sessionId } = req.body as {
+    const { workspaceId, intent, description, sessionId, category } = req.body as {
         workspaceId?: string
         intent?: 'TASK' | 'PROJECT'
         description?: string
         sessionId?: string
+        category?: string
     }
 
     if (!workspaceId || !UUID_RE.test(workspaceId)) {
@@ -319,6 +347,8 @@ chatRouter.post('/execute-action', async (req, res) => {
         res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'intent and description required' } })
         return
     }
+
+    const resolvedCategory = (category && VALID_CATEGORIES.has(category)) ? category : 'general'
 
     try {
         if (intent === 'TASK') {
@@ -343,12 +373,15 @@ chatRouter.post('/execute-action', async (req, res) => {
                 id,
                 workspaceId,
                 request: description,
-                category: 'general', // Default category for non-code until specified
+                category: resolvedCategory,
                 status: 'planning',
                 metadata: {},
             }).returning()
-            logger.info({ workspaceId, sprintId: sprint!.id }, 'Webchat project explicitly confirmed and created')
-            res.status(201).json({ sprintId: sprint!.id, status: 'created' })
+            if (!sprint) throw new Error('Sprint insert returned no rows')
+            logger.info({ workspaceId, sprintId: sprint.id, category: resolvedCategory }, 'Webchat project explicitly confirmed and created')
+            res.status(201).json({ sprintId: sprint.id, status: 'created', category: resolvedCategory })
+        } else {
+            res.status(400).json({ error: { code: 'INVALID_INTENT', message: 'intent must be TASK or PROJECT' } })
         }
     } catch (err) {
         logger.error({ err }, 'POST /api/chat/execute-action failed')
