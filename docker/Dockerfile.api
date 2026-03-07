@@ -39,12 +39,13 @@ COPY packages/db     ./packages/db
 COPY packages/queue  ./packages/queue
 COPY packages/sdk    ./packages/sdk
 
+# Root manifest — needed to read version field at build time
+COPY --from=deps /app/package.json ./
+
 # Drizzle migrations — run via migrate service (compose.yml) before api starts
 COPY docker/migrate.sh /migrate.sh
 COPY docker/migrate.mjs /app/migrate.mjs
 RUN chmod +x /migrate.sh
-
-RUN chown -R plexo:plexo /app
 
 # Bake the version from package.json into the image at build time.
 # Override via: docker build --build-arg APP_VERSION=x.y.z
@@ -55,6 +56,8 @@ RUN V="${APP_VERSION}"; \
     echo "$V" > /app/.version && \
     echo "APP_VERSION baked: $V"
 ENV APP_VERSION=auto
+
+RUN chown -R plexo:plexo /app
 
 USER plexo
 EXPOSE 3001
