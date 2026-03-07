@@ -69,6 +69,7 @@ plugins/core/*     → packages/sdk only (never packages/db or packages/agent)
 ## Known Issues
 *None.*
 
+
 ## Bug Post-Mortems
 
 ### 2026-03 — ENCRYPTION_SECRET env var mismatch

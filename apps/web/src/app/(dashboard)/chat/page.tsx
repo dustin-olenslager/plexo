@@ -51,7 +51,7 @@ interface Message {
     content: string
     taskId?: string
     status?: 'queued' | 'running' | 'complete' | 'failed' | 'pending' | 'confirm_action'
-    intent?: 'TASK' | 'PROJECT'
+    intent?: 'TASK' | 'PROJECT' | 'CONVERSATION'
     actionDescription?: string
     suggestedCategory?: string    // AI-suggested project category
     selectedCategory?: string     // user-selected category (overrides suggestedCategory)
@@ -89,7 +89,7 @@ function MessageBubble({
     onSelectCategory,
 }: {
     msg: Message
-    onExecute: (id: string, intent: 'TASK' | 'PROJECT', desc: string, cat?: string) => void
+    onExecute: (id: string, intent: 'TASK' | 'PROJECT' | 'CONVERSATION', desc: string, cat?: string) => void
     onCancel: (id: string) => void
     onSelectCategory: (id: string, cat: string) => void
 }) {
@@ -173,7 +173,7 @@ function MessageBubble({
                             <span className="font-medium text-zinc-200">{msg.content}</span>
                             <span className="text-sm text-zinc-400 italic">&quot;{msg.actionDescription}&quot;</span>
 
-                            {/* Project category picker */}
+                            {/* Project category picker — only shown when PROJECT is selected */}
                             {msg.intent === 'PROJECT' && (
                                 <div className="flex flex-wrap gap-1.5">
                                     {PROJECT_CATS.map(({ id, label, Icon }) => (
@@ -193,18 +193,31 @@ function MessageBubble({
                                 </div>
                             )}
 
-                            <div className="flex items-center gap-2">
+                            {/* Three-option intent row */}
+                            <div className="flex flex-wrap items-center gap-2">
                                 <button
-                                    onClick={() => onExecute(msg.id, msg.intent!, msg.actionDescription!, sel)}
+                                    onClick={() => onExecute(msg.id, 'CONVERSATION', msg.actionDescription!, sel)}
+                                    className="rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-600 transition-colors"
+                                >
+                                    Just answer
+                                </button>
+                                <button
+                                    onClick={() => onExecute(msg.id, 'TASK', msg.actionDescription!, sel)}
+                                    className="rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-600 transition-colors"
+                                >
+                                    Create Task
+                                </button>
+                                <button
+                                    onClick={() => onExecute(msg.id, 'PROJECT', msg.actionDescription!, sel)}
                                     className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"
                                 >
-                                    Confirm {msg.intent === 'TASK' ? 'Task' : 'Project'}
+                                    Create Project
                                 </button>
                                 <button
                                     onClick={() => onCancel(msg.id)}
-                                    className="rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-600 transition-colors"
+                                    className="ml-auto text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors"
                                 >
-                                    Cancel
+                                    Dismiss
                                 </button>
                             </div>
                         </div>
@@ -667,11 +680,25 @@ function ChatContent() {
     }, [tts])
 
 
-    async function executeConfirmedAction(msgId: string, intent: 'TASK' | 'PROJECT', description: string, category?: string) {
+    async function executeConfirmedAction(msgId: string, intent: 'TASK' | 'PROJECT' | 'CONVERSATION', description: string, category?: string) {
         setMessages((prev) => prev.map((m) =>
             m.id === msgId ? { ...m, status: 'queued', content: '', intent: undefined, actionDescription: undefined } : m
         ))
         try {
+            // CONVERSATION: just answer, no task/project created
+            if (intent === 'CONVERSATION') {
+                const res = await fetch(`${API}/api/v1/chat/message`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ workspaceId: WS_ID, message: description, sessionId: sessionId.current, forceConversation: true }),
+                })
+                const data = await res.json() as { reply?: string; status?: string }
+                setMessages((prev) => prev.map((m) =>
+                    m.id === msgId ? { ...m, status: 'complete', content: data.reply ?? 'Here\'s what I know about that:' } : m
+                ))
+                return
+            }
+
             const res = await fetch(`${API}/api/v1/chat/execute-action`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -770,9 +797,7 @@ function ChatContent() {
                     m.id === pendingId ? {
                         ...m,
                         status: 'confirm_action',
-                        content: data.intent === 'PROJECT'
-                            ? `I can create a **${typedData.suggestedCategory ?? 'general'}** project for this. Pick a type or confirm:`
-                            : 'Please confirm creation of this task:',
+                        content: 'What would you like to do with this?',
                         intent: data.intent as 'TASK' | 'PROJECT',
                         actionDescription: data.description,
                         suggestedCategory: typedData.suggestedCategory ?? 'general',

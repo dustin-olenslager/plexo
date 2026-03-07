@@ -326,6 +326,15 @@ async function runCodeSprint(
                 failed: completed.filter(t => t.status === 'failed').length,
             },
         })
+        // Incremental progress + cost — update sprints row after each wave so UI updates in real-time
+        const allSoFar = await db.select({ status: sprintTasks.status }).from(sprintTasks).where(eq(sprintTasks.sprintId, sprintId))
+        const [waveCostRow] = await db.select({ total: sql<number>`COALESCE(SUM(cost_usd), 0)` })
+            .from(tasks).where(and(eq(tasks.projectId, sprintId), isNotNull(tasks.costUsd)))
+        await db.update(sprints).set({
+            completedTasks: allSoFar.filter((t) => t.status === 'complete').length,
+            failedTasks: allSoFar.filter((t) => t.status === 'failed').length,
+            costUsd: waveCostRow?.total ?? 0,
+        }).where(eq(sprints.id, sprintId))
     }
 
     const conflicts = await detectDynamicConflicts(sprintId, owner, repoName, baseBranch)
@@ -503,6 +512,15 @@ async function runGenericSprint(
                 failed: completed.filter(t => t.status === 'failed').length,
             },
         })
+        // Incremental progress + cost — update sprints row after each wave so UI updates in real-time
+        const allSoFar = await db.select({ status: sprintTasks.status }).from(sprintTasks).where(eq(sprintTasks.sprintId, sprintId))
+        const [waveCostRow] = await db.select({ total: sql<number>`COALESCE(SUM(cost_usd), 0)` })
+            .from(tasks).where(and(eq(tasks.projectId, sprintId), isNotNull(tasks.costUsd)))
+        await db.update(sprints).set({
+            completedTasks: allSoFar.filter((t) => t.status === 'complete').length,
+            failedTasks: allSoFar.filter((t) => t.status === 'failed').length,
+            costUsd: waveCostRow?.total ?? 0,
+        }).where(eq(sprints.id, sprintId))
     }
 
     const finalTasks = await db.select().from(sprintTasks).where(eq(sprintTasks.sprintId, sprintId))
