@@ -78,6 +78,29 @@ export interface ExecutionPlan {
     risks: string[]
 }
 
+// ── Capability-aware planner output (Phase D) ─────────────────
+
+export interface ClarificationAlternative {
+    /** Short label for a button or chip, e.g. "Write a video script" */
+    label: string
+    /** One-sentence description of what will be delivered */
+    description: string
+    /** Full task description to queue if user picks this option */
+    taskDescription: string
+}
+
+export interface ClarificationRequest {
+    type: 'clarification'
+    /** Human-readable message explaining the gap */
+    message: string
+    /** 1–4 alternatives the agent CAN deliver */
+    alternatives: ClarificationAlternative[]
+}
+
+export type PlannerResult =
+    | { type: 'plan'; plan: ExecutionPlan }
+    | ClarificationRequest
+
 export interface PlanStep {
     stepNumber: number
     description: string
@@ -320,6 +343,19 @@ export interface ExecutionContext {
     /** Max USD this task may spend. null = inherit workspace default. */
     taskCostCeilingUsd: number | null
     signal: AbortSignal
+    // ── Phase A: Workspace + sprint context ──────────────────────────────────
+    /** Human-readable workspace name (e.g. "Angel") */
+    workspaceName?: string
+    /** Agent persona name (e.g. "Angel") — may differ from workspace name */
+    agentName?: string
+    /** Agent persona description injected before system prompt */
+    agentPersona?: string
+    /** Active sprint/project goal this task belongs to */
+    sprintGoal?: string
+    /** Active sprint/project name this task belongs to */
+    sprintName?: string
+    /** Brief description of the workspace purpose */
+    workspaceSummary?: string
 }
 
 export interface StepResult {

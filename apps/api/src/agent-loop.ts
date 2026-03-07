@@ -1,6 +1,6 @@
 import { claimTask, completeTask, blockTask } from '@plexo/queue'
 import { db, eq, sql } from '@plexo/db'
-import { tasks, apiCostTracking, workspaces } from '@plexo/db'
+import { tasks, apiCostTracking, workspaces, sprints } from '@plexo/db'
 import { planTask } from '@plexo/agent/planner'
 import { executeTask } from '@plexo/agent/executor'
 import type { AnthropicCredential, ExecutionContext } from '@plexo/agent/types'
@@ -239,6 +239,52 @@ async function processOneTask(): Promise<boolean> {
     const resolvedCostCeiling = taskCostCeiling ?? wsDefaultCostCeiling
     const resolvedTokenBudget = taskTokenBudget ?? wsDefaultTokenBudget ?? 0
 
+    // ── Phase A: Load workspace + sprint context for prompt injection ───────────
+    let workspaceName: string | undefined
+    let workspaceSummary: string | undefined
+    let agentName: string | undefined
+    let agentPersona: string | undefined
+    let sprintGoal: string | undefined
+    let sprintName: string | undefined
+
+    try {
+        const [wsRow] = await db
+            .select({ name: workspaces.name, settings: workspaces.settings })
+            .from(workspaces)
+            .where(eq(workspaces.id, taskWorkspaceId ?? ''))
+            .limit(1)
+
+        if (wsRow) {
+            workspaceName = wsRow.name ?? undefined
+            const s = (wsRow.settings ?? {}) as Record<string, unknown>
+            agentName = typeof s.agentName === 'string' ? s.agentName : workspaceName
+            agentPersona = typeof s.agentPersona === 'string' ? s.agentPersona : undefined
+            workspaceSummary = typeof s.agentTagline === 'string' ? s.agentTagline : undefined
+        }
+    } catch { /* non-fatal */ }
+
+    // Load sprint goal if this task belongs to a sprint
+    try {
+        const taskRowFull = await db
+            .select({ projectId: tasks.projectId })
+            .from(tasks)
+            .where(eq(tasks.id, task.id))
+            .limit(1)
+
+        const projectId = taskRowFull[0]?.projectId
+        if (projectId) {
+            const [sprintRow] = await db
+                .select({ request: sprints.request, status: sprints.status })
+                .from(sprints)
+                .where(eq(sprints.id, projectId))
+                .limit(1)
+            if (sprintRow) {
+                sprintGoal = sprintRow.request ?? undefined
+                sprintName = projectId
+            }
+        }
+    } catch { /* non-fatal */ }
+
     const abort = new AbortController()
     activeAbort = abort
 
@@ -251,6 +297,13 @@ async function processOneTask(): Promise<boolean> {
         tokenBudget: resolvedTokenBudget,
         taskCostCeilingUsd: resolvedCostCeiling,
         signal: abort.signal,
+        // Phase A: context
+        workspaceName,
+        agentName,
+        agentPersona,
+        workspaceSummary,
+        sprintGoal,
+        sprintName,
     }
 
     try {
@@ -264,7 +317,25 @@ async function processOneTask(): Promise<boolean> {
             ?? JSON.stringify(taskContext)
 
         emit({ type: 'task_planning', taskId: task.id })
-        const plan = await planTask(ctx, description, taskContext, aiSettings ?? undefined)
+        const plannerResult = await planTask(ctx, description, taskContext, aiSettings ?? undefined)
+
+        // Phase D: capability pre-flight — planner returned a clarification request
+        if (plannerResult.type === 'clarification') {
+            logger.info({ taskId: task.id, alternatives: plannerResult.alternatives.length }, 'Planner returned clarification — capability gap detected')
+            await blockTask(task.id, plannerResult.message)
+            // Store clarification payload so UI + channels can surface alternatives
+            await db.update(tasks).set({
+                context: sql`context || ${JSON.stringify({ _clarification: plannerResult })}::jsonb`,
+            }).where(eq(tasks.id, task.id))
+            emit({
+                type: 'task_clarification_needed' as 'task_blocked',
+                taskId: task.id,
+                reason: plannerResult.message,
+            })
+            return true
+        }
+
+        const plan = plannerResult.plan
         logger.info({ taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore }, 'Plan ready')
         emit({ type: 'task_planned', taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore })
 

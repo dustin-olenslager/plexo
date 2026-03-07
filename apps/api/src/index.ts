@@ -40,6 +40,7 @@ import { auditRouter } from './routes/audit.js'
 import { registryRouter } from './routes/registry.js'
 import { telemetryRouter } from './telemetry/router.js'
 import { configureTelemetry } from './telemetry/posthog.js'
+import { clarificationRouter } from './routes/clarification.js'
 import { terminateAll, workerStats } from '@plexo/agent/persistent-pool'
 import { eventBus, TOPICS } from '@plexo/agent/event-bus'
 import { emitToWorkspace } from './sse-emitter.js'
@@ -107,6 +108,7 @@ v1.use('/sse', sseRouter)
 v1.use('/auth', authLimiter, authRouter)
 v1.use('/oauth', oauthRouter)
 v1.use('/tasks', taskCreationLimiter, workspaceRateLimit, tasksRouter)
+v1.use('/tasks/:taskId/clarification', clarificationRouter)
 v1.use('/sprints', sprintsRouter)
 v1.use('/sprints', sprintRunnerRouter)
 v1.use('/dashboard', dashboardRouter)
