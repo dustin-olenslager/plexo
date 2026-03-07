@@ -171,7 +171,7 @@ export default function NewProjectPage() {
 
             const { id: sprintId } = await createRes.json() as { id: string }
 
-            if (autoRun && category === 'code') {
+            if (autoRun) {
                 await fetch(`${apiBase}/api/v1/sprints/${sprintId}/run`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -368,25 +368,20 @@ export default function NewProjectPage() {
                         {/* Auto-run toggle */}
                         <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/60 px-4 py-3">
                             <div>
-                                <p className="text-sm font-medium text-zinc-300">
-                                    {category === 'code' ? 'Auto-run after planning' : 'Auto-run'}
-                                </p>
+                                <p className="text-sm font-medium text-zinc-300">Auto-run</p>
                                 <p className="text-xs text-zinc-500 mt-0.5">
-                                    {category === 'code'
-                                        ? 'Starts execution immediately. Disable to review the plan first.'
-                                        : 'Automated execution for this category is coming soon.'}
+                                    Starts execution immediately after creation.
                                 </p>
                             </div>
                             <button
                                 type="button"
                                 role="switch"
-                                aria-checked={autoRun && category === 'code'}
-                                disabled={category !== 'code'}
+                                aria-checked={autoRun}
                                 onClick={() => setAutoRun((r) => !r)}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-zinc-900 disabled:opacity-30 ${autoRun && category === 'code' ? 'bg-indigo-600' : 'bg-zinc-700'}`}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-zinc-900 ${autoRun ? 'bg-indigo-600' : 'bg-zinc-700'}`}
                             >
                                 <span
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${autoRun && category === 'code' ? 'translate-x-6' : 'translate-x-1'}`}
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${autoRun ? 'translate-x-6' : 'translate-x-1'}`}
                                 />
                             </button>
                         </div>
