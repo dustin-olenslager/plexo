@@ -66,6 +66,13 @@ plugins/core/*     → packages/sdk only (never packages/db or packages/agent)
 - Redis: safe to flush (all data is ephemeral cache/state)
 - Container: `docker compose down && docker compose up -d` (image tags for rollback)
 
+## Deploy sequence (non-negotiable)
+1. Commit locally
+2. `git push origin main`
+3. On VPS: `git pull origin main`
+4. `docker compose -f docker/compose.yml build <service> && up -d <service>`
+Never skip steps or reorder. Never edit files directly on the VPS.
+
 ## Known Issues
 *None.*
 
