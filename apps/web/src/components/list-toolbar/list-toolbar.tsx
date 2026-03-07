@@ -1,6 +1,6 @@
 'use client'
 
-import { Search, SlidersHorizontal, X, ArrowUpDown, Check } from 'lucide-react'
+import { Search, SlidersHorizontal, X, ArrowUpDown, Check, ChevronDown } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import type { FilterDimension, ListFilterHook } from './use-list-filter'
 
@@ -33,11 +33,14 @@ function CustomSortDropdown({
             <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
-                className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors shadow-sm ${open ? 'border-zinc-500 bg-zinc-800 text-zinc-200' : 'border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300'
+                className={`flex justify-between items-center w-full gap-1.5 rounded-lg border px-3 py-2 min-h-[44px] md:min-h-0 text-[16px] md:text-sm transition-colors shadow-sm ${open ? 'border-zinc-500 bg-zinc-800 text-zinc-200' : 'border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300'
                     }`}
             >
-                <ArrowUpDown className="h-3.5 w-3.5" />
-                <span className="font-medium whitespace-nowrap">{selectedLabel}</span>
+                <div className="flex items-center gap-1.5">
+                    <ArrowUpDown className="h-4 w-4 md:h-3.5 md:w-3.5" />
+                    <span className="font-medium whitespace-nowrap">{selectedLabel}</span>
+                </div>
+                <ChevronDown className="h-4 w-4 md:hidden text-zinc-500" />
             </button>
 
             {open && (
@@ -49,7 +52,7 @@ function CustomSortDropdown({
                                 <li key={opt.value} role="option" aria-selected={active}>
                                     <button
                                         type="button"
-                                        className={`w-full flex items-center justify-between gap-3 rounded-md px-2.5 py-1.5 text-xs transition-colors text-left ${active ? 'bg-indigo-500/15 text-indigo-300' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                                        className={`w-full flex items-center justify-between gap-3 rounded-md px-3 py-3 md:px-2.5 md:py-1.5 text-[16px] md:text-sm transition-colors text-left ${active ? 'bg-indigo-500/15 text-indigo-300' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
                                             }`}
                                         onClick={() => {
                                             onChange(opt.value)
@@ -57,7 +60,7 @@ function CustomSortDropdown({
                                         }}
                                     >
                                         <span className={active ? 'font-medium' : ''}>{opt.label}</span>
-                                        {active && <Check className="h-3 w-3 shrink-0" />}
+                                        {active && <Check className="h-4 w-4 md:h-3 md:w-3 shrink-0" />}
                                     </button>
                                 </li>
                             )
@@ -115,24 +118,24 @@ export function ListToolbar({
     return (
         <div className="flex flex-col gap-3">
             {/* ── Toolbar row ──────────────────────────────────────────────── */}
-            <div className="flex gap-2">
+            <div className="flex flex-col md:flex-row gap-2">
                 {/* Search input */}
                 <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 md:h-3.5 md:w-3.5 -translate-y-1/2 text-zinc-500 pointer-events-none" />
                     <input
                         type="text"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder={placeholder}
-                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900/60 py-2 pl-9 pr-3 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/20 transition-colors"
+                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900/60 py-2 pl-10 pr-4 min-h-[44px] md:min-h-[32px] text-[16px] md:text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/20 transition-colors"
                     />
                     {search && (
                         <button
                             onClick={() => setSearch('')}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400 transition-colors"
+                            className="absolute right-0 top-0 bottom-0 px-3 text-zinc-600 hover:text-zinc-400 transition-colors flex justify-center items-center"
                             aria-label="Clear search"
                         >
-                            <X className="h-3 w-3" />
+                            <X className="h-4 w-4 md:h-3 md:w-3" />
                         </button>
                     )}
                 </div>
@@ -166,9 +169,9 @@ export function ListToolbar({
                 {hasFilters && (
                     <button
                         onClick={clearAll}
-                        className="flex items-center gap-1 rounded-lg border border-zinc-700 px-2.5 py-2 text-xs text-zinc-500 hover:border-zinc-600 hover:text-zinc-300 transition-colors"
+                        className="flex items-center justify-center gap-1 rounded-lg border border-zinc-700 px-2.5 py-2 min-h-[44px] md:min-h-0 text-[16px] md:text-sm text-zinc-500 hover:border-zinc-600 hover:text-zinc-300 transition-colors"
                     >
-                        <X className="h-3 w-3" />
+                        <X className="h-4 w-4 md:h-3 md:w-3" />
                         Clear
                     </button>
                 )}
@@ -238,15 +241,15 @@ export function ListToolbar({
                         return (
                             <span
                                 key={dim.key}
-                                className="flex items-center gap-1 rounded-full border border-indigo-800/50 bg-indigo-900/20 px-2.5 py-0.5 text-[11px] text-indigo-400"
+                                className="flex items-center gap-1 rounded-full border border-indigo-800/50 bg-indigo-900/20 pl-3 pr-1 py-1 text-[13px] md:py-0.5 md:pl-2.5 md:pr-0.5 md:text-[11px] text-indigo-400"
                             >
                                 {dim.label}: {label}
                                 <button
                                     onClick={() => setFilter(dim.key, null)}
-                                    className="hover:text-indigo-200 ml-0.5"
+                                    className="hover:text-indigo-200 ml-0.5 h-6 w-6 md:h-4 md:w-4 flex items-center justify-center shrink-0"
                                     aria-label={`Remove ${dim.label} filter`}
                                 >
-                                    <X className="h-2.5 w-2.5" />
+                                    <X className="h-3.5 w-3.5 md:h-2.5 md:w-2.5" />
                                 </button>
                             </span>
                         )

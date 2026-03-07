@@ -99,8 +99,8 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <Link href="/tasks" className="text-zinc-500 hover:text-zinc-300 transition-colors">
-                        <ChevronLeft className="h-4 w-4" />
+                    <Link href="/tasks" className="flex items-center justify-center min-h-[40px] min-w-[40px] md:min-h-[32px] md:min-w-[32px] rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-colors -ml-2">
+                        <ChevronLeft className="h-5 w-5 md:h-4 md:w-4" />
                     </Link>
                     <div className="flex items-center gap-2 flex-wrap">
                         <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[12px] font-medium ${sc.color} ${sc.bg}`}>

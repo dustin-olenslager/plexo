@@ -5,6 +5,8 @@ import { WorkspaceProvider } from '@web/context/workspace'
 import { UpdateModal } from '@web/components/update-modal'
 import { getWorkspaceId } from '@web/lib/workspace'
 
+import { AppShell } from '@plexo/ui/components/layout/AppShell'
+
 export default async function DashboardLayout({
     children,
 }: {
@@ -29,7 +31,7 @@ export default async function DashboardLayout({
         <WorkspaceProvider initialId={workspaceId ?? undefined} initialName={workspaceName}>
             <div className="flex h-screen overflow-hidden">
                 <Sidebar user={session?.user} />
-                <main className="flex-1 overflow-auto bg-zinc-925 p-6">
+                <main className="flex-1 overflow-auto bg-zinc-925 p-4 pb-24 md:p-6 md:pb-6 relative z-0">
                     {/* SSE listener — refreshes server components on task events */}
                     <DashboardRefresher />
                     {/* Version check — opens modal automatically when behind */}

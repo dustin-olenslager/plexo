@@ -409,18 +409,18 @@ export default function IntegrationsPage() {
             />
 
             {/* Two-panel layout */}
-            <div className="flex gap-4 flex-1 min-h-0 pt-2">
+            <div className="flex flex-col md:flex-row gap-4 flex-1 min-h-0 pt-2 pb-4 md:pb-0">
 
                 {/* Left panel — list */}
-                <div className="w-[260px] shrink-0 flex flex-col gap-2">
+                <div className="w-full md:w-[280px] shrink-0 flex flex-row md:flex-col gap-2 overflow-x-auto md:overflow-y-auto pb-2 md:pb-0 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {/* List */}
-                    <div className="flex-1 overflow-y-auto flex flex-col gap-1">
+                    <div className="flex-1 flex flex-row md:flex-col gap-2 md:gap-1">
                         {loading ? (
-                            <div className="flex items-center justify-center py-8">
+                            <div className="flex items-center justify-center py-8 min-w-[200px] shrink-0 snap-start">
                                 <RefreshCw className="h-4 w-4 text-zinc-600 animate-spin" />
                             </div>
                         ) : sorted.length === 0 ? (
-                            <p className="text-center text-xs text-zinc-600 py-6">No results</p>
+                            <p className="text-center text-xs text-zinc-600 py-6 min-w-[200px] shrink-0 snap-start">No results</p>
                         ) : (
                             sorted.map((r) => {
                                 const inst = installed.find((i) => i.registryId === r.id)
@@ -431,12 +431,12 @@ export default function IntegrationsPage() {
                                     <button
                                         key={r.id}
                                         onClick={() => { setSelected(r); setActiveTab('overview') }}
-                                        className={`text-left rounded-xl border px-3 py-2.5 transition-all ${active
+                                        className={`text-left rounded-xl border px-3 py-2.5 transition-all text-sm shrink-0 snap-start min-w-[250px] md:min-w-0 md:w-full min-h-[44px] ${active
                                             ? 'border-indigo-500/50 bg-zinc-900 shadow-sm shadow-indigo-500/10'
                                             : 'border-zinc-800/60 bg-zinc-900/30 hover:border-zinc-700 hover:bg-zinc-900/60'
                                             }`}
                                     >
-                                        <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center justify-between gap-2 h-full">
                                             <div className="flex items-center gap-2.5">
                                                 {r.logoUrl ? (
                                                     <span className="relative h-6 w-6 shrink-0">
@@ -479,14 +479,14 @@ export default function IntegrationsPage() {
 
                 {/* Right panel — detail */}
                 {selected ? (
-                    <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900/40 flex flex-col overflow-hidden">
+                    <div className="flex-1 rounded-xl border border-zinc-800 bg-zinc-900/40 flex flex-col overflow-hidden max-w-[100vw] sm:max-w-none">
                         {/* Detail header */}
-                        <div className="flex items-start justify-between gap-4 p-5 border-b border-zinc-800">
-                            <div className="flex items-center gap-3">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 border-b border-zinc-800">
+                            <div className="flex items-start gap-3">
                                 {selected.logoUrl ? (
-                                    <img src={selected.logoUrl} alt={selected.name} className="h-10 w-10 rounded-lg object-contain bg-white/5" />
+                                    <img src={selected.logoUrl} alt={selected.name} className="h-10 w-10 mt-1 sm:mt-0 rounded-lg object-contain bg-white/5 shrink-0" />
                                 ) : (
-                                    <div className="h-10 w-10 rounded-lg bg-zinc-800 flex items-center justify-center text-sm font-bold text-zinc-300">
+                                    <div className="h-10 w-10 mt-1 sm:mt-0 rounded-lg bg-zinc-800 flex items-center justify-center text-sm font-bold text-zinc-300 shrink-0">
                                         {selected.name.slice(0, 2).toUpperCase()}
                                     </div>
                                 )}
@@ -514,13 +514,13 @@ export default function IntegrationsPage() {
                                     </div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
+                            <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
                                 {selected.docUrl && (
                                     <a
                                         href={selected.docUrl}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="flex items-center gap-1 rounded-lg border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors"
+                                        className="flex items-center justify-center gap-1 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-zinc-400 hover:border-zinc-600 hover:text-zinc-200 transition-colors min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial"
                                     >
                                         <ExternalLink className="h-3 w-3" />
                                         Docs
@@ -530,7 +530,7 @@ export default function IntegrationsPage() {
                                     <button
                                         onClick={() => void handleDisconnect()}
                                         disabled={disconnecting}
-                                        className="flex items-center gap-1.5 rounded-lg border border-red-800/50 bg-red-950/30 px-2.5 py-1.5 text-xs text-red-400 hover:border-red-700 hover:bg-red-950/50 transition-colors disabled:opacity-50"
+                                        className="flex items-center justify-center gap-1.5 rounded-lg border border-red-800/50 bg-red-950/30 px-3 py-2 sm:px-2.5 sm:py-1.5 text-xs text-red-400 hover:border-red-700 hover:bg-red-950/50 transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 flex-1 sm:flex-initial whitespace-nowrap"
                                     >
                                         <Trash2 className="h-3 w-3" />
                                         {disconnecting ? 'Removing…' : 'Disconnect'}
@@ -539,9 +539,9 @@ export default function IntegrationsPage() {
                                     <button
                                         onClick={() => void handleInstall()}
                                         disabled={installing || !WS_ID}
-                                        className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
+                                        className="flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 sm:px-3 sm:py-1.5 text-sm sm:text-xs font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50 min-h-[44px] sm:min-h-0 flex-[2] sm:flex-initial"
                                     >
-                                        <Link2 className="h-3.5 w-3.5" />
+                                        <Link2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                                         {installing ? 'Connecting…' : 'Connect'}
                                     </button>
                                 )}
@@ -583,25 +583,29 @@ export default function IntegrationsPage() {
                                     {isConnected && connectedItem && (
                                         <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 flex flex-col gap-2">
                                             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Connection details</p>
-                                            <dl className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
-                                                <dt className="text-zinc-600">Status</dt>
-                                                <dd className="flex items-center gap-1.5">
-                                                    <StatusDot status={connectedItem.status} />
-                                                    <span className="text-zinc-300 capitalize">{connectedItem.status}</span>
-                                                </dd>
-                                                <dt className="text-zinc-600">Connected</dt>
-                                                <dd className="text-zinc-300">{new Date(connectedItem.createdAt).toLocaleDateString()}</dd>
+                                            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 sm:gap-y-1.5 text-sm">
+                                                <div>
+                                                    <dt className="text-zinc-600 text-[11px] sm:text-xs">Status</dt>
+                                                    <dd className="flex items-center gap-1.5">
+                                                        <StatusDot status={connectedItem.status} />
+                                                        <span className="text-zinc-300 capitalize">{connectedItem.status}</span>
+                                                    </dd>
+                                                </div>
+                                                <div>
+                                                    <dt className="text-zinc-600 text-[11px] sm:text-xs">Connected</dt>
+                                                    <dd className="text-zinc-300">{new Date(connectedItem.createdAt).toLocaleDateString()}</dd>
+                                                </div>
                                                 {connectedItem.lastVerifiedAt && (
-                                                    <>
-                                                        <dt className="text-zinc-600">Last verified</dt>
+                                                    <div>
+                                                        <dt className="text-zinc-600 text-[11px] sm:text-xs">Last verified</dt>
                                                         <dd className="text-zinc-300">{new Date(connectedItem.lastVerifiedAt).toLocaleDateString()}</dd>
-                                                    </>
+                                                    </div>
                                                 )}
                                                 {connectedItem.scopesGranted.length > 0 && (
-                                                    <>
-                                                        <dt className="text-zinc-600">Scopes</dt>
+                                                    <div className="sm:col-span-2">
+                                                        <dt className="text-zinc-600 text-[11px] sm:text-xs">Scopes</dt>
                                                         <dd className="text-zinc-300">{connectedItem.scopesGranted.join(', ')}</dd>
-                                                    </>
+                                                    </div>
                                                 )}
                                             </dl>
                                         </div>
@@ -634,7 +638,7 @@ export default function IntegrationsPage() {
                                                         value={fieldValues[field.key] ?? ''}
                                                         onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
                                                         placeholder={field.placeholder ?? ''}
-                                                        className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                                                        className="min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
                                                     />
                                                 </div>
                                             ))}
@@ -732,18 +736,18 @@ export default function IntegrationsPage() {
                                                         key={tool}
                                                         onClick={() => void toggleTool(tool)}
                                                         disabled={savingTools}
-                                                        className={`flex items-center justify-between rounded-lg border px-3 py-2.5 text-left transition-all disabled:opacity-60 ${enabled
+                                                        className={`flex items-center justify-between min-h-[44px] rounded-lg border px-3 py-2.5 text-left transition-all disabled:opacity-60 ${enabled
                                                             ? 'border-zinc-700/60 bg-zinc-900/60 hover:border-zinc-600'
                                                             : 'border-zinc-800/40 bg-zinc-900/20 opacity-60 hover:opacity-80'
                                                             }`}
                                                     >
-                                                        <div className="flex items-center gap-2.5">
-                                                            <Wrench className="h-3.5 w-3.5 text-zinc-600" />
-                                                            <span className="text-sm font-mono text-zinc-300">{tool}</span>
+                                                        <div className="flex items-center gap-2.5 truncate mr-3">
+                                                            <Wrench className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
+                                                            <span className="text-sm font-mono text-zinc-300 truncate">{tool}</span>
                                                         </div>
                                                         {enabled
-                                                            ? <ToggleRight className="h-5 w-5 text-indigo-400" />
-                                                            : <ToggleLeft className="h-5 w-5 text-zinc-700" />
+                                                            ? <ToggleRight className="h-6 w-6 sm:h-5 sm:w-5 text-indigo-400 shrink-0" />
+                                                            : <ToggleLeft className="h-6 w-6 sm:h-5 sm:w-5 text-zinc-700 shrink-0" />
                                                         }
                                                     </button>
                                                 )
@@ -796,7 +800,7 @@ export default function IntegrationsPage() {
                                                         value={fieldValues[field.key] ?? ''}
                                                         onChange={(e) => setFieldValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
                                                         placeholder="Leave blank to keep current value"
-                                                        className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                                                        className="min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
                                                     />
                                                 </div>
                                             ))}

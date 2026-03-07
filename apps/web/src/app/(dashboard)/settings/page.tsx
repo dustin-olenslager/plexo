@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Key, Globe, Save, Check, AlertCircle, Plus, Loader2, LogIn, Server, Terminal, Puzzle, Copy, Activity, Trash2 } from 'lucide-react'
+import { Key, Globe, Save, Check, AlertCircle, Plus, Loader2, LogIn, LogOut, Server, Terminal, Puzzle, Copy, Activity, Trash2 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 
 interface Section {
     id: string
     label: string
     icon: React.ElementType
+    nativeOnly?: boolean
 }
 
 const SECTIONS: Section[] = [
@@ -17,7 +18,10 @@ const SECTIONS: Section[] = [
     { id: 'cli', label: 'CLI', icon: Terminal },
     { id: 'mcp', label: 'MCP', icon: Puzzle },
     { id: 'system', label: 'System', icon: Activity },
+    { id: 'app', label: 'App Settings', icon: LogIn, nativeOnly: true },
 ]
+import { getRuntimeContext } from '@plexo/ui/lib/runtime'
+import { Preferences } from '@capacitor/preferences'
 function CodeSnippet({ label, code }: { label?: string; code: string }) {
     const [copied, setCopied] = useState(false)
 
@@ -37,7 +41,7 @@ function CodeSnippet({ label, code }: { label?: string; code: string }) {
                 <button
                     type="button"
                     onClick={handleCopy}
-                    className="absolute right-2 top-2 p-1.5 rounded-md bg-zinc-800/80 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity hover:text-white hover:bg-zinc-700"
+                    className="absolute right-2 top-2 p-1.5 rounded-md bg-zinc-800/80 text-zinc-400 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity hover:text-white hover:bg-zinc-700 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center"
                     title="Copy code"
                 >
                     {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
@@ -61,7 +65,7 @@ function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
     return (
         <input
             {...props}
-            className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 disabled:opacity-50"
+            className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 disabled:opacity-50 min-h-[44px] md:min-h-[36px]"
         />
     )
 }
@@ -73,7 +77,7 @@ function SaveButton({ saved, saving }: { saved: boolean; saving: boolean }) {
         <button
             type="submit"
             disabled={saving}
-            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50"
+            className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 transition-colors disabled:opacity-50 min-h-[44px] md:min-h-[36px] w-full md:w-auto"
         >
             {saved ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}
             {saving ? 'Saving…' : saved ? 'Saved' : 'Save changes'}
@@ -277,18 +281,18 @@ export default function SettingsPage() {
     }
 
     return (
-        <div className="flex gap-8 max-w-4xl">
+        <div className="flex flex-col md:flex-row gap-4 md:gap-8 max-w-4xl">
             {/* Sidebar nav */}
-            <nav className="shrink-0 w-44">
-                <p className="mb-2 text-[10px] uppercase tracking-widest text-zinc-600">Settings</p>
-                <div className="flex flex-col gap-0.5">
-                    {SECTIONS.map(({ id, label, icon: Icon }) => (
+            <nav className="shrink-0 w-full md:w-44 overflow-x-auto pb-2 md:pb-0 scrollbar-none">
+                <p className="mb-2 text-[10px] uppercase tracking-widest text-zinc-600 hidden md:block">Settings</p>
+                <div className="flex flex-row md:flex-col gap-1.5 md:gap-0.5 min-w-max md:min-w-0">
+                    {SECTIONS.filter(s => !s.nativeOnly || (typeof window !== 'undefined' && getRuntimeContext() !== 'browser')).map(({ id, label, icon: Icon }) => (
                         <button
                             key={id}
                             onClick={() => setActive(id)}
-                            className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-left transition-colors ${active === id ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300'}`}
+                            className={`flex items-center gap-2.5 rounded-lg px-4 md:px-3 py-2.5 md:py-2 text-sm text-left transition-colors min-h-[44px] md:min-h-[32px] ${active === id ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300'}`}
                         >
-                            <Icon className={`h-4 w-4 ${active === id ? 'text-indigo-400' : 'text-zinc-600'}`} />
+                            <Icon className={`h-4 w-4 shrink-0 ${active === id ? 'text-indigo-400' : 'text-zinc-600'}`} />
                             {label}
                         </button>
                     ))}
@@ -311,7 +315,7 @@ export default function SettingsPage() {
                         </div>
 
                         {/* Active workspace config */}
-                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 flex flex-col gap-5">
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 sm:p-5 flex flex-col gap-4 sm:gap-5">
                             <p className="text-[11px] uppercase tracking-widest text-zinc-600 font-medium">Active workspace</p>
                             <Field id="workspace-name" label="Workspace name" description="Displayed in the sidebar and agent context.">
                                 <Input id="workspace-name" value={workspaceName} onChange={(e) => setWorkspaceName(e.target.value)} placeholder="My Workspace" />
@@ -334,15 +338,15 @@ export default function SettingsPage() {
                                 <button
                                     type="button"
                                     onClick={() => setCreatingWs((v) => !v)}
-                                    className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-2.5 py-1.5 text-[12px] text-zinc-400 hover:border-indigo-600/50 hover:text-indigo-400 transition-colors"
+                                    className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 md:px-2.5 py-2 md:py-1.5 min-h-[44px] md:min-h-[32px] text-sm md:text-[12px] text-zinc-400 hover:border-indigo-600/50 hover:text-indigo-400 transition-colors"
                                 >
-                                    <Plus className="h-3.5 w-3.5" />
+                                    <Plus className="h-4 w-4 md:h-3.5 md:w-3.5" />
                                     New workspace
                                 </button>
                             </div>
 
                             {creatingWs && (
-                                <div className="flex items-center gap-2 rounded-xl border border-indigo-800/40 bg-indigo-950/20 px-4 py-3">
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-2 rounded-xl border border-indigo-800/40 bg-indigo-950/20 px-4 py-3">
                                     <input
                                         autoFocus
                                         value={newWsName}
@@ -352,18 +356,20 @@ export default function SettingsPage() {
                                             if (e.key === 'Escape') { setCreatingWs(false); setNewWsName('') }
                                         }}
                                         placeholder="Workspace name"
-                                        className="flex-1 bg-transparent text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
+                                        className="flex-1 bg-transparent text-base md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none min-h-[44px] sm:min-h-[32px]"
                                     />
-                                    <button
-                                        type="button"
-                                        onClick={() => void handleCreateWorkspace()}
-                                        disabled={creating || !newWsName.trim()}
-                                        className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
-                                    >
-                                        {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                                        Create
-                                    </button>
-                                    <button type="button" onClick={() => { setCreatingWs(false); setNewWsName('') }} className="text-zinc-600 hover:text-zinc-300 text-sm transition-colors">Cancel</button>
+                                    <div className="flex gap-2 justify-end">
+                                        <button
+                                            type="button"
+                                            onClick={() => void handleCreateWorkspace()}
+                                            disabled={creating || !newWsName.trim()}
+                                            className="flex items-center justify-center gap-1 rounded-lg bg-indigo-600 px-4 sm:px-3 py-2 sm:py-1.5 min-h-[44px] sm:min-h-0 text-sm sm:text-[12px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors flex-1 sm:flex-none"
+                                        >
+                                            {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                                            Create
+                                        </button>
+                                        <button type="button" onClick={() => { setCreatingWs(false); setNewWsName('') }} className="text-zinc-600 hover:text-zinc-300 text-sm transition-colors min-h-[44px] sm:min-h-0 px-2 flex-1 sm:flex-none text-center">Cancel</button>
+                                    </div>
                                 </div>
                             )}
 
@@ -390,18 +396,18 @@ export default function SettingsPage() {
                                                     <p className="text-[10px] font-mono text-zinc-600 truncate">{ws.id}</p>
                                                 </div>
                                                 {isActive ? (
-                                                    <span className="flex items-center gap-1 rounded-full bg-indigo-900/40 border border-indigo-700/30 px-2 py-0.5 text-[10px] font-medium text-indigo-400">
-                                                        <Check className="h-2.5 w-2.5" />
+                                                    <span className="flex items-center gap-1 rounded-full bg-indigo-900/40 border border-indigo-700/30 px-2 py-0.5 text-[10px] sm:text-xs font-medium text-indigo-400 shrink-0">
+                                                        <Check className="h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0" />
                                                         Active
                                                     </span>
                                                 ) : confirmDeleteId === ws.id ? (
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span className="text-[11px] text-red-400">Delete?</span>
+                                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-1.5 shrink-0">
+                                                        <span className="text-[11px] text-red-400 hidden sm:inline">Delete?</span>
                                                         <button
                                                             type="button"
                                                             onClick={() => void handleDeleteWorkspace(ws.id)}
                                                             disabled={deletingWs}
-                                                            className="flex items-center gap-1 rounded-lg bg-red-700/80 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
+                                                            className="flex items-center justify-center gap-1 rounded-lg bg-red-700/80 px-3 sm:px-2.5 py-1.5 sm:py-1 min-h-[44px] sm:min-h-[32px] text-sm sm:text-[11px] font-medium text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
                                                         >
                                                             {deletingWs ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
                                                             Confirm
@@ -409,28 +415,28 @@ export default function SettingsPage() {
                                                         <button
                                                             type="button"
                                                             onClick={() => setConfirmDeleteId(null)}
-                                                            className="text-zinc-600 hover:text-zinc-300 text-[11px] transition-colors"
+                                                            className="flex items-center justify-center text-zinc-600 hover:text-zinc-300 text-sm sm:text-[11px] transition-colors min-h-[44px] sm:min-h-[32px] px-2"
                                                         >
                                                             Cancel
                                                         </button>
                                                     </div>
                                                 ) : (
-                                                    <div className="flex items-center gap-1.5">
+                                                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-1.5 shrink-0">
                                                         <button
                                                             type="button"
                                                             onClick={() => setWorkspace(ws.id, ws.name)}
-                                                            className="flex items-center gap-1 rounded-lg border border-zinc-700 px-2.5 py-1 text-[11px] text-zinc-400 hover:border-indigo-600/50 hover:text-indigo-400 transition-colors"
+                                                            className="flex items-center justify-center gap-1 rounded-lg border border-zinc-700 px-3 sm:px-2.5 py-2 sm:py-1 min-h-[44px] sm:min-h-[32px] text-sm sm:text-[11px] text-zinc-400 hover:border-indigo-600/50 hover:text-indigo-400 transition-colors"
                                                         >
-                                                            <LogIn className="h-3 w-3" />
+                                                            <LogIn className="h-4 w-4 sm:h-3 sm:w-3 shrink-0" />
                                                             Switch
                                                         </button>
                                                         <button
                                                             type="button"
                                                             onClick={() => setConfirmDeleteId(ws.id)}
-                                                            className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                            className="flex items-center justify-center min-w-[44px] min-h-[44px] sm:min-w-[32px] sm:min-h-[32px] sm:p-1.5 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                                                             title="Delete workspace"
                                                         >
-                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                            <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5 shrink-0" />
                                                         </button>
                                                     </div>
                                                 )}
@@ -459,7 +465,7 @@ export default function SettingsPage() {
                                     </p>
                                     <a
                                         href="/settings/ai-providers"
-                                        className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
+                                        className="mt-2 inline-flex items-center gap-1 text-sm sm:text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors min-h-[44px] px-2 -mx-2 sm:min-h-0 sm:px-0 sm:mx-0 w-fit"
                                     >
                                         Go to AI Providers →
                                     </a>
@@ -493,15 +499,16 @@ GROQ_API_KEY=gsk_…`}
                                 <button
                                     type="button"
                                     onClick={() => setCreatingApiKey((v) => !v)}
-                                    className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-2.5 py-1.5 text-[12px] text-zinc-400 hover:border-indigo-600/50 hover:text-indigo-400 transition-colors"
+                                    className="flex items-center gap-1.5 rounded-lg border border-zinc-700 px-3 md:px-2.5 py-2 md:py-1.5 min-h-[44px] md:min-h-0 text-sm md:text-[12px] text-zinc-400 hover:border-indigo-600/50 hover:text-indigo-400 transition-colors"
                                 >
-                                    <Plus className="h-3.5 w-3.5" />
-                                    New API Key
+                                    <Plus className="h-4 w-4 md:h-3.5 md:w-3.5" />
+                                    <span className="hidden sm:inline">New API Key</span>
+                                    <span className="sm:hidden">New Key</span>
                                 </button>
                             </div>
 
                             {creatingApiKey && (
-                                <div className="flex items-center gap-2 rounded-xl border border-indigo-800/40 bg-indigo-950/20 px-4 py-3 mt-1">
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-2 rounded-xl border border-indigo-800/40 bg-indigo-950/20 px-4 py-3 mt-1">
                                     <input
                                         autoFocus
                                         value={newApiKeyName}
@@ -511,18 +518,20 @@ GROQ_API_KEY=gsk_…`}
                                             if (e.key === 'Escape') { setCreatingApiKey(false); setNewApiKeyName('') }
                                         }}
                                         placeholder="API Key Name (e.g. CLI Token)"
-                                        className="flex-1 bg-transparent text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
+                                        className="flex-1 bg-transparent text-base md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none min-h-[44px] sm:min-h-0"
                                     />
-                                    <button
-                                        type="button"
-                                        onClick={() => void handleCreateApiKey()}
-                                        disabled={creatingKey || !newApiKeyName.trim()}
-                                        className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
-                                    >
-                                        {creatingKey ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                                        Create
-                                    </button>
-                                    <button type="button" onClick={() => { setCreatingApiKey(false); setNewApiKeyName('') }} className="text-zinc-600 hover:text-zinc-300 text-sm transition-colors">Cancel</button>
+                                    <div className="flex gap-2 justify-end">
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleCreateApiKey()}
+                                                disabled={creatingKey || !newApiKeyName.trim()}
+                                                className="flex flex-1 sm:flex-none items-center justify-center gap-1 rounded-lg bg-indigo-600 px-4 sm:px-3 py-2 sm:py-1.5 min-h-[44px] sm:min-h-[32px] text-sm sm:text-[12px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                                            >
+                                            {creatingKey ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                                            Create
+                                        </button>
+                                        <button type="button" onClick={() => { setCreatingApiKey(false); setNewApiKeyName('') }} className="flex-1 sm:flex-none text-zinc-600 hover:text-zinc-300 text-sm transition-colors min-h-[44px] sm:min-h-[32px] px-2">Cancel</button>
+                                    </div>
                                 </div>
                             )}
 
@@ -545,10 +554,10 @@ GROQ_API_KEY=gsk_…`}
                                                     <button
                                                         type="button"
                                                         onClick={() => void handleRevokeApiKey(key.id)}
-                                                        className="p-1.5 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                                                        className="flex min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 items-center justify-center p-2 sm:p-1.5 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
                                                         title="Revoke and delete key"
                                                     >
-                                                        <Trash2 className="h-4 w-4" />
+                                                        <Trash2 className="h-5 w-5 sm:h-4 sm:w-4" />
                                                     </button>
                                                 </div>
                                                 {key.token && (
@@ -681,7 +690,7 @@ GROQ_API_KEY=gsk_…`}
                                     <p className="text-[11px] text-zinc-500">Real-time health of the Plexo backend</p>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div className="rounded-lg border border-zinc-800/80 bg-zinc-950/50 p-3">
                                     <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Status</p>
                                     <div className="flex items-center gap-2">
@@ -699,6 +708,47 @@ GROQ_API_KEY=gsk_…`}
                                     <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Uptime</p>
                                     <p className="text-xs font-mono text-zinc-200">{health?.uptime ? `${Math.floor(health.uptime / 60)}m` : '...'}</p>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {active === 'app' && (
+                    <div className="flex flex-col gap-6">
+                        <div>
+                            <h2 className="text-lg font-bold text-zinc-50">App Settings</h2>
+                            <p className="mt-0.5 text-sm text-zinc-500">Configure your local device app connection.</p>
+                        </div>
+
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 flex flex-col gap-4">
+                            <div className="flex items-center gap-2.5 mb-1">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-500/10 text-red-400">
+                                    <Globe className="h-3.5 w-3.5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-semibold text-zinc-200">Connection Mode</h3>
+                                    <p className="text-[11px] text-zinc-500">Change which Plexo instance this app connects to.</p>
+                                </div>
+                            </div>
+                            <div className="rounded-lg border border-red-800/80 bg-red-950/20 p-4">
+                                <p className="text-sm text-red-200 mb-3">
+                                    Switching connection modes will disconnect you from this instance and return you to the initial setup screen. You will need to sign in again.
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        if (!confirm('Are you sure you want to disconnect?')) return
+                                        try {
+                                            await Preferences.remove({ key: 'plexo_instance_url' })
+                                            window.location.href = '/onboarding?step=1'
+                                        } catch {
+                                            window.location.href = '/onboarding?step=1'
+                                        }
+                                    }}
+                                    className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-500 transition-colors w-full sm:w-auto justify-center"
+                                >
+                                    <LogOut className="h-4 w-4" />
+                                    Switch Connection
+                                </button>
                             </div>
                         </div>
                     </div>

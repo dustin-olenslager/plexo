@@ -109,7 +109,7 @@ function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputEleme
     'use no memo';
     return (
         <input
-            className={`rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 disabled:opacity-40 ${className ?? ''}`}
+            className={`min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 disabled:opacity-40 w-full ${className ?? ''}`}
             {...props}
         />
     )
@@ -119,7 +119,7 @@ function Textarea({ className, ...props }: React.TextareaHTMLAttributes<HTMLText
     'use no memo';
     return (
         <textarea
-            className={`resize-none rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 leading-relaxed ${className ?? ''}`}
+            className={`min-h-[44px] w-full resize-none rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-[16px] sm:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 leading-relaxed ${className ?? ''}`}
             {...props}
         />
     )
@@ -131,9 +131,9 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
         <button
             type="button"
             onClick={onChange}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${checked ? 'bg-indigo-600' : 'bg-zinc-700'}`}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-zinc-950 min-h-[44px] ${checked ? 'bg-indigo-600' : 'bg-zinc-700'}`}
         >
-            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4.5' : 'translate-x-0.5'}`} />
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} />
         </button>
     )
 }
@@ -150,7 +150,7 @@ function Field({ label, description, children }: { label: string; description?: 
 
 function Section({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
     return (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 sm:p-5">
             <div className="flex items-center gap-2 mb-4">
                 <Icon className="h-4 w-4 text-zinc-500" />
                 <h2 className="text-sm font-semibold text-zinc-200">{title}</h2>
@@ -209,30 +209,30 @@ function RuleValueEditor({ val, locked, onChange }: { val: RuleValue; locked: bo
             return (
                 <input type="number" value={val.value as number} min={val.min} max={val.max}
                     onChange={e => onChange({ ...val, value: parseFloat(e.target.value) })}
-                    className="w-24 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
+                    className="w-full sm:w-24 min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
                 />
             )
         case 'enum':
             return (
                 <select value={val.value as string} onChange={e => onChange({ ...val, value: e.target.value })}
-                    className="rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none">
+                    className="w-full min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none">
                     {(val.options ?? []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
             )
         case 'string':
             return (
                 <input type="text" value={val.value as string} onChange={e => onChange({ ...val, value: e.target.value })}
-                    className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
+                    className="flex-1 w-full min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none"
                 />
             )
         case 'text_block':
             return (
                 <textarea value={val.value as string} onChange={e => onChange({ ...val, value: e.target.value })} rows={3}
-                    className="flex-1 resize-none rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none leading-relaxed"
+                    className="flex-1 w-full resize-none min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none leading-relaxed"
                 />
             )
         default:
-            return <span className="text-xs text-zinc-600 font-mono">{JSON.stringify(val.value)}</span>
+            return <span className="text-xs text-zinc-600 font-mono break-all">{JSON.stringify(val.value)}</span>
     }
 }
 
@@ -273,30 +273,34 @@ function RuleRow({ rule, onUpdate, onDelete, showSource = false, overriddenBy }:
 
     return (
         <div className={`group flex flex-col gap-2 py-3 border-b border-zinc-800/60 last:border-0 ${overriddenBy ? 'opacity-60' : ''}`}>
-            <div className="flex items-start gap-3">
-                {rule.locked && <Lock className="h-3.5 w-3.5 text-zinc-600 mt-0.5 shrink-0" />}
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-medium text-zinc-200">{rule.label}</span>
-                        {showSource && <SourceBadge source={source} />}
-                        {overriddenBy && <span className="text-[10px] text-zinc-600 italic">overridden at {overriddenBy.source} level</span>}
-                        {rule.locked && <span className="text-[10px] text-zinc-600 px-1.5 py-0.5 rounded border border-zinc-800">enforced</span>}
+            <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                    {rule.locked && <Lock className="h-3.5 w-3.5 text-zinc-600 mt-0.5 shrink-0" />}
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium text-zinc-200">{rule.label}</span>
+                            {showSource && <SourceBadge source={source} />}
+                            {overriddenBy && <span className="text-[10px] text-zinc-600 italic">overridden at {overriddenBy.source} level</span>}
+                            {rule.locked && <span className="text-[10px] text-zinc-600 px-1.5 py-0.5 rounded border border-zinc-800">enforced</span>}
+                        </div>
+                        {rule.description && <p className="text-xs text-zinc-600 mt-0.5">{rule.description}</p>}
                     </div>
-                    {rule.description && <p className="text-xs text-zinc-600 mt-0.5">{rule.description}</p>}
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                    <RuleValueEditor val={localVal} locked={rule.locked} onChange={handleChange} />
+                <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto mt-2 sm:mt-0">
+                    <div className="flex-1 sm:flex-initial">
+                        <RuleValueEditor val={localVal} locked={rule.locked} onChange={handleChange} />
+                    </div>
                     {needsTextSave && dirty && (
                         <button onClick={() => void handleSave()} disabled={saving}
-                            className="text-xs bg-indigo-600 text-white px-2 py-1 rounded-lg hover:bg-indigo-500 disabled:opacity-50">
-                            {saving ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                            className="text-[16px] sm:text-xs bg-indigo-600 text-white min-h-[44px] min-w-[44px] rounded-lg hover:bg-indigo-500 disabled:opacity-50 flex flex-col items-center justify-center shrink-0">
+                            {saving ? <RefreshCw className="h-4 w-4 sm:h-3 sm:w-3 animate-spin" /> : <Check className="h-4 w-4 sm:h-3 sm:w-3" />}
                         </button>
                     )}
                     {!rule.locked && (
                         <button onClick={() => onDelete(id)}
-                            className="text-zinc-700 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                            className="text-zinc-700 hover:text-red-400 transition-colors sm:opacity-0 group-hover:opacity-100 min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0"
                             aria-label="Delete rule">
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                         </button>
                     )}
                 </div>
@@ -329,20 +333,20 @@ function AddRuleForm({ groupTypes, onAdd, onCancel }: {
     }
 
     return (
-        <div className="mt-3 border border-dashed border-zinc-700 rounded-xl p-4 flex flex-col gap-3 bg-zinc-900/30">
-            <div className="flex gap-3">
+        <div className="mt-3 border border-dashed border-zinc-700 rounded-xl p-4 flex flex-col gap-4 sm:gap-3 bg-zinc-900/30 w-full">
+            <div className="flex flex-col sm:flex-row gap-4 sm:gap-3">
                 <div className="flex-1">
                     <label className="text-xs text-zinc-500 mb-1 block">Label</label>
                     <input type="text" value={label} onChange={e => setLabel(e.target.value)} autoFocus
                         placeholder="e.g. Always use TypeScript strict mode"
-                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                        className="w-full min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
                     />
-                    {autoKey && <p className="text-[10px] text-zinc-700 mt-0.5 font-mono">key: {autoKey}</p>}
+                    {autoKey && <p className="text-[10px] text-zinc-700 mt-1 sm:mt-0.5 font-mono">key: {autoKey}</p>}
                 </div>
                 <div>
                     <label className="text-xs text-zinc-500 mb-1 block">Type</label>
                     <select value={valueType} onChange={e => setValueType(e.target.value as RuleValue['type'])}
-                        className="rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-2 text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none">
+                        className="w-full sm:w-auto min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 focus:border-indigo-500 focus:outline-none">
                         <option value="text_block">Text block</option>
                         <option value="string">Short string</option>
                         <option value="boolean">Toggle</option>
@@ -358,12 +362,12 @@ function AddRuleForm({ groupTypes, onAdd, onCancel }: {
                 {valueType === 'text_block' ? (
                     <textarea rows={3} value={value} onChange={e => setValue(e.target.value)}
                         placeholder="Enter the rule content…"
-                        className="w-full resize-none rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                        className="w-full resize-none min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
                     />
                 ) : (
                     <input type={valueType === 'number' ? 'number' : 'text'} value={value} onChange={e => setValue(e.target.value)}
                         placeholder={valueType === 'enum' ? 'option1, option2, option3' : ''}
-                        className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                        className="w-full min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
                     />
                 )}
             </div>
@@ -371,14 +375,14 @@ function AddRuleForm({ groupTypes, onAdd, onCancel }: {
                 <label className="text-xs text-zinc-500 mb-1 block">Description (optional)</label>
                 <input type="text" value={description} onChange={e => setDescription(e.target.value)}
                     placeholder="What does this rule do?"
-                    className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
+                    className="w-full min-h-[44px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-[16px] sm:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none"
                 />
             </div>
-            <div className="flex gap-2 justify-end">
-                <button onClick={onCancel} className="text-xs text-zinc-500 hover:text-zinc-300 px-3 py-2 rounded-lg transition-colors">Cancel</button>
+            <div className="flex flex-col sm:flex-row gap-2 justify-end mt-2">
+                <button onClick={onCancel} className="text-[16px] sm:text-xs text-zinc-400 hover:text-zinc-200 min-h-[44px] px-4 rounded-lg transition-colors border border-zinc-800 sm:border-transparent">Cancel</button>
                 <button onClick={() => { if (!label.trim()) return; onAdd({ type, key: autoKey, label: label.trim(), description, value: buildValue() }) }}
                     disabled={!label.trim()}
-                    className="text-xs bg-indigo-600 text-white px-3 py-2 rounded-lg hover:bg-indigo-500 disabled:opacity-40 transition-colors">
+                    className="flex justify-center items-center text-[16px] sm:text-xs bg-indigo-600 text-white min-h-[44px] px-4 rounded-lg hover:bg-indigo-500 disabled:opacity-40 transition-colors cursor-pointer">
                     Add rule
                 </button>
             </div>
@@ -406,20 +410,20 @@ function BehaviorCard({ group, rules, inheritanceMode, resolvedRules, onUpdate, 
     return (
         <div className={`rounded-xl border ${colors.border} border-l-4 ${colors.accent} bg-zinc-900/40 overflow-hidden`}>
             <button onClick={() => setExpanded(e => !e)}
-                className="w-full flex items-center gap-3 px-5 py-4 hover:bg-zinc-800/20 transition-colors text-left">
+                className="w-full flex items-center gap-3 px-4 sm:px-5 py-4 min-h-[64px] hover:bg-zinc-800/20 transition-colors text-left">
                 <div className={`p-1.5 rounded-lg ${colors.bg}`}>
                     <Icon className={`h-4 w-4 ${colors.text}`} />
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 pr-2">
                     <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-zinc-200">{group.label}</span>
-                        {group.locked && <Lock className="h-3 w-3 text-zinc-600" />}
+                        {group.locked && <Lock className="h-3 w-3 text-zinc-600 shrink-0" />}
                     </div>
-                    <p className="text-xs text-zinc-600 truncate mt-0.5">{group.description}</p>
+                    <p className="text-xs text-zinc-600 truncate mt-0.5 max-w-[200px] sm:max-w-none">{group.description}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colors.badge}`}>
-                        {displayRules.length} {displayRules.length === 1 ? 'rule' : 'rules'}
+                        <span className="whitespace-nowrap">{displayRules.length} <span className="hidden sm:inline">{displayRules.length === 1 ? 'rule' : 'rules'}</span></span>
                     </span>
                     <ChevronDown className={`h-4 w-4 text-zinc-600 transition-transform ${expanded ? 'rotate-180' : ''}`} />
                 </div>
@@ -450,8 +454,8 @@ function BehaviorCard({ group, rules, inheritanceMode, resolvedRules, onUpdate, 
                                 onCancel={() => setAdding(false)} />
                         ) : (
                             <button onClick={() => setAdding(true)}
-                                className={`mt-2 flex items-center gap-1.5 text-xs ${colors.text} hover:opacity-80 transition-opacity`}>
-                                <Plus className="h-3.5 w-3.5" /> Add rule
+                                className={`mt-2 flex items-center justify-center gap-1.5 text-[16px] sm:text-xs ${colors.text} hover:opacity-80 transition-opacity min-h-[44px] w-full sm:w-auto sm:justify-start border border-dashed border-zinc-800 sm:border-transparent rounded-lg`}>
+                                <Plus className="h-4 w-4 sm:h-3.5 sm:w-3.5" /> Add rule
                             </button>
                         )
                     )}
@@ -491,10 +495,10 @@ function SystemPromptPreview({ workspaceId, refreshTick }: { workspaceId: string
     return (
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
             <button onClick={() => setOpen(o => !o)}
-                className="w-full flex items-center gap-3 px-5 py-4 hover:bg-zinc-800/20 transition-colors text-left">
-                {open ? <EyeOff className="h-4 w-4 text-zinc-500" /> : <Eye className="h-4 w-4 text-zinc-500" />}
-                <span className="text-sm font-medium text-zinc-300">{open ? 'Hide' : 'Preview'} compiled system prompt</span>
-                <span className="ml-auto text-xs text-zinc-600">What the agent actually receives →</span>
+                className="w-full flex items-center gap-3 px-4 sm:px-5 py-4 min-h-[64px] hover:bg-zinc-800/20 transition-colors text-left">
+                {open ? <EyeOff className="h-4 w-4 text-zinc-500 shrink-0" /> : <Eye className="h-4 w-4 text-zinc-500 shrink-0" />}
+                <span className="text-sm font-medium text-zinc-300 min-w-0 truncate">{open ? 'Hide' : 'Preview'} compiled system prompt</span>
+                <span className="ml-auto text-xs text-zinc-600 shrink-0 hidden sm:inline">What the agent actually receives →</span>
             </button>
             {open && (
                 <div className="px-5 pb-5">
@@ -713,25 +717,25 @@ function AgentSettingsContent() {
     return (
         <div className="flex flex-col gap-6 max-w-3xl">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-xl shadow-lg shadow-indigo-500/20">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-xl shadow-lg shadow-indigo-500/20 shrink-0">
                         {settings.agentAvatar ?? '🤖'}
                     </div>
-                    <div>
-                        <h1 className="text-xl font-bold text-zinc-50">{settings.agentName || 'Agent'}</h1>
-                        <p className="text-xs text-zinc-500">{settings.agentTagline || 'Configure your AI agent'}</p>
+                    <div className="min-w-0 flex-1">
+                        <h1 className="text-xl font-bold text-zinc-50 truncate">{settings.agentName || 'Agent'}</h1>
+                        <p className="text-xs text-zinc-500 truncate">{settings.agentTagline || 'Configure your AI agent'}</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
                     <button onClick={() => void fetchCore()} disabled={loading}
-                        className="rounded-lg border border-zinc-800 bg-zinc-900 p-2 text-zinc-500 hover:text-zinc-300 transition-colors">
-                        <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+                        className="flex items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 p-2 text-zinc-500 hover:text-zinc-300 transition-colors min-h-[44px] min-w-[44px] shrink-0">
+                        <RefreshCw className={`h-4 w-4 sm:h-3.5 sm:w-3.5 ${loading ? 'animate-spin' : ''}`} />
                     </button>
                     {showSaveButton && (
                         <button onClick={() => void handleSave()} disabled={saving || loading || !workspaceId}
-                            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors">
-                            {saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : saved ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Save className="h-3.5 w-3.5" />}
+                            className="flex items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors min-h-[44px] flex-1 sm:flex-initial">
+                            {saving ? <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5 animate-spin" /> : saved ? <Check className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-emerald-400" /> : <Save className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}
                             {saved ? 'Saved' : 'Save changes'}
                         </button>
                     )}
@@ -740,14 +744,16 @@ function AgentSettingsContent() {
 
             {/* Status banner */}
             {agentStatus && (
-                <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${agentStatus.status === 'running' ? 'border-green-800/40 bg-green-950/20' : 'border-zinc-800 bg-zinc-900/40'}`}>
-                    <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${agentStatus.status === 'running' ? 'bg-green-400 animate-pulse' : 'bg-zinc-600'}`} />
-                    <div className="text-sm">
-                        <span className="font-medium text-zinc-200 capitalize">{agentStatus.status}</span>
-                        {agentStatus.currentTask && <span className="text-zinc-500 ml-2">· task {agentStatus.currentTask.slice(0, 8)}</span>}
-                        {agentStatus.currentModel && <span className="text-zinc-600 ml-2">via {agentStatus.currentModel}</span>}
+                <div className={`flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border px-4 py-3 ${agentStatus.status === 'running' ? 'border-green-800/40 bg-green-950/20' : 'border-zinc-800 bg-zinc-900/40'}`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${agentStatus.status === 'running' ? 'bg-green-400 animate-pulse' : 'bg-zinc-600'}`} />
+                        <div className="text-sm truncate">
+                            <span className="font-medium text-zinc-200 capitalize">{agentStatus.status}</span>
+                            {agentStatus.currentTask && <span className="text-zinc-500 ml-2">· task {agentStatus.currentTask.slice(0, 8)}</span>}
+                            {agentStatus.currentModel && <span className="text-zinc-600 ml-2 truncate">via {agentStatus.currentModel}</span>}
+                        </div>
                     </div>
-                    <div className="ml-auto text-xs text-zinc-600">{agentStatus.sessionCount} sessions</div>
+                    <div className="sm:ml-auto text-xs text-zinc-600 pl-5 sm:pl-0 shrink-0">{agentStatus.sessionCount} sessions</div>
                 </div>
             )}
 
@@ -759,11 +765,11 @@ function AgentSettingsContent() {
             )}
 
             {/* Tabs */}
-            <div className="flex gap-1 border-b border-zinc-800">
+            <div className="flex gap-1 border-b border-zinc-800 overflow-x-auto pb-px [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                 {TABS.map(({ id, label, icon: Icon }) => (
                     <button key={id} onClick={() => setTab(id)}
-                        className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${tab === id ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>
-                        <Icon className="h-3.5 w-3.5" />
+                        className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px shrink-0 w-auto min-h-[44px] ${tab === id ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-zinc-500 hover:text-zinc-300'}`}>
+                        <Icon className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                         {label}
                     </button>
                 ))}
@@ -776,24 +782,24 @@ function AgentSettingsContent() {
                 ) : (
                     <div className="flex flex-col gap-4">
                         <Section title="Personality" icon={Sparkles}>
-                            <div className="flex items-start gap-4">
-                                <div className="flex flex-col gap-2">
+                            <div className="flex flex-col sm:flex-row items-center gap-4">
+                                <div className="flex flex-col gap-2 w-full sm:w-auto">
                                     <label className="text-sm font-medium text-zinc-300">Avatar</label>
-                                    <div className="flex flex-wrap gap-1.5">
+                                    <div className="flex flex-row justify-between sm:justify-start gap-1.5 w-full overflow-x-auto pb-2 sm:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                                         {['🤖', '🧠', '⚡', '🦾', '🌟', '👾', '🔱', '🦊', '🐉', '🔮'].map((emoji) => (
                                             <button key={emoji} onClick={() => updateSetting('agentAvatar', emoji)}
-                                                className={`h-9 w-9 rounded-lg text-lg transition-all ${(settings.agentAvatar ?? '🤖') === emoji ? 'bg-indigo-600/30 ring-1 ring-indigo-500' : 'bg-zinc-800 hover:bg-zinc-700'}`}>
+                                                className={`min-h-[44px] min-w-[44px] shrink-0 rounded-lg text-lg transition-all ${(settings.agentAvatar ?? '🤖') === emoji ? 'bg-indigo-600/30 ring-1 ring-indigo-500' : 'bg-zinc-800 hover:bg-zinc-700'}`}>
                                                 {emoji}
                                             </button>
                                         ))}
                                     </div>
                                 </div>
-                                <div className="flex flex-col items-center gap-1.5 ml-auto">
-                                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-3xl shadow-lg shadow-indigo-500/20">
+                                <div className="flex flex-col items-center gap-1.5 sm:ml-auto w-full sm:w-auto pt-4 sm:pt-0 border-t border-zinc-800 sm:border-0 order-first sm:order-none">
+                                    <div className="flex h-16 w-16 sm:h-14 sm:w-14 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-3xl shadow-lg shadow-indigo-500/20">
                                         {settings.agentAvatar ?? '🤖'}
                                     </div>
-                                    <span className="text-xs text-zinc-500 font-medium">{settings.agentName || 'Plexo'}</span>
-                                    {settings.agentTagline && <span className="text-[10px] text-zinc-600 italic max-w-[100px] text-center truncate">{settings.agentTagline}</span>}
+                                    <span className="text-sm sm:text-xs text-zinc-100 sm:text-zinc-500 font-medium">{settings.agentName || 'Plexo'}</span>
+                                    {settings.agentTagline && <span className="text-[10px] text-zinc-400 sm:text-zinc-600 italic max-w-[200px] sm:max-w-[100px] text-center truncate">{settings.agentTagline}</span>}
                                 </div>
                             </div>
                             <Field label="Agent name" description="How the agent refers to itself in messages.">

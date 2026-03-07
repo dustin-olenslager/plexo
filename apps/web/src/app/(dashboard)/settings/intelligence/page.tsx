@@ -167,7 +167,7 @@ function Section({
         <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/50 overflow-hidden">
             <button
                 onClick={() => setOpen((o) => !o)}
-                className="flex w-full items-center gap-2.5 px-4 py-3 hover:bg-zinc-800/40 transition-colors"
+                className="flex w-full items-center gap-2.5 px-4 py-3 hover:bg-zinc-800/40 transition-colors min-h-[44px]"
             >
                 <Icon className="h-4 w-4 text-indigo-400 shrink-0" />
                 <span className="flex-1 text-left text-sm font-semibold text-zinc-200">{title}</span>
@@ -177,8 +177,8 @@ function Section({
                     </span>
                 )}
                 {open
-                    ? <ChevronDown className="h-3.5 w-3.5 text-zinc-600" />
-                    : <ChevronRight className="h-3.5 w-3.5 text-zinc-600" />
+                    ? <ChevronDown className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
+                    : <ChevronRight className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
                 }
             </button>
             {open && <div className="border-t border-zinc-800/60 px-4 py-3">{children}</div>}
@@ -245,10 +245,10 @@ export default function IntelligencePage() {
     return (
         <div className="space-y-6 max-w-6xl">
             {/* Header */}
-            <div className="flex items-start justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                 <div>
                     <h1 className="text-xl font-bold text-zinc-100 flex items-center gap-2">
-                        <BrainCircuit className="h-5 w-5 text-indigo-400" />
+                        <BrainCircuit className="h-5 w-5 text-indigo-400 shrink-0" />
                         Agent Intelligence
                     </h1>
                     <p className="text-sm text-zinc-500 mt-0.5">
@@ -258,23 +258,23 @@ export default function IntelligencePage() {
                 <button
                     onClick={() => void fetch_(true)}
                     disabled={refreshing}
-                    className="flex items-center gap-1.5 rounded-lg border border-zinc-700/60 bg-zinc-800/60 px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors disabled:opacity-50"
+                    className="flex items-center justify-center sm:justify-start gap-1.5 rounded-lg border border-zinc-700/60 bg-zinc-800/60 px-3 py-1.5 text-sm sm:text-xs text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors disabled:opacity-50 min-h-[44px] w-full sm:w-auto"
                 >
-                    <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`h-4 w-4 sm:h-3.5 sm:w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
                     Refresh
                 </button>
             </div>
 
             {/* Identity card */}
-            <div className="rounded-xl border border-indigo-500/20 bg-gradient-to-br from-indigo-950/40 to-zinc-900/60 p-5">
-                <div className="flex items-center gap-4">
+            <div className="rounded-xl border border-indigo-500/20 bg-gradient-to-br from-indigo-950/40 to-zinc-900/60 p-4 sm:p-5">
+                <div className="flex sm:items-center gap-4">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-xl font-bold text-white shadow-lg shadow-indigo-500/20">
                         {snapshot.agentName.slice(0, 1).toUpperCase()}
                     </div>
                     <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2.5">
-                            <h2 className="text-base font-bold text-zinc-100">{snapshot.agentName}</h2>
-                            <span className="text-[10px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full px-2 py-0.5">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+                            <h2 className="text-base font-bold text-zinc-100 truncate">{snapshot.agentName}</h2>
+                            <span className="text-[10px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-full px-2 py-0.5 truncate max-w-full">
                                 {snapshot.activeProvider} / {snapshot.activeModel}
                             </span>
                         </div>
@@ -337,7 +337,7 @@ export default function IntelligencePage() {
                                     </div>
                                 ))}
                             <div className="pt-1">
-                                <Link href="/settings/ai-providers" className="text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors">
+                                <Link href="/settings/ai-providers" className="flex items-center min-h-[44px] px-2 -mx-2 text-sm sm:text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors w-fit">
                                     Manage providers →
                                 </Link>
                             </div>
@@ -456,7 +456,7 @@ export default function IntelligencePage() {
                                     ))}
                                 </div>
                             )}
-                            <Link href="/insights" className="block text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors pt-1">
+                            <Link href="/insights" className="flex items-center text-sm sm:text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors min-h-[44px] px-2 -mx-2 w-fit pt-1">
                                 View memory →
                             </Link>
                         </div>
@@ -491,10 +491,12 @@ export default function IntelligencePage() {
                 count={snapshot.connections.length}
             >
                 {snapshot.connections.length === 0 ? (
-                    <div className="flex items-center gap-3 text-sm text-zinc-600 italic">
-                        <AlertCircle className="h-4 w-4 text-zinc-700" />
-                        No connections installed.{' '}
-                        <Link href="/settings/connections" className="text-indigo-400 hover:text-indigo-300 not-italic">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 text-sm text-zinc-600 italic">
+                        <div className="flex items-center gap-2">
+                            <AlertCircle className="h-4 w-4 text-zinc-700 shrink-0" />
+                            <span>No connections installed.</span>
+                        </div>
+                        <Link href="/settings/connections" className="flex items-center min-h-[44px] px-4 -mx-4 sm:px-0 sm:mx-0 text-indigo-400 hover:text-indigo-300 not-italic sm:ml-auto w-fit">
                             Browse integrations →
                         </Link>
                     </div>

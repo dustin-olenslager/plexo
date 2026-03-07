@@ -469,49 +469,50 @@ export default function TasksPage() {
                             <Link
                                 key={task.id}
                                 href={`/tasks/${task.id}`}
-                                className="flex items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3.5 hover:border-zinc-700 hover:bg-zinc-900/70 transition-colors group"
+                                className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3.5 hover:border-zinc-700 hover:bg-zinc-900/70 transition-colors group"
                             >
-                                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${cfg.bg}`}>
-                                    <Icon className={`h-4 w-4 ${cfg.color} ${task.status === 'running' || task.status === 'claimed' ? 'animate-spin' : ''}`} />
-                                </span>
+                                <div className="flex items-start sm:items-center gap-3 w-full sm:w-auto sm:flex-1 min-w-0">
+                                    <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg mt-0.5 sm:mt-0 ${cfg.bg}`}>
+                                        <Icon className={`h-4 w-4 ${cfg.color} ${task.status === 'running' || task.status === 'claimed' ? 'animate-spin' : ''}`} />
+                                    </span>
 
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="text-xs font-mono text-zinc-500">{task.id.slice(0, 8)}</span>
-                                        <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500 capitalize">{task.type}</span>
-                                        <span className="rounded bg-zinc-800/50 px-1.5 py-0.5 text-[10px] text-zinc-600">{task.source}</span>
-                                        {projectLabel && (
-                                            <span className="flex items-center gap-1 rounded bg-indigo-900/30 border border-indigo-800/30 px-1.5 py-0.5 text-[10px] text-indigo-400 max-w-[180px]">
-                                                <FolderOpen className="h-2.5 w-2.5 shrink-0" />
-                                                <span className="truncate">{projectLabel}</span>
-                                            </span>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap mb-1.5 sm:mb-0">
+                                            <span className="text-xs font-mono text-zinc-500">{task.id.slice(0, 8)}</span>
+                                            <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500 capitalize">{task.type}</span>
+                                            <span className="rounded bg-zinc-800/50 px-1.5 py-0.5 text-[10px] text-zinc-600 hidden sm:inline-block">{task.source}</span>
+                                            {projectLabel && (
+                                                <span className="flex items-center gap-1 rounded bg-indigo-900/30 border border-indigo-800/30 px-1.5 py-0.5 text-[10px] text-indigo-400 max-w-[140px] sm:max-w-[180px]">
+                                                    <FolderOpen className="h-2.5 w-2.5 shrink-0" />
+                                                    <span className="truncate">{projectLabel}</span>
+                                                </span>
+                                            )}
+                                        </div>
+                                        {task.outcomeSummary && (
+                                            <p className="sm:mt-1 text-sm sm:text-xs text-zinc-300 sm:text-zinc-400 line-clamp-2 sm:truncate">{task.outcomeSummary}</p>
                                         )}
                                     </div>
-                                    {task.outcomeSummary && (
-                                        <p className="mt-1 text-xs text-zinc-400 truncate">{task.outcomeSummary}</p>
-                                    )}
                                 </div>
 
-                                <div className="shrink-0 text-right">
+                                <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto pt-3 sm:pt-0 mt-2 sm:mt-0 border-t border-zinc-800/50 sm:border-0 sm:shrink-0 text-left sm:text-right">
                                     <div className="flex items-center gap-2">
+                                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
                                         {task.qualityScore !== null && (
-                                            <span className={`text-[10px] font-medium ${task.qualityScore >= 0.8 ? 'text-emerald-400' : task.qualityScore >= 0.5 ? 'text-amber-400' : 'text-red-400'}`}>
+                                            <span className={`text-[10px] font-medium hidden sm:inline-block ${task.qualityScore >= 0.8 ? 'text-emerald-400' : task.qualityScore >= 0.5 ? 'text-amber-400' : 'text-red-400'}`}>
                                                 Q:{Math.round(task.qualityScore * 100)}%
                                             </span>
                                         )}
                                         {task.costUsd !== null && (
-                                            <span className="text-[10px] text-zinc-600">${task.costUsd.toFixed(4)}</span>
+                                            <span className="text-[10px] text-zinc-600 hidden sm:inline-block">${task.costUsd.toFixed(4)}</span>
                                         )}
-                                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
                                     </div>
-                                    <div className="mt-1 flex items-center justify-end gap-2 text-[10px] text-zinc-600">
+                                    <div className="flex items-center justify-end gap-2 text-[10px] text-zinc-600">
                                         <span>{formatAge(task.createdAt)}</span>
                                         <span>·</span>
                                         <span>{formatDur(task.createdAt, task.completedAt)}</span>
+                                        <ChevronRight className="h-4 w-4 shrink-0 text-zinc-700 group-hover:text-zinc-500 transition-colors ml-1 sm:ml-2" />
                                     </div>
                                 </div>
-
-                                <ChevronRight className="h-4 w-4 shrink-0 text-zinc-700 group-hover:text-zinc-500 transition-colors" />
                             </Link>
                         )
                     })}
