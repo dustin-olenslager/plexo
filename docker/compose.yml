@@ -110,18 +110,14 @@ services:
       STORAGE_BUCKET: ${STORAGE_BUCKET:-plexo-assets}
       # One-click update: set to "true" and uncomment the volumes block below.
       # Requires the Docker socket to be mounted. See the comment near 'volumes:' below.
-      DOCKER_SOCKET_ENABLED: ${DOCKER_SOCKET_ENABLED:-false}
+      DOCKER_SOCKET_ENABLED: ${DOCKER_SOCKET_ENABLED:-true}
       COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:-plexo}
     # ── One-click update (opt-in) ──────────────────────────────────────────
-    # To enable the in-app update button, set DOCKER_SOCKET_ENABLED=true in
-    # your .env and uncomment the block below. Mounting the Docker socket
-    # requires root inside the container to access it, and grants the API 
-    # root-equivalent access to the host — only do this if you understand
-    # the security tradeoff.
-    #
-    # user: root
-    # volumes:
-    #   - /var/run/docker.sock:/var/run/docker.sock:ro
+    # Mounting the Docker socket grants the API container root-equivalent
+    # access to the host. DOCKER_SOCKET_ENABLED=true must also be set in .env.
+    user: root
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:3001/health 2>/dev/null | grep -q ok || exit 1" ]
       interval: 30s
