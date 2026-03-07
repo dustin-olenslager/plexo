@@ -29,11 +29,14 @@ Thumbs.db
 .idea/
 .agents-local.md
 
-# One-off scaffold/patch scripts
+# One-off scaffold/patch scripts and local test harnesses (may contain secrets)
 fix_api_routes.js
 update_chat.js
 update_chat_page.js
 update_telegram.js
+test-*.ts
+test-*.js
+*-test-local.*
 
 # Playwright
 playwright-report/
