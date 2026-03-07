@@ -202,6 +202,7 @@ interface ContainerInfo {
     Names: string[]
     Image: string
     State: string
+    Labels: Record<string, string>
 }
 
 async function getContainers(): Promise<ContainerInfo[]> {
@@ -235,9 +236,6 @@ async function pullImage(image: string, onChunk: (line: string) => void): Promis
     })
 }
 
-async function restartContainer(id: string): Promise<void> {
-    await dockerRequest({ method: 'POST', path: `/v1.41/containers/${id}/restart` })
-}
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
@@ -344,65 +342,58 @@ systemRouter.post('/update', async (_req, res) => {
 
     try {
         if (isDocker) {
-            send('status', { step: 'containers', message: 'Discovering running containers…' })
+            send('status', { step: 'containers', message: 'Discovering host context…' })
             const containers = await getContainers()
-            send('status', { step: 'containers', message: `Found ${containers.length} container(s)` })
-
-            const images = [...new Set(containers.map(c => c.Image))]
-
-            for (const image of images) {
-                send('status', { step: 'pull', message: `Pulling ${image}…` })
-                await pullImage(image, (line) => {
-                    try {
-                        const parsed = JSON.parse(line) as { status?: string; progress?: string }
-                        if (parsed.status) send('progress', { image, status: parsed.status, progress: parsed.progress })
-                    } catch { /* malformed line — skip */ }
-                })
-                send('status', { step: 'pull', message: `Pulled ${image}` })
+            const apiContainer = containers.find(c => c.Names.some(n => n.includes('api')))
+            const workingDir = apiContainer?.Labels?.['com.docker.compose.project.working_dir']
+            
+            if (!workingDir) {
+                throw new Error('Could not determine host working directory. One-click update failed.')
             }
+            
+            // e.g. /opt/plexo/docker -> /opt/plexo
+            const hostRepoRoot = require('node:path').dirname(workingDir)
+            
+            send('status', { step: 'pull', message: 'Preparing updater framework (this may take a few seconds)…' })
+            await pullImage('alpine:latest', () => { /* quiet pull logs */ })
 
-            send('status', { step: 'restart', message: 'Restarting containers…' })
-            // Sort: web first (can restart safely), then db/redis/others, Caddy, API last
-            const sorted = [...containers].sort((a, b) => {
-                const nameA = a.Names[0] ?? ''
-                const nameB = b.Names[0] ?? ''
-                if (nameA.includes('web')) return -1
-                if (nameB.includes('web')) return 1
-                if (nameA.includes('api')) return 1
-                if (nameB.includes('api')) return -1
-                if (nameA.includes('caddy')) return 1
-                if (nameB.includes('caddy')) return -1
-                return 0
+            send('status', { step: 'restart', message: 'Triggering background host rebuild…' })
+            const createRes = await dockerRequest({
+                method: 'POST',
+                path: `/v1.41/containers/create?name=plexo-updater-${Date.now()}`,
+                body: {
+                    Image: 'alpine:latest',
+                    Cmd: [
+                        'sh', '-c',
+                        'apk add --no-cache git docker-cli docker-cli-compose && cd /host-repo && git fetch origin main && git reset --hard origin/main && docker compose -f docker/compose.yml build api web migrate && docker compose -f docker/compose.yml up -d --remove-orphans'
+                    ],
+                    HostConfig: {
+                        AutoRemove: true,
+                        Binds: [
+                            '/var/run/docker.sock:/var/run/docker.sock',
+                            `${hostRepoRoot}:/host-repo`
+                        ]
+                    }
+                }
             })
-
-            // Emit UI logs for restart intents first
-            for (const container of sorted) {
-                const name = container.Names[0]?.replace(/^\//, '') ?? 'container'
-                send('status', { step: 'restart', message: `Restarting ${name}…` })
+            
+            if (createRes.status >= 400) {
+               throw new Error(`Failed to create updater: ${createRes.body}`)
+            }
+            const { Id: updaterId } = JSON.parse(createRes.body)
+            
+            const startRes = await dockerRequest({ method: 'POST', path: `/v1.41/containers/${updaterId}/start` })
+            if (startRes.status >= 400) {
+               throw new Error(`Failed to start updater: ${startRes.body}`)
             }
 
-            // Invalidate version cache before restarting API
+            // Invalidate version caches
             const redisPre = await getRedis()
             await redisPre.del(VERSION_CACHE_KEY)
+            await redisPre.del(COMMIT_CACHE_KEY)
 
-            // Send done BEFORE actually restarting any containers.
-            // If we restart Redis first, the API crashes immediately on socket close,
-            // never sending the 'done' event to the user.
-            send('done', { success: true, message: 'Update complete. Reload the page in a few seconds.' })
+            send('done', { success: true, message: 'Update started in background! The system is downloading updates and rebuilding. It will automatically restart in about 1-2 minutes. Please wait and reload the page.' })
             res.end()
-
-            // Perform the restarts detached in the background
-            setTimeout(() => {
-                void (async () => {
-                    for (const container of sorted) {
-                        try {
-                            await restartContainer(container.Id)
-                        } catch {
-                            // ignore — restarting the API container will kill us anyway
-                        }
-                    }
-                })()
-            }, 1500)
 
             return // done
         } else if (isGit) {
