@@ -46,6 +46,7 @@ import { emitToWorkspace } from './sse-emitter.js'
 
 import { debugRouter } from './routes/debug.js'
 import { chatRouter } from './routes/chat.js'
+import { conversationsRouter } from './routes/conversations.js'
 import { behaviorRouter } from './routes/behavior.js'
 import { systemRouter } from './routes/system.js'
 import { voiceRouter } from './routes/voice.js'
@@ -129,6 +130,7 @@ v1.use('/telemetry', telemetryRouter)
 
 v1.use('/debug', debugRouter)
 v1.use('/chat', chatRouter)
+v1.use('/conversations', conversationsRouter)
 v1.use('/voice', voiceRouter)
 v1.use('/behavior/:workspaceId', behaviorRouter)
 v1.use('/system', systemRouter)

@@ -8,7 +8,6 @@ import {
     Clock,
     XCircle,
     Loader2,
-    BarChart3,
     MessageSquare,
     Info,
     MessageCircle,
@@ -20,51 +19,34 @@ import { useWorkspace } from '@web/context/workspace'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface ActivityItem {
+interface ConversationItem {
     id: string
-    type: string
-    status: string
-    outcomeSummary: string | null
-    qualityScore: number | null
-    completedAt: string | null
-    createdAt: string
     source: string
-    context: Record<string, unknown> | null
+    message: string
+    reply: string | null
+    errorMsg: string | null
+    status: string
+    intent: string | null
+    sessionId: string | null
+    taskId: string | null
+    createdAt: string
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
-const LIVE_EVENT_TYPES = new Set([
-    'task_started',
-    'task_planned',
-    'task_complete',
-    'task_failed',
-    'task_blocked',
-    'task_planning',
-    'task_queued',
-    'task_queued_via_telegram',
-    'task_queued_via_slack',
-])
-
-// Module-level constant for useListFilter initialiser
 const FILTER_KEYS = ['status', 'source'] as const
 
 // ── Badge maps ────────────────────────────────────────────────────────────────
 
 const STATUS_ICON: Record<string, React.ReactElement> = {
     pending: <Clock className="h-3.5 w-3.5 text-amber-400" />,
-    queued: <Clock className="h-3.5 w-3.5 text-amber-400" />,
-    claimed: <Loader2 className="h-3.5 w-3.5 text-sky-400 animate-spin" />,
-    running: <Loader2 className="h-3.5 w-3.5 text-indigo-400 animate-spin" />,
     complete: <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />,
     failed: <XCircle className="h-3.5 w-3.5 text-red-400" />,
-    blocked: <XCircle className="h-3.5 w-3.5 text-orange-400" />,
-    cancelled: <XCircle className="h-3.5 w-3.5 text-zinc-500" />,
 }
 
-const ALL_STATUSES = ['pending', 'queued', 'running', 'complete', 'failed', 'blocked', 'cancelled'] as const
+const ALL_STATUSES = ['pending', 'complete', 'failed'] as const
 
 const SOURCE_BADGE: Record<string, { icon: string; label: string; className: string }> = {
     telegram: { icon: '✈️', label: 'Telegram', className: 'bg-sky-900/40 text-sky-400 border border-sky-800/50' },
@@ -72,17 +54,15 @@ const SOURCE_BADGE: Record<string, { icon: string; label: string; className: str
     discord: { icon: '💬', label: 'Discord', className: 'bg-indigo-900/40 text-indigo-400 border border-indigo-800/50' },
     github: { icon: '🐙', label: 'GitHub', className: 'bg-zinc-800 text-zinc-400 border border-zinc-700/50' },
     dashboard: { icon: '🖥', label: 'Dashboard', className: 'bg-zinc-800/60 text-zinc-500 border border-zinc-700/40' },
-    cron: { icon: '⏱', label: 'Cron', className: 'bg-amber-900/40 text-amber-400 border border-amber-800/50' },
-    scanner: { icon: '🔍', label: 'Scanner', className: 'bg-teal-900/40 text-teal-400 border border-teal-800/50' },
     api: { icon: '🔗', label: 'API', className: 'bg-zinc-800/60 text-zinc-500 border border-zinc-700/40' },
-    extension: { icon: '🧩', label: 'Extension', className: 'bg-rose-900/40 text-rose-400 border border-rose-800/50' },
+    widget: { icon: '💬', label: 'Widget', className: 'bg-teal-900/40 text-teal-400 border border-teal-800/50' },
 }
 const DEFAULT_SOURCE_BADGE = { icon: '🖥', label: 'Unknown', className: 'bg-zinc-800/60 text-zinc-500 border border-zinc-700/40' }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function groupByDate(items: ActivityItem[]) {
-    const groups: Record<string, ActivityItem[]> = {}
+function groupByDate(items: ConversationItem[]) {
+    const groups: Record<string, ConversationItem[]> = {}
     for (const item of items) {
         const date = new Date(item.createdAt).toLocaleDateString('en-US', {
             weekday: 'long',
@@ -95,61 +75,79 @@ function groupByDate(items: ActivityItem[]) {
     return groups
 }
 
-function getSummary(item: ActivityItem): string | null {
-    if (item.outcomeSummary) return item.outcomeSummary
-    const ctx = item.context
-    if (!ctx) return null
-    for (const key of ['description', 'message', 'summary'] as const) {
-        const val = ctx[key]
-        if (typeof val === 'string' && val.trim()) return val.trim()
-    }
-    return null
+function getPreview(item: ConversationItem): string {
+    if (item.reply) return item.reply
+    if (item.errorMsg) return item.errorMsg
+    return item.message
+}
+
+// ── Skeleton ──────────────────────────────────────────────────────────────────
+
+function SkeletonRow() {
+    return (
+        <div className="flex items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 animate-pulse">
+            <div className="mt-0.5 h-3.5 w-3.5 rounded-full bg-zinc-800 shrink-0" />
+            <div className="flex-1 space-y-2">
+                <div className="flex gap-2">
+                    <div className="h-3 w-16 rounded bg-zinc-800" />
+                    <div className="h-3 w-12 rounded bg-zinc-800" />
+                </div>
+                <div className="h-3 w-3/4 rounded bg-zinc-800" />
+                <div className="h-2.5 w-20 rounded bg-zinc-800" />
+            </div>
+        </div>
+    )
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
 interface Props {
     workspaceId: string
-    initialItems: ActivityItem[]
+    initialItems: ConversationItem[]
 }
 
 export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }: Props) {
     const { workspaceId: ctxWorkspaceId } = useWorkspace()
     const workspaceId = ctxWorkspaceId || propWorkspaceId
 
-    const [items, setItems] = useState<ActivityItem[]>(initialItems)
+    // If the context workspace differs from what the server rendered,
+    // treat initialItems as stale — show nothing until the client fetch resolves.
+    const workspaceMismatch = !!ctxWorkspaceId && ctxWorkspaceId !== propWorkspaceId
+    const [items, setItems] = useState<ConversationItem[]>(workspaceMismatch ? [] : initialItems)
+    const [loading, setLoading] = useState(workspaceMismatch)
     const esRef = useRef<EventSource | null>(null)
 
-    // ── Filter state (shared standard) ────────────────────────────────────────
+    // ── Filter state ─────────────────────────────────────────────────────────
     const lf = useListFilter(FILTER_KEYS, 'newest')
     const { search, filterValues, hasFilters, clearAll } = lf
 
-    // ── Data fetching & live updates ──────────────────────────────────────────
-    const fetchActivity = useCallback(async () => {
+    // ── Data fetching ─────────────────────────────────────────────────────────
+    const fetchConversations = useCallback(async () => {
         try {
             const res = await fetch(
-                `${API_BASE}/api/v1/dashboard/activity?workspaceId=${encodeURIComponent(workspaceId)}&limit=50`,
+                `${API_BASE}/api/v1/conversations?workspaceId=${encodeURIComponent(workspaceId)}&limit=100`,
                 { cache: 'no-store' },
             )
             if (!res.ok) return
-            const data = (await res.json()) as { items: ActivityItem[] }
+            const data = (await res.json()) as { items: ConversationItem[] }
             setItems(data.items ?? [])
         } catch {
             // silent — keep stale data
+        } finally {
+            setLoading(false)
         }
     }, [workspaceId])
 
-    // If the client hydrated a different workspace than the server generated,
-    // fetch immediately to replace the initialItems. Also poll every 15s.
+    // Fetch on mount if workspace mismatched, always poll every 15s
     useEffect(() => {
-        if (workspaceId !== propWorkspaceId) {
-            void fetchActivity()
+        if (workspaceMismatch || ctxWorkspaceId) {
+            void fetchConversations()
         }
-        const t = setInterval(() => void fetchActivity(), 15_000)
+        const t = setInterval(() => void fetchConversations(), 15_000)
         return () => clearInterval(t)
-    }, [fetchActivity, workspaceId, propWorkspaceId])
+    }, [fetchConversations, workspaceMismatch, ctxWorkspaceId])
 
-    // SSE live updates
+    // SSE live updates — refresh list when a chat.message completes
     useEffect(() => {
         if (typeof window === 'undefined') return
         const url = `${API_BASE}/api/v1/sse?workspaceId=${encodeURIComponent(workspaceId)}`
@@ -160,7 +158,10 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
             es.onmessage = (e) => {
                 try {
                     const event = JSON.parse(e.data as string) as { type: string }
-                    if (LIVE_EVENT_TYPES.has(event.type)) void fetchActivity()
+                    // Refresh whenever a chat message completes or a task is created from one
+                    if (['task_complete', 'task_failed', 'task_queued'].includes(event.type)) {
+                        void fetchConversations()
+                    }
                 } catch { /* malformed */ }
             }
             es.onerror = () => { es.close(); esRef.current = null }
@@ -168,13 +169,12 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
             return
         }
         return () => { es.close(); esRef.current = null }
-    }, [workspaceId, fetchActivity])
+    }, [workspaceId, fetchConversations])
 
     // ── Derived sources (for dimming unavailable options) ─────────────────────
     const availableSources = useMemo(() => new Set(items.map((i) => i.source)), [items])
     const availableStatuses = useMemo(() => new Set(items.map((i) => i.status)), [items])
 
-    // ── Client-side filtering ─────────────────────────────────────────────────
     // ── Client-side filtering & sorting ───────────────────────────────────────
     const displayed = useMemo(() => {
         const q = search.trim().toLowerCase()
@@ -182,25 +182,21 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
             if (filterValues.status && item.status !== filterValues.status) return false
             if (filterValues.source && item.source !== filterValues.source) return false
             if (q) {
-                const summary = getSummary(item)
+                const preview = getPreview(item)
                 return (
                     item.id.toLowerCase().includes(q) ||
-                    item.type.toLowerCase().includes(q) ||
                     item.source.toLowerCase().includes(q) ||
                     item.status.toLowerCase().includes(q) ||
-                    (summary?.toLowerCase().includes(q) ?? false)
+                    item.message.toLowerCase().includes(q) ||
+                    (preview?.toLowerCase().includes(q) ?? false)
                 )
             }
             return true
         })
-
         result = [...result].sort((a, b) => {
-            if (lf.sort === 'oldest') {
-                return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-            }
+            if (lf.sort === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
             return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         })
-
         return result
     }, [items, search, filterValues.status, filterValues.source, lf.sort])
 
@@ -236,16 +232,18 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
             <div>
                 <h1 className="text-xl font-bold text-zinc-50">Conversations</h1>
                 <p className="mt-0.5 text-sm text-zinc-500">
-                    {items.length > 0
-                        ? `${displayed.length}${displayed.length !== items.length ? ` of ${items.length}` : ''} conversation${items.length === 1 ? '' : 's'}`
-                        : 'Agent task history from all channels'}
+                    {loading
+                        ? 'Loading…'
+                        : items.length > 0
+                            ? `${displayed.length}${displayed.length !== items.length ? ` of ${items.length}` : ''} conversation${items.length === 1 ? '' : 's'}`
+                            : 'Chat history from all channels'}
                 </p>
             </div>
 
             {/* Search + filter + sort toolbar */}
             <ListToolbar
                 hook={lf}
-                placeholder="Search by ID, type, source, or outcome…"
+                placeholder="Search by source, message, or outcome…"
                 dimensions={dimensions}
                 sortOptions={[
                     { label: 'Newest first', value: 'newest' },
@@ -254,11 +252,15 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
             />
 
             {/* Content */}
-            {items.length === 0 ? (
+            {loading ? (
+                <div className="flex flex-col gap-2">
+                    {[0, 1, 2].map(i => <SkeletonRow key={i} />)}
+                </div>
+            ) : items.length === 0 ? (
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center">
                     <MessageSquare className="mx-auto h-8 w-8 text-zinc-700 mb-3" />
                     <p className="text-sm text-zinc-500">No conversations yet</p>
-                    <p className="mt-1 text-xs text-zinc-600">Submit a task from the dashboard to start.</p>
+                    <p className="mt-1 text-xs text-zinc-600">Start a chat from the dashboard to see history here.</p>
                 </div>
             ) : displayed.length === 0 ? (
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center">
@@ -276,8 +278,9 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                         <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-zinc-600">{date}</p>
                         <div className="flex flex-col gap-2">
                             {groupItems.map((item) => {
-                                const summary = getSummary(item)
+                                const preview = getPreview(item)
                                 const badge = SOURCE_BADGE[item.source] ?? DEFAULT_SOURCE_BADGE
+                                const isFailed = item.status === 'failed'
 
                                 return (
                                     <div
@@ -288,37 +291,39 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                                             {STATUS_ICON[item.status] ?? STATUS_ICON['pending']}
                                         </span>
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <span className="text-xs font-mono text-zinc-500">{item.id.slice(0, 8)}</span>
-                                                <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] capitalize text-zinc-400">{item.type}</span>
+                                            {/* User message */}
+                                            <p className="text-sm text-zinc-200 leading-snug line-clamp-2">{item.message}</p>
+                                            {/* Reply or error */}
+                                            {preview && preview !== item.message && (
+                                                <p className={`mt-1 text-xs leading-snug line-clamp-2 ${isFailed ? 'text-red-400/80' : 'text-zinc-500'}`}>
+                                                    {isFailed ? '⚠ ' : '↳ '}{preview}
+                                                </p>
+                                            )}
+                                            <div className="mt-2 flex items-center gap-2 flex-wrap">
                                                 <span className={`rounded px-1.5 py-0.5 text-[9px] flex items-center gap-1 ${badge.className}`}>
                                                     {badge.icon} {badge.label}
                                                 </span>
-                                            </div>
-                                            {summary ? (
-                                                <p className="mt-1.5 text-sm text-zinc-300 leading-snug line-clamp-2">{summary}</p>
-                                            ) : (
-                                                <p className="mt-1.5 text-xs text-zinc-600 italic">No summary available</p>
-                                            )}
-                                            <div className="mt-2 flex items-center gap-3 text-[10px] text-zinc-600">
-                                                <span>{new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                                {item.qualityScore !== null && (
-                                                    <span className="flex items-center gap-1">
-                                                        <BarChart3 className="h-2.5 w-2.5" />
-                                                        {Math.round(item.qualityScore * 100)}%
+                                                {item.intent && item.intent !== 'CONVERSATION' && (
+                                                    <span className="rounded bg-indigo-900/40 border border-indigo-800/50 px-1.5 py-0.5 text-[9px] text-indigo-400 capitalize">
+                                                        {item.intent.toLowerCase()}
                                                     </span>
                                                 )}
+                                                <span className="text-[10px] text-zinc-600">
+                                                    {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
                                             </div>
                                         </div>
 
                                         <div className="flex items-center gap-1 shrink-0">
-                                            <Link
-                                                href={`/tasks/${item.id}`}
-                                                className="rounded-lg p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
-                                                title="View details"
-                                            >
-                                                <Info className="h-4 w-4" />
-                                            </Link>
+                                            {item.taskId && (
+                                                <Link
+                                                    href={`/tasks/${item.taskId}`}
+                                                    className="rounded-lg p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+                                                    title="View spawned task"
+                                                >
+                                                    <Info className="h-4 w-4" />
+                                                </Link>
+                                            )}
                                             <Link
                                                 href={`/chat?context=${encodeURIComponent(item.id)}`}
                                                 className="rounded-lg p-1.5 text-zinc-500 hover:text-indigo-400 hover:bg-zinc-800 transition-colors"

@@ -3,11 +3,11 @@ import { MessageSquare, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import { ConversationsList } from './conversations-list'
 
-async function fetchInitialActivity(workspaceId: string) {
+async function fetchInitialConversations(workspaceId: string) {
     const apiBase = process.env.INTERNAL_API_URL ?? 'http://localhost:3001'
     try {
         const res = await fetch(
-            `${apiBase}/api/v1/dashboard/activity?workspaceId=${encodeURIComponent(workspaceId)}&limit=50`,
+            `${apiBase}/api/v1/conversations?workspaceId=${encodeURIComponent(workspaceId)}&limit=100`,
             { cache: 'no-store' },
         )
         if (!res.ok) return []
@@ -54,8 +54,7 @@ export default async function ConversationsPage() {
     }
 
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const initialItems = (await fetchInitialActivity(workspaceId)) as any[]
+    const initialItems = (await fetchInitialConversations(workspaceId)) as any[] // eslint-disable-line @typescript-eslint/no-explicit-any
 
     return <ConversationsList workspaceId={workspaceId} initialItems={initialItems} />
 }
