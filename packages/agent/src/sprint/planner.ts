@@ -7,7 +7,7 @@ import { z } from 'zod'
 import pino from 'pino'
 import { db, eq } from '@plexo/db'
 import { sprints, sprintTasks } from '@plexo/db'
-import { resolveModelFromEnv } from '../providers/registry.js'
+import { resolveModelFromEnv, withFallback, AnyLanguageModel } from '../providers/registry.js'
 import { MODEL_ROUTING } from '../constants.js'
 import { categoryPlannerPrompt } from './categories.js'
 import { buildCapabilityManifest, manifestToPromptBlock } from '../capabilities/manifest.js'
@@ -64,13 +64,11 @@ export async function planSprint(params: {
     contextFiles?: string[]
     category?: string      // defaults to 'code'
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    plannerModel?: any     // pre-resolved model from workspace AI settings
+    aiSettings?: any       // workspace AI settings object for fallback routing
 }): Promise<PlanResult> {
-    const { sprintId, workspaceId, repo, request, contextFiles = [], category = 'code', plannerModel } = params
+    const { sprintId, workspaceId, repo, request, contextFiles = [], category = 'code', aiSettings } = params
 
     logger.info({ sprintId, repo, category }, 'Sprint planning started')
-
-    const model = plannerModel ?? resolveModelFromEnv(MODEL_ROUTING.planning)
 
     const systemPrompt = categoryPlannerPrompt(category)
 
@@ -115,8 +113,7 @@ export async function planSprint(params: {
         capabilityNote = '\n\n' + manifestToPromptBlock(manifest) + '\n\nIMPORTANT: Only plan tasks achievable with the above capabilities. If a requested task would require video_generation, image_generation, audio_generation, or any connection not listed, substitute it with a text/document deliverable instead (e.g. "video script" instead of "video").'
     } catch { /* non-fatal */ }
 
-    let rawPlan: SprintPlan
-    try {
+    const doPlan = async (model: AnyLanguageModel) => {
         let parsed: SprintPlan | null = null
         try {
             const result = await generateObject({
@@ -147,7 +144,16 @@ export async function planSprint(params: {
                 throw structuredErr
             }
         }
-        rawPlan = parsed!
+        return parsed!
+    }
+
+    let rawPlan: SprintPlan
+    try {
+        if (aiSettings) {
+             rawPlan = await withFallback(aiSettings, 'planning', doPlan)
+        } else {
+             rawPlan = await doPlan(resolveModelFromEnv(MODEL_ROUTING.planning))
+        }
     } catch (err) {
         logger.error({ err, sprintId }, 'Sprint planner LLM call failed')
         throw new Error(`Sprint planning failed: ${(err as Error).message}`)

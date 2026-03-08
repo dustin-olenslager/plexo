@@ -35,17 +35,21 @@ function isEncrypted(v: string): boolean {
     return parts.length === 3 && parts.every((p) => p.length > 0)
 }
 
-type ProviderEntry = {
+type VaultEntry = {
     apiKey?: string
     oauthToken?: string
-    selectedModel?: string
-    defaultModel?: string
     baseUrl?: string
     status?: string
-    enabled?: boolean
     keySource?: { workspaceId: string; workspaceName?: string }
-    [key: string]: unknown
 }
+
+type ArbiterEntry = {
+    selectedModel?: string
+    defaultModel?: string
+    enabled?: boolean
+}
+
+type ProviderEntry = VaultEntry & ArbiterEntry & { [key: string]: unknown }
 
 type AIProvidersBlob = {
     inferenceMode?: 'auto' | 'byok' | 'proxy' | 'override'
@@ -57,61 +61,121 @@ type AIProvidersBlob = {
     [key: string]: unknown
 }
 
-/** Encrypt sensitive fields in-place (mutates). */
-function encryptProviders(blob: AIProvidersBlob, workspaceId: string): AIProvidersBlob {
-    const providers = blob.providers ?? {}
-    const encrypted: Record<string, ProviderEntry> = {}
+type VaultBlob = Record<string, VaultEntry>
 
-    for (const [key, entry] of Object.entries(providers)) {
-        const e: ProviderEntry = { ...entry }
-
-        if (e.apiKey && e.apiKey !== CONFIGURED_SENTINEL && !isEncrypted(e.apiKey)) {
-            e.apiKey = encrypt(e.apiKey, workspaceId)
-        }
-        if (e.oauthToken && e.oauthToken !== CONFIGURED_SENTINEL && !isEncrypted(e.oauthToken)) {
-            e.oauthToken = encrypt(e.oauthToken, workspaceId)
-        }
-
-        encrypted[key] = e
-    }
-
-    return { ...blob, providers: encrypted }
+type ArbiterBlob = {
+    inferenceMode?: 'auto' | 'byok' | 'proxy' | 'override'
+    primaryProvider?: string
+    fallbackChain?: string[]
+    providers?: Record<string, ArbiterEntry>
 }
 
-/** Decrypt sensitive fields in-place (mutates). Returns decrypted blob. */
-function decryptProviders(blob: AIProvidersBlob, workspaceId: string): AIProvidersBlob {
-    const providers = blob.providers ?? {}
-    const decrypted: Record<string, ProviderEntry> = {}
+export function getDecoupledSettings(workspaceId: string, settings: Record<string, unknown>): { vault: VaultBlob, arbiter: ArbiterBlob, migrated: boolean } {
+    const isLegacy = !settings.vault && !settings.arbiter && !!settings.aiProviders
+    let vault = (settings.vault ?? {}) as VaultBlob
+    let arbiter = (settings.arbiter ?? {}) as ArbiterBlob
 
-    for (const [key, entry] of Object.entries(providers)) {
-        const e: ProviderEntry = { ...entry }
-
-        if (e.apiKey && isEncrypted(e.apiKey)) {
-            try { e.apiKey = decrypt(e.apiKey, workspaceId) } catch { /* leave as-is */ }
+    if (isLegacy) {
+        const legacy = settings.aiProviders as AIProvidersBlob
+        arbiter = {
+            inferenceMode: legacy.inferenceMode,
+            primaryProvider: legacy.primary ?? legacy.primaryProvider,
+            fallbackChain: legacy.fallbackOrder ?? legacy.fallbackChain ?? [],
+            providers: {}
         }
-        if (e.oauthToken && isEncrypted(e.oauthToken)) {
-            try { e.oauthToken = decrypt(e.oauthToken, workspaceId) } catch { /* leave as-is */ }
+        vault = {}
+        const legacyProviders = legacy.providers ?? {}
+        for (const [k, p] of Object.entries(legacyProviders)) {
+            vault[k] = { apiKey: p.apiKey, oauthToken: p.oauthToken, baseUrl: p.baseUrl, status: p.status, keySource: p.keySource }
+            arbiter.providers![k] = { selectedModel: p.selectedModel ?? p.defaultModel, enabled: p.enabled }
         }
 
-        decrypted[key] = e
+        // Persist migration asynchronously
+        const newSettings = { ...settings, vault, arbiter } as Record<string, unknown>
+        delete newSettings.aiProviders
+        db.update(workspaces).set({ settings: newSettings }).where(eq(workspaces.id, workspaceId)).catch(err => {
+            logger.error({ err, workspaceId }, 'Failed to persist zero-downtime vault/arbiter migration')
+        })
     }
 
-    return { ...blob, providers: decrypted }
+    return { vault, arbiter, migrated: isLegacy }
 }
 
-/** Redact sensitive fields for client responses. Never return real key values. */
-function redactProviders(blob: AIProvidersBlob): AIProvidersBlob {
-    const providers = blob.providers ?? {}
-    const redacted: Record<string, ProviderEntry> = {}
-
-    for (const [key, entry] of Object.entries(providers)) {
-        const e: ProviderEntry = { ...entry }
-        if (e.apiKey) e.apiKey = CONFIGURED_SENTINEL
-        if (e.oauthToken) e.oauthToken = CONFIGURED_SENTINEL
-        redacted[key] = e
+function splitIntoDecoupled(blob: AIProvidersBlob): { vault: VaultBlob, arbiter: ArbiterBlob } {
+    const vault: VaultBlob = {}
+    const arbiter: ArbiterBlob = {
+        inferenceMode: blob.inferenceMode,
+        primaryProvider: blob.primary ?? blob.primaryProvider,
+        fallbackChain: blob.fallbackOrder ?? blob.fallbackChain ?? [],
+        providers: {}
     }
+    const blobProviders = blob.providers ?? {}
+    for (const [k, p] of Object.entries(blobProviders)) {
+        vault[k] = { apiKey: p.apiKey, oauthToken: p.oauthToken, baseUrl: p.baseUrl, status: p.status, keySource: p.keySource }
+        arbiter.providers![k] = { selectedModel: p.selectedModel ?? p.defaultModel, enabled: p.enabled }
+    }
+    return { vault, arbiter }
+}
 
-    return { ...blob, providers: redacted }
+function mergeDecoupled(vault: VaultBlob, arbiter: ArbiterBlob): AIProvidersBlob {
+    const merged: AIProvidersBlob = {
+        inferenceMode: arbiter.inferenceMode,
+        primaryProvider: arbiter.primaryProvider,
+        fallbackChain: arbiter.fallbackChain,
+        providers: {}
+    }
+    const keys = new Set([...Object.keys(vault), ...Object.keys(arbiter.providers ?? {})])
+    for (const k of keys) {
+        merged.providers![k] = {
+            ...(vault[k] ?? {}),
+            ...(arbiter.providers?.[k] ?? {})
+        }
+    }
+    return merged
+}
+
+/** Encrypt sensitive fields in vault. */
+function encryptVault(vault: VaultBlob, workspaceId: string): VaultBlob {
+    const encrypted: VaultBlob = {}
+    for (const [key, e] of Object.entries(vault)) {
+        const out = { ...e }
+        if (out.apiKey && out.apiKey !== CONFIGURED_SENTINEL && !isEncrypted(out.apiKey)) {
+            out.apiKey = encrypt(out.apiKey, workspaceId)
+        }
+        if (out.oauthToken && out.oauthToken !== CONFIGURED_SENTINEL && !isEncrypted(out.oauthToken)) {
+            out.oauthToken = encrypt(out.oauthToken, workspaceId)
+        }
+        encrypted[key] = out
+    }
+    return encrypted
+}
+
+/** Decrypt sensitive fields in vault. */
+function decryptVault(vault: VaultBlob, workspaceId: string): VaultBlob {
+    const decrypted: VaultBlob = {}
+    for (const [key, e] of Object.entries(vault)) {
+        const out = { ...e }
+        if (out.apiKey && isEncrypted(out.apiKey)) {
+            try { out.apiKey = decrypt(out.apiKey, workspaceId) } catch { /* leave as-is */ }
+        }
+        if (out.oauthToken && isEncrypted(out.oauthToken)) {
+            try { out.oauthToken = decrypt(out.oauthToken, workspaceId) } catch { /* leave as-is */ }
+        }
+        decrypted[key] = out
+    }
+    return decrypted
+}
+
+/** Redact sensitive fields. */
+function redactVault(vault: VaultBlob): VaultBlob {
+    const redacted: VaultBlob = {}
+    for (const [key, e] of Object.entries(vault)) {
+        const out = { ...e }
+        if (out.apiKey) out.apiKey = CONFIGURED_SENTINEL
+        if (out.oauthToken) out.oauthToken = CONFIGURED_SENTINEL
+        redacted[key] = out
+    }
+    return redacted
 }
 
 // ── GET /api/workspaces/:id/ai-providers ─────────────────────────────────────
@@ -135,9 +199,11 @@ aiProviderCredsRouter.get('/', async (req, res) => {
             return
         }
 
-        const blob = ((ws.settings as Record<string, unknown>)?.aiProviders ?? {}) as AIProvidersBlob
+        const rawSettings = ws.settings as Record<string, unknown>
+        const { vault, arbiter } = getDecoupledSettings(id, rawSettings)
+        
         // Return redacted — clients see presence (sentinel) not values
-        res.json({ aiProviders: redactProviders(blob) })
+        res.json({ aiProviders: mergeDecoupled(redactVault(vault), arbiter) })
     } catch (err) {
         logger.error({ err, id }, 'GET ai-providers failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to load AI providers' } })
@@ -173,10 +239,10 @@ aiProviderCredsRouter.put('/', async (req, res) => {
         }
 
         const currentSettings = (ws.settings ?? {}) as Record<string, unknown>
-        const currentBlob = (currentSettings.aiProviders ?? {}) as AIProvidersBlob
+        const { vault: currentVault, arbiter: currentArbiter } = getDecoupledSettings(id, currentSettings)
 
-        // Strip sentinel values from incoming: if a provider's key is the sentinel,
-        // keep the existing encrypted value instead of overwriting with the sentinel.
+        // incoming is AIProvidersBlob format. Merge it with current explicitly.
+        const currentBlob = mergeDecoupled(currentVault, currentArbiter)
         const merged: AIProvidersBlob = { ...currentBlob, ...incoming }
 
         if (incoming.providers) {
@@ -187,11 +253,9 @@ aiProviderCredsRouter.put('/', async (req, res) => {
                 const current = currentProviders[key] ?? {}
                 const e: ProviderEntry = { ...current, ...entry }
 
-                // If the incoming value is the sentinel, restore the stored encrypted value
                 if (e.apiKey === CONFIGURED_SENTINEL) {
                     e.apiKey = (current as ProviderEntry).apiKey
                 }
-                // '__CLEAR__' means the user explicitly removed the key
                 if (e.apiKey === '__CLEAR__') {
                     delete e.apiKey
                     e.status = 'unconfigured'
@@ -210,14 +274,17 @@ aiProviderCredsRouter.put('/', async (req, res) => {
             merged.providers = mergedProviders
         }
 
-        // Encrypt any plaintext credentials before persisting
-        const toWrite = encryptProviders(merged, id)
+        const { vault: mergedVault, arbiter: mergedArbiter } = splitIntoDecoupled(merged)
 
-        const newSettings = { ...currentSettings, aiProviders: toWrite }
+        // Encrypt any plaintext credentials before persisting
+        const toWriteVault = encryptVault(mergedVault, id)
+
+        const newSettings = { ...currentSettings, vault: toWriteVault, arbiter: mergedArbiter } as Record<string, unknown>
+        delete newSettings.aiProviders
         await db.update(workspaces).set({ settings: newSettings }).where(eq(workspaces.id, id))
 
-        const providerCount = Object.keys(toWrite.providers ?? {}).length
-        logger.info({ workspaceId: id, providers: providerCount }, 'AI provider credentials updated (encrypted)')
+        const providerCount = Object.keys(toWriteVault).length
+        logger.info({ workspaceId: id, providers: providerCount }, 'AI provider credentials updated (encrypted and decoupled)')
         // Invalidate the introspection cache so the Intelligence page shows fresh data
         void invalidateIntrospectCache(id)
         res.json({ ok: true })
@@ -243,20 +310,21 @@ export async function loadDecryptedAIProviders(workspaceId: string): Promise<AIP
             .where(eq(workspaces.id, workspaceId))
             .limit(1)
 
-        const blob = ((ws?.settings as Record<string, unknown>)?.aiProviders ?? null) as AIProvidersBlob | null
-        if (!blob) return null
+        const settings = ws?.settings as Record<string, unknown> | null
+        if (!settings) return null
+
+        const { vault, arbiter } = getDecoupledSettings(workspaceId, settings)
 
         // Decrypt locally-stored credentials first
-        const decrypted = decryptProviders(blob, workspaceId)
+        const decryptedVault = decryptVault(vault, workspaceId)
 
-        // Resolve borrowed keys — providers with keySource need the source workspace's key
-        const providers = decrypted.providers ?? {}
-        for (const [providerKey, entry] of Object.entries(providers)) {
+        // Resolve borrowed keys
+        for (const [providerKey, entry] of Object.entries(decryptedVault)) {
             if (!entry?.keySource?.workspaceId) continue
 
             const sourceWsId = entry.keySource.workspaceId
 
-            // Verify the share still exists (not revoked)
+            // Verify the share still exists
             const [shareRow] = await db
                 .select({ id: workspaceKeyShares.id })
                 .from(workspaceKeyShares)
@@ -268,15 +336,14 @@ export async function loadDecryptedAIProviders(workspaceId: string): Promise<AIP
                 .limit(1)
 
             if (!shareRow) {
-                // Share was revoked — treat as unconfigured
                 logger.warn({ workspaceId, providerKey, sourceWsId }, 'key-share: share not found (revoked?) — treating as unconfigured')
-                providers[providerKey] = { ...entry, status: 'unconfigured' }
-                delete providers[providerKey]!.apiKey
-                delete providers[providerKey]!.oauthToken
+                decryptedVault[providerKey] = { ...entry, status: 'unconfigured' }
+                delete decryptedVault[providerKey]!.apiKey
+                delete decryptedVault[providerKey]!.oauthToken
                 continue
             }
 
-            // Decrypt from the source workspace (uses source workspace ID as encryption context)
+            // Decrypt from the source workspace
             try {
                 const [srcWs] = await db
                     .select({ settings: workspaces.settings })
@@ -284,18 +351,15 @@ export async function loadDecryptedAIProviders(workspaceId: string): Promise<AIP
                     .where(eq(workspaces.id, sourceWsId))
                     .limit(1)
 
-                const srcBlob = ((srcWs?.settings as Record<string, unknown>)?.aiProviders ?? null) as AIProvidersBlob | null
-                if (!srcBlob) {
-                    logger.warn({ workspaceId, providerKey, sourceWsId }, 'key-share: source workspace has no aiProviders blob')
-                    continue
-                }
+                const srcSettings = srcWs?.settings as Record<string, unknown> | null
+                if (!srcSettings) continue
 
-                const srcDecrypted = decryptProviders(srcBlob, sourceWsId)
-                const srcProvider = srcDecrypted.providers?.[providerKey]
+                const { vault: srcVault } = getDecoupledSettings(sourceWsId, srcSettings)
+                const srcDecryptedVault = decryptVault(srcVault, sourceWsId)
+                const srcProvider = srcDecryptedVault[providerKey]
 
                 if (srcProvider?.apiKey) {
-                    // Inject the source key into this provider's entry — in-memory only
-                    providers[providerKey] = { ...entry, apiKey: srcProvider.apiKey, status: 'configured' }
+                    decryptedVault[providerKey] = { ...entry, apiKey: srcProvider.apiKey, status: 'configured' }
                     logger.info({ workspaceId, providerKey, sourceWsId }, 'key-share: borrowed key resolved ✓')
                 } else {
                     logger.warn({ workspaceId, providerKey, sourceWsId }, 'key-share: source workspace has no key for this provider')
@@ -305,7 +369,7 @@ export async function loadDecryptedAIProviders(workspaceId: string): Promise<AIP
             }
         }
 
-        return { ...decrypted, providers }
+        return mergeDecoupled(decryptedVault, arbiter)
     } catch (err) {
         logger.error({ err, workspaceId }, 'loadDecryptedAIProviders failed')
         return null
