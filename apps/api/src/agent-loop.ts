@@ -77,6 +77,7 @@ export async function loadWorkspaceAISettings(workspaceId: string): Promise<{
             }, 'ai-cred: workspace AI settings loaded from DB')
 
             aiSettings = {
+                inferenceMode: ap.inferenceMode as WorkspaceAISettings['inferenceMode'],
                 primaryProvider: (ap.primary ?? ap.primaryProvider ?? 'anthropic') as ProviderKey,
                 fallbackChain: (ap.fallbackOrder ?? ap.fallbackChain ?? []) as ProviderKey[],
                 providers: Object.fromEntries(

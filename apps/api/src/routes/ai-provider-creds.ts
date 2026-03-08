@@ -48,6 +48,7 @@ type ProviderEntry = {
 }
 
 type AIProvidersBlob = {
+    inferenceMode?: 'auto' | 'byok' | 'proxy' | 'override'
     primary?: string
     primaryProvider?: string
     fallbackOrder?: string[]
