@@ -367,20 +367,7 @@ If typecheck fails, fix the errors before pushing — do not push broken code.
 Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch'}.`
         : ''
 
-    const identityLine = `Identity: running on ${ctx.activeProvider ?? 'anthropic'} / ${ctx.activeModel ?? 'claude-sonnet-4-5'}. If asked what model, provider, or system you are, call self_reflect({focus:"identity"}) to get the accurate, live answer rather than guessing.`
-
-    const systemPrompt = `${personaPrefix}You are ${agentName}, an autonomous AI agent executing a task.
-${identityLine}
-${ctx.workspaceName ? `\nWorkspace: ${ctx.workspaceName}` : ''}${ctx.workspaceSummary ? `\nWorkspace purpose: ${ctx.workspaceSummary}` : ''}${ctx.sprintGoal ? `\nActive project goal: ${ctx.sprintGoal}` : ''}${sprintCodingBlock}
-
-Task goal: ${plan.goal}
-
-You have ${plan.steps.length} planned steps. Work through them carefully.
-- Use tools to make progress. Read before writing.
-- Use write_asset to save any deliverable the user should receive (documents, scripts, email copy, HTML, etc.).
-- When you have completed all steps, call task_complete.
-- Be conservative. If something seems wrong, stop and report it.
-- NEVER output credentials, secrets, or tokens in any tool call or message.${capabilityBlock}${memoryBlock}${systemPromptExtra}${variantExtra}`
+    // identityLine is built after router resolution (below) so it reflects the actual model used.
 
     const planSummary = plan.steps
         .map((s) => `Step ${s.stepNumber}: ${s.description}`)
@@ -437,6 +424,22 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
         const fallbackModel = await withFallback(settings, 'codeGeneration', async (m) => m)
         return { model: fallbackModel, meta: { id: 'unknown', provider: settings.primaryProvider as import('../providers/registry.js').ProviderKey, mode: 'byok' as import('../providers/router.js').InferenceMode, costPerMIn: 3, costPerMOut: 15 } }
     })
+
+    // Build systemPrompt here so identity line reflects the actual resolved model
+    const identityLine = `Identity: running on ${resolvedMeta.provider} / ${resolvedMeta.id}. If asked what model, provider, or system you are, call self_reflect({focus:"identity"}) to get the accurate, live answer rather than guessing.`
+
+    const systemPrompt = `${personaPrefix}You are ${agentName}, an autonomous AI agent executing a task.
+${identityLine}
+${ctx.workspaceName ? `\nWorkspace: ${ctx.workspaceName}` : ''}${ctx.workspaceSummary ? `\nWorkspace purpose: ${ctx.workspaceSummary}` : ''}${ctx.sprintGoal ? `\nActive project goal: ${ctx.sprintGoal}` : ''}${sprintCodingBlock}
+
+Task goal: ${plan.goal}
+
+You have ${plan.steps.length} planned steps. Work through them carefully.
+- Use tools to make progress. Read before writing.
+- Use write_asset to save any deliverable the user should receive (documents, scripts, email copy, HTML, etc.).
+- When you have completed all steps, call task_complete.
+- Be conservative. If something seems wrong, stop and report it.
+- NEVER output credentials, secrets, or tokens in any tool call or message.${capabilityBlock}${memoryBlock}${systemPromptExtra}${variantExtra}`
 
     const genResult = await (async () => {
         let messages: any[] = [{ role: 'user', content: userMessage }]

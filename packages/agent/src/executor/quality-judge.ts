@@ -23,7 +23,7 @@ import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { z } from 'zod'
 import pino from 'pino'
 import { QUALITY_RUBRICS, MODEL_ROUTING } from '../constants.js'
-import { resolveModelFromEnv } from '../providers/registry.js'
+import { resolveModelFromEnv, resolveModel } from '../providers/registry.js'
 import type { WorkspaceAISettings } from '../providers/registry.js'
 import { db, eq, sql } from '@plexo/db'
 import { modelsKnowledge } from '@plexo/db'
@@ -317,7 +317,9 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
                     if (dissenters.length > 0) {
                         logger.info({ dissenters, ensembleMean: ensembleScore.toFixed(3) }, 'Dissent detected — cloud arbitration')
                         try {
-                            const arbitrator = resolveModelFromEnv(MODEL_ROUTING.summarization)
+                            const arbitrator = aiSettings
+                                ? (await resolveModel('summarization', aiSettings).catch(() => ({ model: resolveModelFromEnv(MODEL_ROUTING.summarization), meta: null }))).model
+                                : resolveModelFromEnv(MODEL_ROUTING.summarization)
                             const arbitratedScore = await runSingleJudge(params, rubric, arbitrator)
                             const finalScore = Math.min(1, Math.max(0, (ensembleScore + arbitratedScore) / 2))
                             return {
@@ -352,9 +354,11 @@ export async function judgeQuality(params: JudgeParams): Promise<JudgeResult> {
             }
         }
 
-        // Single judge
-        const model = resolveModelFromEnv(MODEL_ROUTING.summarization)
-        const score = Math.min(1, Math.max(0, await runSingleJudge(params, rubric, model)))
+        // Single judge — use workspace router when available, else env fallback
+        const singleModel = aiSettings
+            ? (await resolveModel('summarization', aiSettings).catch(() => ({ model: resolveModelFromEnv(MODEL_ROUTING.summarization), meta: null }))).model
+            : resolveModelFromEnv(MODEL_ROUTING.summarization)
+        const score = Math.min(1, Math.max(0, await runSingleJudge(params, rubric, singleModel)))
         logger.info({ taskType, score: score.toFixed(3), selfScore: selfScore.toFixed(3) }, 'Single judge done')
         return {
             score,

@@ -19,7 +19,7 @@
  */
 import pino from 'pino'
 import { db, eq, inArray, and, isNotNull, sql } from '@plexo/db'
-import { sprints, sprintTasks, tasks } from '@plexo/db'
+import { sprints, sprintTasks, tasks, taskSteps } from '@plexo/db'
 import { push as pushTask } from '@plexo/queue'
 import { planSprint, type PlanResult } from './planner.js'
 import { detectStaticConflicts, detectDynamicConflicts } from './conflicts.js'
@@ -272,11 +272,24 @@ async function runCodeSprint(
 
         for (const st of completed) {
             if (st.status === 'complete') {
+                // Query model attribution from task_steps if available
+                const linkedTaskId = (st.handoff as { taskId?: string } | null)?.taskId
+                let resolvedModel: string | null = null
+                if (linkedTaskId) {
+                    try {
+                        const [stepRow] = await db.select({ model: taskSteps.model })
+                            .from(taskSteps)
+                            .where(eq(taskSteps.taskId, linkedTaskId))
+                            .limit(1)
+                        resolvedModel = stepRow?.model ?? null
+                    } catch { /* non-fatal */ }
+                }
+
                 await logSprintEvent({
                     sprintId,
                     event: 'task_complete',
                     message: `Task complete: "${st.description.slice(0, 80)}${st.description.length > 80 ? '…' : ''}"`,
-                    metadata: { sprintTaskId: st.id, branch: st.branch },
+                    metadata: { sprintTaskId: st.id, branch: st.branch, resolvedModel },
                 })
 
                 try {
