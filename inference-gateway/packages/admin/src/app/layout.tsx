@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { PostHogProvider } from '@/lib/posthog-provider'
 
 export const metadata: Metadata = {
   title: 'Plexo Gateway Admin',
@@ -14,7 +15,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="antialiased bg-zinc-950 text-zinc-50 min-h-screen flex flex-col">
-        {children}
+        <PostHogProvider>
+          {children}
+        </PostHogProvider>
       </body>
     </html>
   )

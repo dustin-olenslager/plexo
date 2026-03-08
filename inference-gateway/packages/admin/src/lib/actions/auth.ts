@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { adminUsers } from '@/lib/schema'
 import bcrypt from 'bcrypt'
 import { redirect } from 'next/navigation'
+import { captureAdminEvent } from '@/lib/analytics'
 
 export async function loginAction(formData: FormData) {
   try {
@@ -14,7 +15,11 @@ export async function loginAction(formData: FormData) {
       redirectTo: '/'
     })
   } catch (error: any) {
-    if (error.message && error.message.includes('NEXT_REDIRECT')) throw error
+    if (error.message && error.message.includes('NEXT_REDIRECT')) {
+      captureAdminEvent('admin.login_success')
+      throw error
+    }
+    captureAdminEvent('admin.login_failed')
     return 'Invalid credentials'
   }
 }
@@ -36,6 +41,8 @@ export async function setupAction(formData: FormData) {
     passwordHash: hash,
     createdAt: new Date(),
   })
-  
+
+  captureAdminEvent('admin.setup_completed')
   redirect('/login')
 }
+

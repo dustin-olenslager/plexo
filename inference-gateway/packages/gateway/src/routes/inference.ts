@@ -5,6 +5,7 @@ import { checkQuota } from '../middleware/quota'
 import { rateLimiter } from '../middleware/rateLimiter'
 import { routeRequest } from '../providers/router'
 import { recordUsage } from '../billing/usage'
+import { captureInference } from '../lib/analytics'
 
 export const inferenceRouter = Router()
 
@@ -19,10 +20,10 @@ inferenceRouter.post('/v1/infer',
   rateLimiter, 
   checkQuota, 
   async (req: AuthRequest, res: Response, next: NextFunction) => {
+    const startMs = Date.now()
     try {
       const { provider, model, adapter } = routeRequest(req.body)
 
-      const startMs = Date.now()
       
       if (req.body.stream) {
         // Implementation of stream
@@ -66,6 +67,20 @@ inferenceRouter.post('/v1/infer',
         usage.cache_read_tokens || 0
       )
 
+      captureInference({
+        instanceId: res.locals.instance.id,
+        workspaceId: res.locals.apiKey.workspaceId,
+        provider,
+        model,
+        taskType: req.body.task_type,
+        tokensInput: usage.tokens_input,
+        tokensOutput: usage.tokens_output,
+        tokensThinking: usage.tokens_thinking,
+        latencyMs,
+        totalCostUsd,
+        billedCostUsd,
+      })
+
       res.status(200).json({
         gateway_request_id: (req as any).id,
         provider_used: provider,
@@ -81,6 +96,19 @@ inferenceRouter.post('/v1/infer',
       })
       
     } catch (err: any) {
+      captureInference({
+        instanceId: res.locals.instance?.id ?? 'unknown',
+        workspaceId: res.locals.apiKey?.workspaceId ?? 'unknown',
+        provider: req.body?.preferred_provider ?? 'unknown',
+        model: req.body?.preferred_model ?? 'unknown',
+        taskType: req.body?.task_type,
+        tokensInput: 0,
+        tokensOutput: 0,
+        latencyMs: Date.now() - startMs,
+        totalCostUsd: 0,
+        billedCostUsd: 0,
+        error: err.message,
+      })
       if (err.message && err.message.startsWith('provider_not_supported')) {
         res.status(400).json({ error: err.message })
         return

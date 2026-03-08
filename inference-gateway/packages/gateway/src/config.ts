@@ -16,6 +16,9 @@ const envSchema = z.object({
 
   ANOMALY_WEBHOOK_URL: z.string().optional(),
   ANOMALY_WEBHOOK_SECRET: z.string().optional(),
+
+  POSTHOG_API_KEY: z.string().optional(),
+  POSTHOG_HOST: z.string().url().optional(),
 })
 
 export const config = envSchema.parse(process.env)
