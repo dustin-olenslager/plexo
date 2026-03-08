@@ -46,12 +46,12 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
     }
 
     // Load workspace AI settings so the planner uses the configured provider
-    let plannerModel: ReturnType<typeof resolveModel> | undefined
+    let aiSettings: any
     try {
-        const { aiSettings } = await loadWorkspaceAISettings(workspaceId)
-        if (aiSettings) {
-            plannerModel = resolveModel('planning', aiSettings)
-            logger.info({ sprintId, provider: aiSettings.primaryProvider }, 'Sprint planner model resolved')
+        const loaded = await loadWorkspaceAISettings(workspaceId)
+        if (loaded.aiSettings) {
+            aiSettings = loaded.aiSettings
+            logger.info({ sprintId, provider: aiSettings.primaryProvider }, 'Sprint planner settings loaded')
         }
     } catch (err) {
         logger.warn({ err, sprintId }, 'Could not resolve workspace AI settings — planner will use env fallback')
@@ -64,7 +64,7 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
         repo: sprint.repo ?? undefined,
         category: sprint.category ?? 'code',
         request: sprint.request,
-        plannerModel,
+        aiSettings,
     }).catch((err: unknown) => {
         logger.error({ err, sprintId }, 'Sprint run failed')
     })

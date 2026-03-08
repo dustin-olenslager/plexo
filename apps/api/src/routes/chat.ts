@@ -422,11 +422,11 @@ chatRouter.post('/execute-action', async (req, res) => {
             if (!sprint) throw new Error('Sprint insert returned no rows')
             logger.info({ workspaceId, sprintId: sprint.id, category: resolvedCategory }, 'Webchat project explicitly confirmed and created')
 
-            // Resolve planner model and kick off the sprint runner (fire-and-forget)
-            let plannerModel: ReturnType<typeof resolveModel> | undefined
+            // Load aiSettings and kick off the sprint runner (fire-and-forget)
+            let aiSettings: any
             try {
-                const { aiSettings } = await loadWorkspaceAISettings(workspaceId)
-                if (aiSettings) plannerModel = resolveModel('planning', aiSettings)
+                const loaded = await loadWorkspaceAISettings(workspaceId)
+                if (loaded.aiSettings) aiSettings = loaded.aiSettings
             } catch (err) {
                 logger.warn({ err, sprintId: sprint.id }, 'Could not resolve AI settings for sprint planner — using env fallback')
             }
@@ -435,7 +435,7 @@ chatRouter.post('/execute-action', async (req, res) => {
                 workspaceId,
                 category: resolvedCategory,
                 request: description,
-                plannerModel,
+                aiSettings,
             }).catch((err: unknown) => {
                 logger.error({ err, sprintId: sprint.id }, 'Sprint run failed')
             })
