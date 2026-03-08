@@ -12,7 +12,7 @@ export async function loginAction(formData: FormData) {
     await signIn('credentials', {
       email: formData.get('email'),
       password: formData.get('password'),
-      redirectTo: '/'
+      redirectTo: `${process.env.AUTH_URL}/`
     })
   } catch (error: any) {
     if (error.message && error.message.includes('NEXT_REDIRECT')) {
@@ -45,4 +45,3 @@ export async function setupAction(formData: FormData) {
   captureAdminEvent('admin.setup_completed')
   redirect('/login')
 }
-
