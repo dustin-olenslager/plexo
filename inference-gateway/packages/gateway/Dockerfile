@@ -12,6 +12,7 @@ RUN pnpm install
 # Build
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages/gateway/node_modules ./packages/gateway/node_modules
 COPY . .
 WORKDIR /app/packages/gateway
 RUN pnpm build
