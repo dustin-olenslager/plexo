@@ -28,6 +28,11 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://gateway:${POSTGRES_PASSWORD}@postgres:5432/plexo_gateway
+      # AUTH_URL must match the public HTTPS domain — sourced from ADMIN_URL so
+      # the operator only needs to set one variable. Explicit here so it can't
+      # be shadowed by a stale localhost value coming from env_file.
+      - AUTH_URL=${ADMIN_URL}
+      - AUTH_SECRET=${AUTH_SECRET}
     env_file: .env
     depends_on:
       postgres:
