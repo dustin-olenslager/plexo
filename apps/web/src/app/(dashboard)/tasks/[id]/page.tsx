@@ -18,6 +18,7 @@ import { BlockedActions } from './_blocked-actions'
 interface TaskStep {
     id: string
     stepNumber: number
+    model: string | null
     ok: boolean
     output: string | null
     tokensIn: number | null
@@ -272,6 +273,11 @@ export default async function TaskDetailPage({ params }: { params: Promise<{ id:
                                         <span className={`text-[11px] font-medium ${step.ok ? 'text-emerald-400' : 'text-red-400'}`}>
                                             Step {step.stepNumber}
                                         </span>
+                                        {step.model && (
+                                            <span className="rounded border border-indigo-800/40 bg-indigo-950/30 px-1.5 py-0.5 text-[10px] font-mono text-indigo-400">
+                                                {step.model}
+                                            </span>
+                                        )}
                                         {step.toolCalls?.map((tc, i) => (
                                             <span key={i} className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-mono text-zinc-500">
                                                 {tc.tool}

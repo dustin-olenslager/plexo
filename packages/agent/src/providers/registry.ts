@@ -52,6 +52,8 @@ export interface AIProviderConfig {
     baseUrl?: string        // for Ollama or custom OpenAI-compatible endpoints
     model?: string          // provider-level default model override
     customFetch?: typeof globalThis.fetch // For proxy/security injections
+    /** User-level enable/disable toggle; false overrides all other checks */
+    enabled?: boolean
 }
 
 export interface WorkspaceAISettings {
@@ -229,7 +231,8 @@ export async function resolveModel(
         }
         routerProviders[key] = {
             selectedModel: p.model,
-            enabled: p.apiKey !== undefined || p.baseUrl !== undefined, // naive enabled check
+            // Respect the user-level enable/disable toggle from arbiter; fall back to key/url existence only when field is absent
+            enabled: p.enabled !== undefined ? p.enabled : (p.apiKey !== undefined || p.baseUrl !== undefined),
         }
     }
 
