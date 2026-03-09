@@ -10,6 +10,7 @@ vi.mock('@plexo/db', () => ({
     db: {
         select: vi.fn().mockReturnThis(),
         from: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
         orderBy: vi.fn().mockReturnThis(),
         limit: vi.fn().mockResolvedValue([
             { provider: 'anthropic', modelId: 'claude-3-5-sonnet', strengths: ['reasoning', 'coding'], costPerMIn: 3000, costPerMOut: 15000 },

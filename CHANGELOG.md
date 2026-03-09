@@ -11,9 +11,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
   - `plexo_list_tasks`, `plexo_get_task` (tasks:read)
   - `plexo_create_task`, `plexo_cancel_task` (tasks:write)
   - `plexo_search_memory` (memory:read), `plexo_remember` (memory:write)
-- **MCP Resources** — three workspace resources exposed at `workspace://tasks/recent`, `workspace://memory/recent`, `workspace://stats`
-- **MCP Prompts** — three prompt templates: `create_task`, `search_memory`, `agent_status` for bootstrapping common flows in MCP clients
-- **MCP settings panel** — Settings → MCP now lists all 8 tools with their required scopes and all 3 resource URIs
+- **MCP Resources** — three workspace resources: `workspace://tasks/recent`, `workspace://memory/recent`, `workspace://stats`
+- **MCP Prompts** — three prompt templates: `create_task`, `search_memory`, `agent_status`
+- **MCP unit tests** — 7 tests covering all 6 business-logic tools (`@plexo/mcp-server`)
+- **MCP settings panel** — Settings → MCP lists all 8 tools + scopes + 3 resource URIs
+- **Dual Sentry client** — `apps/api/src/sentry.ts` upgraded to two independent `NodeClient` instances:
+  - Central (sentry.getplexo.com) — gated by privacy toggle, baked-in DSN, no operator config needed
+  - Operator (SENTRY_DSN env var) — always active when set, for self-hosted error tracking
+- **env.ts completeness** — added optional warnings for `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`, `POSTHOG_API_KEY`, `PLEXO_INSTANCE_ID`
+- **Router unit tests fixed** — Mode 1 (AUTO) mock was missing `.where()` in Drizzle chain; 4/4 now pass (`@plexo/agent`)
+- **Android test stub fixed** — no longer exits 1; turbo `pnpm test` now passes across all non-DB packages
 - **`web_fetch` tool** — agent can now fetch content from any URL (GET/POST, 30s timeout, 50k char truncation). Enables research and external data retrieval in tasks.
 - **`web_search` tool** — DuckDuckGo Instant Answer integration, no API key required. Returns answer, topic summary, and related links for any query.
 - **Task assets API** — `GET /api/v1/tasks/:id/assets` lists and returns inline content for agent-produced files written via `write_asset` tool. Text files up to 200 KB returned inline.
