@@ -21,6 +21,7 @@ import { logSprintEvent } from '@plexo/agent/sprint/logger'
 import { logger } from '../logger.js'
 import { emitToWorkspace } from '../sse-emitter.js'
 import { captureException } from '../sentry.js'
+import { emitSprintOutcome } from '../telemetry/events.js'
 
 export const sprintRunnerRouter: RouterType = Router()
 
@@ -94,6 +95,7 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
         category: sprint.category ?? 'code',
         request: sprint.request,
         aiSettings,
+        onComplete: (meta) => emitSprintOutcome(meta),
     }).catch((err: unknown) => {
         logger.error({ err, sprintId }, 'Sprint run failed')
         captureException(err, { sprintId, workspaceId, category: sprint.category })

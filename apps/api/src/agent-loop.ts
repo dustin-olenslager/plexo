@@ -10,6 +10,7 @@ import { recordTaskMemory } from '@plexo/agent/memory/store'
 import type { AnthropicCredential, ExecutionContext } from '@plexo/agent/types'
 import { emitToWorkspace } from './sse-emitter.js'
 import { registerCodeContext, unregisterCodeContext } from './routes/code.js'
+import { emitTaskOutcome } from './telemetry/events.js'
 import type { WorkspaceAISettings, ProviderKey } from '@plexo/agent/providers/registry'
 import { logger } from './logger.js'
 import { emit } from './sse-emitter.js'
@@ -213,6 +214,7 @@ export async function loadWorkspaceAISettings(workspaceId: string): Promise<{
 async function processOneTask(): Promise<boolean> {
     const task = await claimTask('agent-loop-1')
     if (!task) return false
+    const taskStartMs = Date.now()
 
     logger.info({ taskId: task.id, type: task.type }, 'Task claimed')
     emit({ type: 'task_started', taskId: task.id, taskType: task.type })
@@ -569,6 +571,16 @@ async function processOneTask(): Promise<boolean> {
             }).where(eq(tasks.id, task.id))
         }
 
+        emitTaskOutcome({
+            type: task.type ?? 'unknown',
+            source: task.source ?? 'unknown',
+            success: result.ok,
+            durationMs: Date.now() - taskStartMs,
+            costUsd: result.totalCostUsd,
+            provider: ctx.activeProvider,
+            stepCount: result.steps?.length ?? plan.steps.length,
+        })
+
         emit({
             type: 'task_complete',
             taskId: task.id,
@@ -580,6 +592,16 @@ async function processOneTask(): Promise<boolean> {
         const message = err instanceof Error ? err.message : String(err)
         logger.error({ taskId: task.id, err }, 'Task failed')
         await blockTask(task.id, message)
+
+        emitTaskOutcome({
+            type: task.type ?? 'unknown',
+            source: task.source ?? 'unknown',
+            success: false,
+            durationMs: Date.now() - taskStartMs,
+            costUsd: 0,
+            provider: ctx.activeProvider,
+            stepCount: 0,
+        })
 
         // ── Sprint task sync on failure ────────────────────────────────────
         try {

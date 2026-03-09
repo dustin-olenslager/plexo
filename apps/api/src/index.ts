@@ -68,6 +68,7 @@ import { startAgentLoop, stopAgentLoop } from './agent-loop.js'
 import { db, eq, sql } from '@plexo/db'
 import { sprints } from '@plexo/db'
 import { runCronJobs, scheduleMemoryConsolidation } from './cron.js'
+import { emitHeartbeat } from './telemetry/events.js'
 
 const app: Express = express()
 const port = parseInt(process.env.PORT ?? '3001', 10)
@@ -252,13 +253,62 @@ const server = app.listen(port, '0.0.0.0', () => {
     // Wire sprint activity logger → SSE emitter so runner events stream to Control Room
     initSprintLogger((workspaceId: string, event: Record<string, unknown>) => emitToWorkspace(workspaceId, event as import('./sse-emitter.js').AgentEvent))
 
-
     // OWD → SSE: when an agent requests approval, push a real-time notification
     // to all connected SSE clients in that workspace so the approval banner appears
     eventBus.subscribe(TOPICS.OWD_PENDING, (payload) => {
         const record = payload as { workspaceId: string;[key: string]: unknown }
         emitToWorkspace(record.workspaceId, { type: 'owd.pending', data: record })
     })
+
+    // Daily heartbeat — 10 min after startup then every 24h
+    // Queries the DB; will be a no-op if telemetry is disabled
+    const HEARTBEAT_INTERVAL_MS = 24 * 60 * 60 * 1000
+    const sendHeartbeat = async () => {
+        try {
+            const [taskVolume] = await db.execute(sql`
+                SELECT COUNT(*) AS count FROM tasks
+                WHERE completed_at >= NOW() - INTERVAL '7 days'
+            `)
+            const taskCount = Number((taskVolume as { count?: string })?.count ?? 0)
+
+            const [memCount] = await db.execute(sql`SELECT COUNT(*) AS count FROM memory_entries`)
+            const memEntryCount = Number((memCount as { count?: string })?.count ?? 0)
+
+            // Feature flags — booleans derived from installed connections table
+            const connRows = await db.execute(sql`
+                SELECT LOWER(type) AS type FROM installed_connections LIMIT 100
+            `) as { type: string }[]
+            const connTypes = new Set(connRows.map((r) => r.type ?? ''))
+
+            const [telegramRow] = await db.execute(sql`
+                SELECT 1 FROM telegram_chats LIMIT 1
+            `)
+            const [sprintRow] = await db.execute(sql`
+                SELECT 1 FROM sprints WHERE status = 'complete' LIMIT 1
+            `)
+
+            await emitHeartbeat({
+                taskVolumeThisWeek: taskCount,
+                memoryEntryCount: memEntryCount,
+                activeIntegrations: {
+                    telegram: !!telegramRow,
+                    slack: connTypes.has('slack'),
+                    discord: connTypes.has('discord'),
+                    github: connTypes.has('github'),
+                    sentry: !!process.env.SENTRY_DSN,
+                    memory: memEntryCount > 0,
+                    sprints: !!sprintRow,
+                },
+            })
+            logger.debug('Telemetry heartbeat sent')
+        } catch (err) {
+            logger.debug({ err }, 'Telemetry heartbeat failed — suppressed')
+        }
+    }
+    setTimeout(() => {
+        void sendHeartbeat()
+        setInterval(() => void sendHeartbeat(), HEARTBEAT_INTERVAL_MS)
+    }, 10 * 60 * 1000) // first ping 10m after startup
 })
 
 process.on('SIGTERM', () => {

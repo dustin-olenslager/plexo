@@ -47,12 +47,21 @@ export interface SprintRunOptions {
     baseBranch?: string   // default: repo's default branch (code only)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     aiSettings?: any      // workspace AI settings object for fallback routing
+    /** Telemetry callback — called with anonymous sprint outcome metadata. */
+    onComplete?: (meta: {
+        taskCount: number
+        waveCount: number
+        success: boolean
+        durationMs: number
+        category: string
+    }) => void
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 export async function runSprint(opts: SprintRunOptions): Promise<void> {
     const { sprintId, workspaceId, category = 'code' } = opts
+    const sprintStartMs = Date.now()
 
     logger.info({ sprintId, category }, 'Sprint run started')
     registerSprintWorkspace(sprintId, workspaceId)
@@ -71,9 +80,9 @@ export async function runSprint(opts: SprintRunOptions): Promise<void> {
 
     try {
         if (category === 'code') {
-            await runCodeSprint(opts, sprintId, workspaceId, { projectCostCeiling, perTaskCostCeiling, perTaskTokenBudget })
+            await runCodeSprint(opts, sprintId, workspaceId, { projectCostCeiling, perTaskCostCeiling, perTaskTokenBudget }, sprintStartMs)
         } else {
-            await runGenericSprint(opts, sprintId, workspaceId, category, { projectCostCeiling, perTaskCostCeiling, perTaskTokenBudget })
+            await runGenericSprint(opts, sprintId, workspaceId, category, { projectCostCeiling, perTaskCostCeiling, perTaskTokenBudget }, sprintStartMs)
         }
     } catch (err) {
         logger.error({ err, sprintId }, 'Sprint runner fatal error')
@@ -131,6 +140,7 @@ async function runCodeSprint(
     sprintId: string,
     workspaceId: string,
     budget: SprintBudget,
+    sprintStartMs: number,
 ): Promise<void> {
     const repo = opts.repo
     if (!repo) throw new Error('repo is required for code category')
@@ -415,6 +425,14 @@ async function runCodeSprint(
     })
 
     logger.info({ sprintId, sprintStatus, completedCount, failedCount }, 'Code sprint complete')
+
+    opts.onComplete?.({
+        taskCount: finalTasks.length,
+        waveCount: plan.executionOrder.length,
+        success: sprintStatus !== 'failed',
+        durationMs: Date.now() - sprintStartMs,
+        category: 'code',
+    })
 }
 
 // ── Generic sprint (no GitHub — research, writing, ops, data, marketing, general) ────
@@ -425,6 +443,7 @@ async function runGenericSprint(
     workspaceId: string,
     category: string,
     budget: SprintBudget,
+    sprintStartMs: number,
 ): Promise<void> {
     await logSprintEvent({
         sprintId,
@@ -587,6 +606,14 @@ async function runGenericSprint(
     })
 
     logger.info({ sprintId, sprintStatus, completedCount, failedCount, category }, 'Generic sprint complete')
+
+    opts.onComplete?.({
+        taskCount: finalTasks.length,
+        waveCount: plan.executionOrder.length,
+        success: sprintStatus !== 'failed',
+        durationMs: Date.now() - sprintStartMs,
+        category,
+    })
 }
 
 // ── Poll helpers ──────────────────────────────────────────────────────────────
