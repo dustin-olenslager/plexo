@@ -532,7 +532,7 @@ export function CommandCenter() {
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                 
                 {/* Left Column: Essential Workflow */}
-                <div className="xl:col-span-2 flex flex-col gap-6">
+                <div className="xl:col-span-2 flex flex-col gap-6 xl:min-h-[500px]">
                     {/* Attention Required */}
                     {hasAttention && (
                         <div className="rounded-xl border border-red-500/20 bg-zinc-900/40 backdrop-blur-sm shadow-sm overflow-hidden">
@@ -560,7 +560,7 @@ export function CommandCenter() {
                     )}
 
                     {/* Active Work */}
-                    <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm shadow-sm overflow-hidden min-h-[140px] flex flex-col">
+                    <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm shadow-sm overflow-hidden min-h-[140px] flex flex-col flex-1">
                             <div className="flex items-center justify-between border-b border-zinc-800/50 px-4 py-3 bg-zinc-950/30">
                                 <div className="flex items-center gap-2">
                                     <div className={`h-1.5 w-1.5 rounded-full ${hasActiveWork ? 'bg-blue-400 animate-pulse' : 'bg-emerald-400'}`} />
@@ -610,7 +610,7 @@ export function CommandCenter() {
                 </div>
 
                 {/* Right Column: Recent Activity Feed */}
-                <div className="xl:col-span-1 flex flex-col h-[400px] xl:h-[500px]">
+                <div className="xl:col-span-1 flex flex-col h-[400px] xl:h-full min-h-0">
                     <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 backdrop-blur-sm shadow-sm flex flex-col h-full overflow-hidden">
                         <div className="flex items-center justify-between border-b border-zinc-800/50 px-4 py-3 shrink-0 bg-zinc-950/30">
                             <div className="flex items-center gap-2">
