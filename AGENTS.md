@@ -105,6 +105,18 @@ pnpm --filter @plexo/web dev
 
 ---
 
+### 2026-03 — Sprint Failures Silent in Chat + No Sentry
+
+- **Root cause 1 (silent failure)**: `chat.ts /execute-action` spawns `runSprint()` fire-and-forget. The `.catch` only called `logger.error`. No `recordConversation` error turn, no SSE event — user saw the conversation bubble stuck at "Project created" with no indication of failure.
+- **Root cause 2 (specific error)**: The chat intent classifier sometimes classifies a request as `code` category. Without a `repo` in the body (chat UI has no repo field), `runCodeSprint` immediately throws `'repo is required for code category'`. The fire-and-forget catches this but nobody sees it.
+- **Root cause 3 (no Sentry)**: `@sentry/node` was in `package.json` with no init code anywhere. Zero errors were ever captured.
+- **Fix 1**: `execute-action` `.catch` now: (a) calls `captureException` → Sentry, (b) calls `recordConversation` with `status: 'failed'` + `errorMsg`, (c) emits `chat_error` SSE event to the workspace.
+- **Fix 2**: When `category === 'code'` and no `repo` is in the body, `execute-action` downgrades to `'general'` before creating the sprint row. Code-category sprints without a repo can never succeed; better to run as general.
+- **Fix 3**: `apps/api/src/sentry.ts` created. `initSentry()` called at top of `index.ts` after env validation. `SENTRY_DSN` added to `ENV_SPEC` as optional. `captureException` imported in `sprint-runner.ts` and `chat.ts`. Uncaught exceptions and unhandled rejections also captured.
+- **Lesson**: Fire-and-forget promises MUST have `.catch` handlers that report back to the user — logging alone is not sufficient. Any async failure that originates from a user action must complete the user-facing feedback loop.
+
+---
+
 ### 2026-03 — Intelligence Page: Provider Status / Cost / Memory all Non-Functional
 
 - **Root cause 1 (Provider status)**: `buildIntrospectionSnapshot` used `!!cfg.apiKey` to determine if a provider was configured. But the GET endpoint returns the sentinel string `__configured__` instead of real keys. Truthy sentinel → every provider that had ever been saved showed as `ACTIVE`, regardless of whether the real key was valid or removed.

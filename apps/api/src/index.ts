@@ -9,6 +9,8 @@ dotenvConfig({ path: resolve(monorepoRoot, '.env'), override: false })
 dotenvConfig({ path: resolve(monorepoRoot, '.env.local'), override: true })
 import { validateEnv } from './env.js'
 validateEnv()
+import { initSentry, captureException } from './sentry.js'
+initSentry()
 import express, { type Express } from 'express'
 import cors from 'cors'
 import { logger } from './logger.js'
@@ -54,6 +56,7 @@ import { behaviorRouter } from './routes/behavior.js'
 import { systemRouter } from './routes/system.js'
 import { voiceRouter } from './routes/voice.js'
 import { introspectRouter } from './routes/introspect.js'
+import { codeRouter } from './routes/code.js'
 import { traceMiddleware } from './middleware/trace.js'
 import { generalLimiter, authLimiter, taskCreationLimiter } from './middleware/rate-limit.js'
 import { workspaceRateLimit } from './middleware/workspace-rate-limit.js'
@@ -135,6 +138,7 @@ v1.use('/voice', voiceRouter)
 v1.use('/behavior/:workspaceId', behaviorRouter)
 v1.use('/system', systemRouter)
 v1.use('/workspaces/:id/introspect', introspectRouter)
+v1.use('/code', codeRouter)
 
 v1.get('/agent/status', (_req, res) => {
     res.json({ status: 'idle', currentTask: null, currentModel: null, sessionCount: 0, lastActivity: null })
@@ -231,11 +235,13 @@ process.on('SIGTERM', () => {
 
 process.on('uncaughtException', (err) => {
     logger.fatal({ err }, 'Uncaught exception — shutting down')
+    captureException(err, { context: 'uncaughtException' })
     process.exit(1)
 })
 
 process.on('unhandledRejection', (reason) => {
     logger.error({ reason }, 'Unhandled promise rejection')
+    captureException(reason, { context: 'unhandledRejection' })
 })
 
 export { app }
