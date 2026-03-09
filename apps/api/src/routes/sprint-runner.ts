@@ -47,14 +47,39 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
 
     // Load workspace AI settings so the planner uses the configured provider
     let aiSettings: any
+    let hasCredential = false
     try {
         const loaded = await loadWorkspaceAISettings(workspaceId)
+        hasCredential = !!loaded.credential
         if (loaded.aiSettings) {
             aiSettings = loaded.aiSettings
             logger.info({ sprintId, provider: aiSettings.primaryProvider }, 'Sprint planner settings loaded')
         }
     } catch (err) {
         logger.warn({ err, sprintId }, 'Could not resolve workspace AI settings — planner will use env fallback')
+    }
+
+    // Pre-flight: fail immediately if there's no usable AI credential.
+    // Without this check, the sprint runs, creates N tasks, all fail within minutes with $0 cost.
+    if (!hasCredential) {
+        await db.update(sprints)
+            .set({ status: 'failed' })
+            .where(eq(sprints.id, sprintId))
+        await logSprintEvent({
+            sprintId,
+            level: 'error',
+            event: 'sprint_failed',
+            message: 'No AI provider configured for this workspace. Go to Settings → AI Providers and add at least one API key.',
+            metadata: { reason: 'NO_CREDENTIAL' },
+        })
+        emitToWorkspace(workspaceId, { type: 'sprint_status', sprintId, status: 'failed' })
+        res.status(402).json({
+            error: {
+                code: 'NO_AI_CREDENTIAL',
+                message: 'No AI provider is configured for this workspace. Go to Settings → AI Providers and add at least one API key before running a project.',
+            },
+        })
+        return
     }
 
     // Fire-and-forget — sprint runs async, SSE keeps client updated
