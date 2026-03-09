@@ -454,25 +454,36 @@ async function processOneTask(): Promise<boolean> {
         })
 
         // ── Cost accounting ────────────────────────────────────────────────────
-        // Upsert the weekly cost tracking row so the Intelligence page shows real spend.
-        // Week starts on Monday (ISO) — use date_trunc('week', NOW()) in Postgres.
+        // Canonical write point for api_cost_tracking — agent-loop is the only writer.
+        // executor/index.ts explicitly does NOT write this table to avoid double-counting.
+        // Uses Postgres date_trunc to avoid JS timezone drift in week_start calculation.
         if (result.totalCostUsd > 0) {
             try {
                 await db.execute(sql`
-                    INSERT INTO api_cost_tracking (id, workspace_id, week_start, cost_usd, ceiling_usd)
+                    INSERT INTO api_cost_tracking (id, workspace_id, week_start, cost_usd, ceiling_usd, alerted_80)
                     VALUES (
                         gen_random_uuid(),
                         ${taskWorkspaceId ?? ''}::uuid,
                         date_trunc('week', NOW())::date,
                         ${result.totalCostUsd},
-                        ${API_COST_CEILING}
+                        ${API_COST_CEILING},
+                        false
                     )
                     ON CONFLICT (workspace_id, week_start)
-                    DO UPDATE SET cost_usd = api_cost_tracking.cost_usd + EXCLUDED.cost_usd
+                    DO UPDATE SET
+                        cost_usd = api_cost_tracking.cost_usd + EXCLUDED.cost_usd,
+                        alerted_80 = CASE
+                            WHEN (api_cost_tracking.cost_usd + EXCLUDED.cost_usd) >= (api_cost_tracking.ceiling_usd * 0.8)
+                            THEN true
+                            ELSE api_cost_tracking.alerted_80
+                        END
                 `)
+                logger.info({ taskId: task.id, costUsd: result.totalCostUsd }, 'api_cost_tracking updated')
             } catch (costWriteErr) {
                 logger.warn({ err: costWriteErr, taskId: task.id }, 'api_cost_tracking upsert failed — non-fatal')
             }
+        } else {
+            logger.debug({ taskId: task.id }, 'api_cost_tracking: zero-cost task, skipping upsert')
         }
 
         // Write a work_ledger row for per-task audit trail and 7d stats

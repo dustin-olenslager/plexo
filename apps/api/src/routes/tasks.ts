@@ -239,20 +239,26 @@ tasksRouter.get('/stats/summary', async (req, res) => {
             stats[row.status] = parseInt(row.count, 10)
         }
 
-        const costRows = await db.execute<{ total: string; week: string }>(sql`
-      SELECT
-        COALESCE(SUM(cost_usd), 0)::text as total,
-        COALESCE(SUM(CASE WHEN created_at > NOW() - INTERVAL '7 days' THEN cost_usd ELSE 0 END), 0)::text as week
-      FROM tasks
-      WHERE workspace_id = ${workspaceId}
-    `)
+        const costCeiling = parseFloat(process.env.API_COST_CEILING_USD ?? '10')
+        const [weekCostRow] = await db.execute<{ cost_usd: string | null }>(sql`
+            SELECT cost_usd
+            FROM api_cost_tracking
+            WHERE workspace_id = ${workspaceId}::uuid
+              AND week_start = date_trunc('week', NOW())::date
+            LIMIT 1
+        `)
+        const [allTimeCostRow] = await db.execute<{ total: string }>(sql`
+            SELECT COALESCE(SUM(cost_usd), 0)::text AS total
+            FROM work_ledger
+            WHERE workspace_id = ${workspaceId}::uuid
+        `)
 
         res.json({
             byStatus: stats,
             cost: {
-                total: parseFloat(costRows[0]?.total ?? '0'),
-                thisWeek: parseFloat(costRows[0]?.week ?? '0'),
-                ceiling: parseFloat(process.env.API_COST_CEILING_USD ?? '10'),
+                total: parseFloat(allTimeCostRow?.total ?? '0'),
+                thisWeek: parseFloat(weekCostRow?.cost_usd ?? '0'),
+                ceiling: costCeiling,
             },
         })
     } catch (err) {

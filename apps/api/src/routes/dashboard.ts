@@ -44,14 +44,22 @@ dashboardRouter.get('/summary', async (req, res) => {
             byStatus[row.status] = parseInt(row.count, 10)
         }
 
-        // Cost totals
-        const costRows = await db.execute<{ total_cost: string; week_cost: string }>(sql`
-      SELECT
-        COALESCE(SUM(cost_usd), 0)::text as total_cost,
-        COALESCE(SUM(CASE WHEN created_at > NOW() - INTERVAL '7 days' THEN cost_usd ELSE 0 END), 0)::text as week_cost
-      FROM tasks
-      WHERE workspace_id = ${workspaceId}
-    `)
+        // Cost totals — read from authoritative tables, NOT tasks.cost_usd
+        // api_cost_tracking: current ISO week accumulator (same source as Intelligence page)
+        // work_ledger: completed_at-based 7d rolling sum for all-time display
+        const costCeiling = parseFloat(process.env.API_COST_CEILING_USD ?? '10')
+        const [weekCostRow] = await db.execute<{ cost_usd: string | null; ceiling_usd: string | null }>(sql`
+            SELECT cost_usd, COALESCE(ceiling_usd, ${costCeiling}) AS ceiling_usd
+            FROM api_cost_tracking
+            WHERE workspace_id = ${workspaceId}::uuid
+              AND week_start = date_trunc('week', NOW())::date
+            LIMIT 1
+        `)
+        const [allTimeCostRow] = await db.execute<{ total: string }>(sql`
+            SELECT COALESCE(SUM(cost_usd), 0)::text AS total
+            FROM work_ledger
+            WHERE workspace_id = ${workspaceId}::uuid
+        `)
 
         // Most recent activity (last 5 task completions)
         const recentTasks = await db.select({
@@ -75,9 +83,8 @@ dashboardRouter.get('/summary', async (req, res) => {
         AND ts.created_at > NOW() - INTERVAL '7 days'
     `)
 
-        const totalCost = parseFloat(costRows[0]?.total_cost ?? '0')
-        const weekCost = parseFloat(costRows[0]?.week_cost ?? '0')
-        const costCeiling = parseFloat(process.env.API_COST_CEILING_USD ?? '10')
+        const weekCost = parseFloat(weekCostRow?.cost_usd ?? '0')
+        const totalCost = parseFloat(allTimeCostRow?.total ?? '0')
 
         const running = byStatus['running'] ?? 0
         const queued = byStatus['queued'] ?? 0

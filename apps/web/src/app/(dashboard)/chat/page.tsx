@@ -39,6 +39,7 @@ import {
     Megaphone,
     FolderOpen,
     Code2 as CodeIcon,
+    FileText,
 } from 'lucide-react'
 import { CodeModeShell, type CodeModeContext } from './_code-mode/code-mode-shell'
 import Link from 'next/link'
@@ -57,11 +58,23 @@ interface PastedImage {
     name: string
 }
 
+interface PastedDocument {
+    id: string
+    name: string
+    content: string
+    lineCount: number
+    charCount: number
+}
+
+// Characters threshold above which pasted text becomes a doc attachment
+const LARGE_TEXT_THRESHOLD = 1000
+
 interface Message {
     id: string
     role: 'user' | 'agent'
     content: string
     images?: PastedImage[]
+    docs?: PastedDocument[]
     taskId?: string
     status?: 'queued' | 'running' | 'complete' | 'failed' | 'pending' | 'confirm_action'
     intent?: 'TASK' | 'PROJECT' | 'CONVERSATION'
@@ -122,6 +135,23 @@ function MessageBubble({
             ))}
         </div>
     ) : null
+
+    // Doc attachment pills in user bubbles
+    const docStrip = msg.role === 'user' && msg.docs && msg.docs.length > 0 ? (
+        <div className="flex flex-wrap gap-2 mb-2">
+            {msg.docs.map((doc) => (
+                <div
+                    key={doc.id}
+                    title={doc.content}
+                    className="flex items-center gap-2 rounded-lg border border-zinc-600/60 bg-zinc-800/60 px-3 py-2 text-xs text-zinc-300"
+                >
+                    <FileText className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
+                    <span className="font-medium truncate max-w-[160px]">{doc.name}</span>
+                    <span className="text-zinc-500 shrink-0">{doc.lineCount} lines</span>
+                </div>
+            ))}
+        </div>
+    ) : null
     function copyMsg() {
         const text = msg.actionDescription
             ? `${msg.content}\n${msg.actionDescription}`
@@ -153,6 +183,7 @@ function MessageBubble({
             {/* Bubble */}
             <div className={`flex flex-col gap-1 max-w-[85%] md:max-w-[75%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                 {imageStrip}
+                {docStrip}
                 <div className={`relative w-full overflow-x-auto rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.role === 'user'
                     ? 'bg-indigo-600 text-white rounded-tr-md'
                     : msg.status === 'failed'
@@ -581,6 +612,7 @@ function ChatContent() {
     const [messages, setMessages] = useState<Message[]>([])
     const [input, setInput] = useState('')
     const [pastedImages, setPastedImages] = useState<PastedImage[]>([])
+    const [pastedDocs, setPastedDocs] = useState<PastedDocument[]>([])
     const [sending, setSending] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [agentModel, setAgentModel] = useState<string | null>(null)
@@ -855,10 +887,10 @@ function ChatContent() {
     }
 
     function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+        // ── Image paste ───────────────────────────────────────────────────────
         const imgs = extractImagesFromDataTransfer(e.clipboardData)
         if (imgs.length > 0) {
             e.preventDefault()
-            // Resolve object URLs to data URLs so they survive state lifecycle
             void Promise.all(
                 imgs.map((img) =>
                     fetch(img.dataUrl)
@@ -878,6 +910,26 @@ function ChatContent() {
             ).then((resolved) => {
                 setPastedImages((prev) => [...prev, ...resolved])
             })
+            return
+        }
+
+        // ── Large-text → doc attachment ───────────────────────────────────────
+        const text = e.clipboardData.getData('text/plain')
+        if (text.length >= LARGE_TEXT_THRESHOLD) {
+            e.preventDefault()
+            const lines = text.split('\n')
+            const id = `doc-${Date.now()}-${Math.random().toString(36).slice(2)}`
+            // Try to infer a name from the first non-empty line or fall back to generic
+            const firstLine = lines.find(l => l.trim().length > 0)?.trim().slice(0, 60) ?? 'Pasted text'
+            const name = firstLine.length > 40 ? `${firstLine.slice(0, 40)}…` : firstLine
+            const doc: PastedDocument = {
+                id,
+                name,
+                content: text,
+                lineCount: lines.length,
+                charCount: text.length,
+            }
+            setPastedDocs((prev) => [...prev, doc])
         }
     }
 
@@ -933,8 +985,8 @@ function ChatContent() {
 
     // ── Send ──────────────────────────────────────────────────────────────────
 
-    async function sendMessageWith(text: string, images?: PastedImage[]) {
-        if ((!text.trim() && (!images || images.length === 0)) || sending) return
+    async function sendMessageWith(text: string, images?: PastedImage[], docs?: PastedDocument[]) {
+        if ((!text.trim() && (!images || images.length === 0) && (!docs || docs.length === 0)) || sending) return
         if (!WS_ID) {
             setError('No workspace configured. Set NEXT_PUBLIC_DEFAULT_WORKSPACE in .env.local.')
             return
@@ -943,11 +995,22 @@ function ChatContent() {
         setError(null)
         setSending(true)
 
+        // If there are doc attachments, append them to the message text so the agent
+        // sees the full content, while the UI only shows a compact pill.
+        let effectiveText = text
+        if (docs && docs.length > 0) {
+            const docBlock = docs.map(d =>
+                `--- ${d.name} (${d.lineCount} lines) ---\n${d.content}\n---`
+            ).join('\n\n')
+            effectiveText = text ? `${text}\n\n${docBlock}` : docBlock
+        }
+
         const userMsg: Message = {
             id: `u-${Date.now()}`,
             role: 'user',
-            content: text,
+            content: text || (docs && docs.length > 0 ? `📄 ${docs.map(d => d.name).join(', ')}` : ''),
             images: images && images.length > 0 ? images : undefined,
+            docs: docs && docs.length > 0 ? docs : undefined,
             at: Date.now(),
         }
 
@@ -968,7 +1031,7 @@ function ChatContent() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     workspaceId: WS_ID,
-                    message: text,
+                    message: effectiveText,
                     sessionId: sessionId.current,
                     // Inject Code Mode repo context if active
                     ...(codeMode && codeModeContext.repo ? {
@@ -1059,10 +1122,12 @@ function ChatContent() {
     async function sendMessage() {
         const text = input.trim()
         const imgs = pastedImages.slice()
-        if (!text && imgs.length === 0) return
+        const docs = pastedDocs.slice()
+        if (!text && imgs.length === 0 && docs.length === 0) return
         setInput('')
         setPastedImages([])
-        await sendMessageWith(text, imgs)
+        setPastedDocs([])
+        await sendMessageWith(text, imgs, docs)
     }
 
     function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -1320,6 +1385,28 @@ function ChatContent() {
                     </div>
                 )}
 
+                {/* Pasted doc pills */}
+                {pastedDocs.length > 0 && (
+                    <div className="flex flex-wrap gap-2 px-1">
+                        {pastedDocs.map((doc) => (
+                            <div key={doc.id} className="relative group flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-800/60 px-3 py-2 text-xs text-zinc-300 max-w-[320px]">
+                                <FileText className="h-3.5 w-3.5 shrink-0 text-indigo-400" />
+                                <div className="min-w-0 flex-1">
+                                    <p className="font-medium truncate leading-tight">{doc.name}</p>
+                                    <p className="text-zinc-500 text-[10px] leading-tight">{doc.lineCount} lines · {(doc.charCount / 1000).toFixed(1)}k chars</p>
+                                </div>
+                                <button
+                                    onClick={() => setPastedDocs((prev) => prev.filter(d => d.id !== doc.id))}
+                                    className="shrink-0 h-5 w-5 rounded-full bg-zinc-700 border border-zinc-600 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-red-500 hover:border-red-400 transition-all opacity-0 group-hover:opacity-100 ml-1"
+                                    aria-label="Remove document"
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 {/* Input row */}
                 <div className="flex gap-2 items-end">
                     {/* Mic button */}
@@ -1370,7 +1457,7 @@ function ChatContent() {
                         onPaste={handlePaste}
                         onDrop={handleDrop}
                         onDragOver={(e) => e.preventDefault()}
-                        placeholder={isListening ? 'Listening…' : pastedImages.length > 0 ? 'Add a message or just send the image…' : 'Message your agent… (paste images, Enter to send)'}
+                        placeholder={isListening ? 'Listening…' : pastedImages.length > 0 ? 'Add a message or just send the image…' : pastedDocs.length > 0 ? 'Add a note or just send the document…' : 'Message your agent… (paste images, Enter to send)'}
                         rows={1}
                         disabled={sending || isListening}
                         className="flex-1 resize-none rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-[16px] md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none disabled:opacity-50 max-h-32 leading-relaxed transition-colors"
@@ -1380,7 +1467,7 @@ function ChatContent() {
                     <button
                         id="send-btn"
                         onClick={() => void sendMessage()}
-                        disabled={sending || (!input.trim() && pastedImages.length === 0) || isListening}
+                        disabled={sending || (!input.trim() && pastedImages.length === 0 && pastedDocs.length === 0) || isListening}
                         className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl bg-indigo-600 p-3 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         aria-label="Send"
                     >

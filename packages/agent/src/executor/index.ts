@@ -723,33 +723,9 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
         judgeMeta,
     }
 
-    // Write cost to api_cost_tracking (weekly accumulation)
-    try {
-        const now = new Date()
-        const day = now.getDay()
-        const weekStart = new Date(now)
-        weekStart.setDate(now.getDate() - ((day + 6) % 7))
-        weekStart.setUTCHours(0, 0, 0, 0)
-        const weekStartStr = weekStart.toISOString().slice(0, 10)
 
-        const ceiling = Number(process.env.API_COST_CEILING_USD) || 10
-
-        await db.execute(sql`
-            INSERT INTO api_cost_tracking
-                (id, workspace_id, week_start, cost_usd, ceiling_usd, alerted_80)
-            VALUES
-                (gen_random_uuid(), ${ctx.workspaceId}, ${weekStartStr}, ${totalCost}, ${ceiling}, false)
-            ON CONFLICT (workspace_id, week_start) DO UPDATE SET
-                cost_usd = api_cost_tracking.cost_usd + EXCLUDED.cost_usd,
-                alerted_80 = CASE
-                    WHEN (api_cost_tracking.cost_usd + EXCLUDED.cost_usd) >= (api_cost_tracking.ceiling_usd * 0.8)
-                    THEN true
-                    ELSE api_cost_tracking.alerted_80
-                END
-        `)
-    } catch (_costErr) {
-        // Non-fatal — don't fail the task if cost tracking write fails
-    }
+    // NOTE: api_cost_tracking is written ONLY by agent-loop.ts after completeTask().
+    // Do NOT write it here — doing so would double-count every task's spend.
 
     // Record task outcome to semantic memory + infer preferences (non-blocking)
     const toolsUsed = stepResults.flatMap((s) => s.toolCalls.map((t) => t.tool))
