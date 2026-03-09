@@ -1,6 +1,6 @@
 import { claimTask, completeTask, blockTask } from '@plexo/queue'
 import { db, eq, sql } from '@plexo/db'
-import { tasks, apiCostTracking, workspaces, sprints } from '@plexo/db'
+import { tasks, apiCostTracking, workspaces, sprints, sprintTasks } from '@plexo/db'
 import { planTask } from '@plexo/agent/planner'
 import { executeTask } from '@plexo/agent/executor'
 import type { AnthropicCredential, ExecutionContext } from '@plexo/agent/types'
@@ -436,6 +436,26 @@ async function processOneTask(): Promise<boolean> {
             costUsd: result.totalCostUsd,
         })
 
+        // ── Sprint task sync (CRITICAL) ────────────────────────────────────────
+        // The sprint runner polls sprint_tasks.status to detect wave completion.
+        // agent-loop only updates `tasks` — we must also mirror status into sprint_tasks.
+        try {
+            const taskCtxForSprint = task.context as Record<string, unknown> | null | undefined
+            const sprintTaskId = taskCtxForSprint?.sprintTaskId as string | undefined
+            if (sprintTaskId) {
+                await db.update(sprintTasks)
+                    .set({
+                        status: 'complete',
+                        completedAt: new Date(),
+                        handoff: sql`COALESCE(handoff, '{}'::jsonb) || ${JSON.stringify({ outcome: result.outcomeSummary.slice(0, 2000) })}::jsonb`,
+                    })
+                    .where(eq(sprintTasks.id, sprintTaskId))
+                logger.info({ taskId: task.id, sprintTaskId }, 'Sprint task marked complete')
+            }
+        } catch (stErr) {
+            logger.warn({ err: stErr, taskId: task.id }, 'Failed to update sprint_tasks status — non-fatal')
+        }
+
         // Persist judge metadata into context JSONB so the task detail UI can display it.
         const extResult = result as typeof result & { judgeMeta?: Record<string, unknown> }
         if (extResult.judgeMeta) {
@@ -455,6 +475,24 @@ async function processOneTask(): Promise<boolean> {
         const message = err instanceof Error ? err.message : String(err)
         logger.error({ taskId: task.id, err }, 'Task failed')
         await blockTask(task.id, message)
+
+        // ── Sprint task sync on failure ────────────────────────────────────
+        try {
+            const taskCtxForSprint = task.context as Record<string, unknown> | null | undefined
+            const sprintTaskId = taskCtxForSprint?.sprintTaskId as string | undefined
+            if (sprintTaskId) {
+                await db.update(sprintTasks)
+                    .set({
+                        status: 'failed',
+                        handoff: sql`COALESCE(handoff, '{}'::jsonb) || ${JSON.stringify({ outcome: message.slice(0, 2000) })}::jsonb`,
+                    })
+                    .where(eq(sprintTasks.id, sprintTaskId))
+                logger.info({ taskId: task.id, sprintTaskId }, 'Sprint task marked failed')
+            }
+        } catch (stErr) {
+            logger.warn({ err: stErr, taskId: task.id }, 'Failed to update sprint_tasks status (fail) — non-fatal')
+        }
+
         emit({ type: 'task_failed', taskId: task.id, error: message })
     } finally {
         activeAbort = null
