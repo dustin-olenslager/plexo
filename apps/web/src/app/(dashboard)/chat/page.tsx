@@ -45,10 +45,18 @@ const API = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL 
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+interface PastedImage {
+    id: string
+    dataUrl: string
+    mimeType: string
+    name: string
+}
+
 interface Message {
     id: string
     role: 'user' | 'agent'
     content: string
+    images?: PastedImage[]
     taskId?: string
     status?: 'queued' | 'running' | 'complete' | 'failed' | 'pending' | 'confirm_action'
     intent?: 'TASK' | 'PROJECT' | 'CONVERSATION'
@@ -94,6 +102,21 @@ function MessageBubble({
     onSelectCategory: (id: string, cat: string) => void
 }) {
     const [copied, setCopied] = useState(false)
+
+    // Image previews in user bubbles
+    const imageStrip = msg.role === 'user' && msg.images && msg.images.length > 0 ? (
+        <div className="flex flex-wrap gap-2 mb-2">
+            {msg.images.map((img) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                    key={img.id}
+                    src={img.dataUrl}
+                    alt={img.name}
+                    className="max-h-40 max-w-[200px] rounded-lg border border-zinc-700 object-cover"
+                />
+            ))}
+        </div>
+    ) : null
     function copyMsg() {
         const text = msg.actionDescription
             ? `${msg.content}\n${msg.actionDescription}`
@@ -124,6 +147,7 @@ function MessageBubble({
 
             {/* Bubble */}
             <div className={`flex flex-col gap-1 max-w-[85%] md:max-w-[75%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                {imageStrip}
                 <div className={`relative w-full overflow-x-auto rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.role === 'user'
                     ? 'bg-indigo-600 text-white rounded-tr-md'
                     : msg.status === 'failed'
@@ -551,12 +575,14 @@ function ChatContent() {
     const WS_ID = workspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
     const [messages, setMessages] = useState<Message[]>([])
     const [input, setInput] = useState('')
+    const [pastedImages, setPastedImages] = useState<PastedImage[]>([])
     const [sending, setSending] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [agentModel, setAgentModel] = useState<string | null>(null)
     const [showVoiceSetupPrompt, setShowVoiceSetupPrompt] = useState(false)
     const bottomRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
+    const fileInputRef = useRef<HTMLInputElement>(null)
     const sessionId = useRef(`session-${Date.now()}`)
     const searchParams = useSearchParams()
 
@@ -802,8 +828,102 @@ function ChatContent() {
         ))
     }
 
-    async function sendMessageWith(text: string) {
-        if (!text.trim() || sending) return
+    // ── Image paste / drag-drop handling ──────────────────────────────────────
+
+    function extractImagesFromDataTransfer(dt: DataTransfer): PastedImage[] {
+        const imgs: PastedImage[] = []
+        for (const item of Array.from(dt.items)) {
+            if (!item.type.startsWith('image/')) continue
+            const file = item.getAsFile()
+            if (!file) continue
+            const id = `img-${Date.now()}-${Math.random().toString(36).slice(2)}`
+            const dataUrl = URL.createObjectURL(file)
+            imgs.push({ id, dataUrl, mimeType: file.type, name: file.name || `image.${file.type.split('/')[1] ?? 'png'}` })
+        }
+        return imgs
+    }
+
+    function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+        const imgs = extractImagesFromDataTransfer(e.clipboardData)
+        if (imgs.length > 0) {
+            e.preventDefault()
+            // Resolve object URLs to data URLs so they survive state lifecycle
+            void Promise.all(
+                imgs.map((img) =>
+                    fetch(img.dataUrl)
+                        .then((r) => r.blob())
+                        .then(
+                            (blob) =>
+                                new Promise<PastedImage>((resolve) => {
+                                    const reader = new FileReader()
+                                    reader.onload = () => {
+                                        URL.revokeObjectURL(img.dataUrl)
+                                        resolve({ ...img, dataUrl: reader.result as string })
+                                    }
+                                    reader.readAsDataURL(blob)
+                                })
+                        )
+                )
+            ).then((resolved) => {
+                setPastedImages((prev) => [...prev, ...resolved])
+            })
+        }
+    }
+
+    function handleDrop(e: React.DragEvent<HTMLTextAreaElement>) {
+        const imgs = extractImagesFromDataTransfer(e.dataTransfer)
+        if (imgs.length === 0) return
+        e.preventDefault()
+        void Promise.all(
+            imgs.map((img) =>
+                fetch(img.dataUrl)
+                    .then((r) => r.blob())
+                    .then(
+                        (blob) =>
+                            new Promise<PastedImage>((resolve) => {
+                                const reader = new FileReader()
+                                reader.onload = () => {
+                                    URL.revokeObjectURL(img.dataUrl)
+                                    resolve({ ...img, dataUrl: reader.result as string })
+                                }
+                                reader.readAsDataURL(blob)
+                            })
+                    )
+            )
+        ).then((resolved) => {
+            setPastedImages((prev) => [...prev, ...resolved])
+        })
+    }
+
+    function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+        const files = Array.from(e.target.files ?? [])
+        const imgs: Promise<PastedImage>[] = files
+            .filter((f) => f.type.startsWith('image/'))
+            .map(
+                (file) =>
+                    new Promise<PastedImage>((resolve) => {
+                        const reader = new FileReader()
+                        const id = `img-${Date.now()}-${Math.random().toString(36).slice(2)}`
+                        reader.onload = () =>
+                            resolve({ id, dataUrl: reader.result as string, mimeType: file.type, name: file.name })
+                        reader.readAsDataURL(file)
+                    })
+            )
+        void Promise.all(imgs).then((resolved) => {
+            setPastedImages((prev) => [...prev, ...resolved])
+        })
+        // reset so same file can be re-selected
+        e.target.value = ''
+    }
+
+    function removeImage(id: string) {
+        setPastedImages((prev) => prev.filter((img) => img.id !== id))
+    }
+
+    // ── Send ──────────────────────────────────────────────────────────────────
+
+    async function sendMessageWith(text: string, images?: PastedImage[]) {
+        if ((!text.trim() && (!images || images.length === 0)) || sending) return
         if (!WS_ID) {
             setError('No workspace configured. Set NEXT_PUBLIC_DEFAULT_WORKSPACE in .env.local.')
             return
@@ -816,6 +936,7 @@ function ChatContent() {
             id: `u-${Date.now()}`,
             role: 'user',
             content: text,
+            images: images && images.length > 0 ? images : undefined,
             at: Date.now(),
         }
 
@@ -834,7 +955,14 @@ function ChatContent() {
             const res = await fetch(`${API}/api/v1/chat/message`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ workspaceId: WS_ID, message: text, sessionId: sessionId.current }),
+                body: JSON.stringify({
+                    workspaceId: WS_ID,
+                    message: text,
+                    sessionId: sessionId.current,
+                    images: images && images.length > 0
+                        ? images.map((img) => ({ data: img.dataUrl, mimeType: img.mimeType, name: img.name }))
+                        : undefined,
+                }),
             })
 
             if (!res.ok) {
@@ -914,9 +1042,11 @@ function ChatContent() {
 
     async function sendMessage() {
         const text = input.trim()
-        if (!text) return
+        const imgs = pastedImages.slice()
+        if (!text && imgs.length === 0) return
         setInput('')
-        await sendMessageWith(text)
+        setPastedImages([])
+        await sendMessageWith(text, imgs)
     }
 
     function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -925,6 +1055,13 @@ function ChatContent() {
             void sendMessage()
         }
     }
+
+    // Also update voice result to clear images (voice has no images)
+    const handleVoiceResultWithClear = useCallback((text: string) => {
+        setPastedImages([])
+        handleVoiceResult(text)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [handleVoiceResult])
 
     const isListening = voice.status === 'listening' || voice.status === 'processing'
 
@@ -1127,52 +1264,101 @@ function ChatContent() {
                 </div>
             )}
 
-            {/* Input row */}
-            <div className="shrink-0 flex gap-2 items-end pt-3 border-t border-zinc-800">
-                {/* Mic button */}
-                {voice.supported && (
-                    <button
-                        id="voice-input-btn"
-                        onClick={() => isListening ? voice.stop() : void voice.start()}
-                        disabled={sending}
-                        title={isListening ? 'Stop recording' : 'Voice input'}
-                        className={`flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 transition-all duration-200 ${isListening
-                            ? 'bg-red-500/20 border border-red-500/40 text-red-400 shadow-[0_0_16px_rgba(239,68,68,0.3)] animate-pulse'
-                            : 'border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 bg-zinc-900'
-                            } disabled:opacity-40 disabled:cursor-not-allowed`}
-                        aria-label={isListening ? 'Stop recording' : 'Start voice input'}
-                    >
-                        {isListening
-                            ? <MicOff className="h-4 w-4" />
-                            : <Mic className="h-4 w-4" />
-                        }
-                    </button>
+            {/* Input area */}
+            <div className="shrink-0 flex flex-col gap-2 pt-3 border-t border-zinc-800">
+                {/* Pasted image previews */}
+                {pastedImages.length > 0 && (
+                    <div className="flex flex-wrap gap-2 px-1">
+                        {pastedImages.map((img) => (
+                            <div key={img.id} className="relative group">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                    src={img.dataUrl}
+                                    alt={img.name}
+                                    className="h-20 w-20 rounded-lg border border-zinc-700 object-cover"
+                                />
+                                <button
+                                    onClick={() => removeImage(img.id)}
+                                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-zinc-800 border border-zinc-600 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-red-500 hover:border-red-400 transition-all opacity-0 group-hover:opacity-100"
+                                    aria-label="Remove image"
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
                 )}
 
-                <textarea
-                    ref={inputRef}
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder={isListening ? 'Listening…' : 'Message your agent… (Enter to send, Shift+Enter for newline)'}
-                    rows={1}
-                    disabled={sending || isListening}
-                    className="flex-1 resize-none rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-[16px] md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none disabled:opacity-50 max-h-32 leading-relaxed transition-colors"
-                    style={{ minHeight: '48px' }}
-                />
+                {/* Input row */}
+                <div className="flex gap-2 items-end">
+                    {/* Mic button */}
+                    {voice.supported && (
+                        <button
+                            id="voice-input-btn"
+                            onClick={() => isListening ? voice.stop() : void voice.start()}
+                            disabled={sending}
+                            title={isListening ? 'Stop recording' : 'Voice input'}
+                            className={`flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 transition-all duration-200 ${isListening
+                                ? 'bg-red-500/20 border border-red-500/40 text-red-400 shadow-[0_0_16px_rgba(239,68,68,0.3)] animate-pulse'
+                                : 'border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 bg-zinc-900'
+                                } disabled:opacity-40 disabled:cursor-not-allowed`}
+                            aria-label={isListening ? 'Stop recording' : 'Start voice input'}
+                        >
+                            {isListening
+                                ? <MicOff className="h-4 w-4" />
+                                : <Mic className="h-4 w-4" />
+                            }
+                        </button>
+                    )}
 
-                <button
-                    id="send-btn"
-                    onClick={() => void sendMessage()}
-                    disabled={sending || !input.trim() || isListening}
-                    className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl bg-indigo-600 p-3 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    aria-label="Send"
-                >
-                    {sending
-                        ? <RefreshCw className="h-4 w-4 animate-spin" />
-                        : <Send className="h-4 w-4" />
-                    }
-                </button>
+                    {/* Image attach button */}
+                    <button
+                        id="image-attach-btn"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={sending || isListening}
+                        title="Attach image"
+                        className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 bg-zinc-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        aria-label="Attach image"
+                    >
+                        <ImageIcon className="h-4 w-4" />
+                    </button>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={handleFileInput}
+                    />
+
+                    <textarea
+                        ref={inputRef}
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        onPaste={handlePaste}
+                        onDrop={handleDrop}
+                        onDragOver={(e) => e.preventDefault()}
+                        placeholder={isListening ? 'Listening…' : pastedImages.length > 0 ? 'Add a message or just send the image…' : 'Message your agent… (paste images, Enter to send)'}
+                        rows={1}
+                        disabled={sending || isListening}
+                        className="flex-1 resize-none rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-[16px] md:text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-500 focus:outline-none disabled:opacity-50 max-h-32 leading-relaxed transition-colors"
+                        style={{ minHeight: '48px' }}
+                    />
+
+                    <button
+                        id="send-btn"
+                        onClick={() => void sendMessage()}
+                        disabled={sending || (!input.trim() && pastedImages.length === 0) || isListening}
+                        className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl bg-indigo-600 p-3 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        aria-label="Send"
+                    >
+                        {sending
+                            ? <RefreshCw className="h-4 w-4 animate-spin" />
+                            : <Send className="h-4 w-4" />
+                        }
+                    </button>
+                </div>
             </div>
         </div>
     )

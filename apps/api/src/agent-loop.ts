@@ -5,6 +5,8 @@ import { planTask } from '@plexo/agent/planner'
 import { executeTask } from '@plexo/agent/executor'
 import { recordTaskMemory } from '@plexo/agent/memory/store'
 import type { AnthropicCredential, ExecutionContext } from '@plexo/agent/types'
+import { emitToWorkspace } from './sse-emitter.js'
+import { registerCodeContext, unregisterCodeContext } from './routes/code.js'
 import type { WorkspaceAISettings, ProviderKey } from '@plexo/agent/providers/registry'
 import { logger } from './logger.js'
 import { emit } from './sse-emitter.js'
@@ -347,6 +349,8 @@ async function processOneTask(): Promise<boolean> {
                 sprintWorkDir = workDir
                 sprintRepo = repo
                 sprintBranch = branch
+                // Register for Code Mode file tree + SSE
+                registerCodeContext(task.id, taskWorkspaceId ?? '', workDir)
             } catch (cloneErr) {
                 // Non-fatal: executor falls back to process.cwd() which is wrong but at least
                 // the task proceeds. The system prompt will tell the agent to clone manually.
@@ -391,6 +395,10 @@ async function processOneTask(): Promise<boolean> {
         sprintWorkDir,
         sprintRepo,
         sprintBranch,
+        // Code Mode: live event streaming to SSE clients
+        emitStepEvent: sprintWorkDir
+            ? (event) => emitToWorkspace(taskWorkspaceId ?? '', event as unknown as import('./sse-emitter.js').AgentEvent)
+            : undefined,
     }
 
     try {
@@ -563,6 +571,8 @@ async function processOneTask(): Promise<boolean> {
     } finally {
         activeAbort = null
         activeTaskId = null
+        // Deregister Code Mode context
+        unregisterCodeContext(task.id)
         // Clean up cloned repo temp dir for coding tasks
         if (sprintWorkDir) {
             try {

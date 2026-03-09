@@ -329,6 +329,57 @@ export type AnthropicCredential =
         expiresAt: number
     }
 
+// ── Step streaming events (Code Mode) ────────────────────────
+
+export type StepEventType =
+    | 'step.shell_line'
+    | 'step.file_write'
+    | 'step.screenshot'
+    | 'step.test_result'
+
+export interface StepShellLineEvent {
+    type: 'step.shell_line'
+    taskId: string
+    workspaceId: string
+    label?: string   // 'ssh' | 'shell' | 'test'
+    line: string
+    ts: number
+}
+
+export interface StepFileWriteEvent {
+    type: 'step.file_write'
+    taskId: string
+    workspaceId: string
+    path: string     // relative to sprintWorkDir
+    patch: string    // unified diff (empty string = new file)
+    ts: number
+}
+
+export interface StepScreenshotEvent {
+    type: 'step.screenshot'
+    taskId: string
+    workspaceId: string
+    dataUrl: string  // base64 PNG
+    label: string
+    ts: number
+}
+
+export interface StepTestResultEvent {
+    type: 'step.test_result'
+    taskId: string
+    workspaceId: string
+    pass: boolean
+    name: string
+    detail: string
+    ts: number
+}
+
+export type StepEvent =
+    | StepShellLineEvent
+    | StepFileWriteEvent
+    | StepScreenshotEvent
+    | StepTestResultEvent
+
 // ── Execution Context ────────────────────────────────────────
 
 export interface ExecutionContext {
@@ -374,6 +425,18 @@ export interface ExecutionContext {
     sprintRepo?: string
     /** Branch this sprint task is working on */
     sprintBranch?: string
+    /**
+     * Code Mode: SSE stream callback. When set, the executor will emit
+     * step events (shell lines, file writes, screenshots, test results)
+     * to connected Code Mode clients in real time.
+     * Intentionally optional — non-coding tasks leave this undefined.
+     */
+    emitStepEvent?: (event: StepEvent) => void
+    /**
+     * Code Mode: track which file is currently "active" in the editor.
+     * Used to inject cursor context into chat message dispatch.
+     */
+    sprintActivePath?: string
 }
 
 export interface StepResult {

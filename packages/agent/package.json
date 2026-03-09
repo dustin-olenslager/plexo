@@ -50,6 +50,7 @@
         "@plexo/sdk": "workspace:*",
         "ai": "^6.0.111",
         "bcrypt": "^5.1",
+        "diff": "^8.0.3",
         "drizzle-orm": "^0.39.3",
         "ollama-ai-provider": "^1.2.0",
         "pino": "^9",
@@ -59,6 +60,7 @@
     },
     "devDependencies": {
         "@types/bcrypt": "^5.0",
+        "@types/diff": "^8.0.0",
         "@types/node": "^22",
         "typescript": "^5.7",
         "vitest": "^3"
