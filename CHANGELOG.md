@@ -5,6 +5,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+### Added
+- **`web_fetch` tool** — agent can now fetch content from any URL (GET/POST, 30s timeout, 50k char truncation). Enables research and external data retrieval in tasks.
+- **`web_search` tool** — DuckDuckGo Instant Answer integration, no API key required. Returns answer, topic summary, and related links for any query.
+- **Task assets API** — `GET /api/v1/tasks/:id/assets` lists and returns inline content for agent-produced files written via `write_asset` tool. Text files up to 200 KB returned inline.
+- **Project Deliverables tab** — project detail page now has a Deliverables tab that lazy-loads files from all completed sprint tasks. Collapsible accordion with inline text preview.
+- **Task cancel button** — tasks page now shows a Cancel button on hover for queued/claimed/running/pending tasks. Calls `DELETE /api/v1/tasks/:id` and refreshes list.
+- **Real-time agent status** — `GET /agent/status` now returns live `status`, `activeTaskId`, `currentModel`, `sessionCount`, `lastActivity` instead of a hardcoded `{status:'idle'}` stub.
+- **Inference gateway login fix** — `redirectTo: '/'` after login (relative path respects actual host), `ADMIN_URL` baked in as Docker build ARG so `allowedOrigins` includes the real domain at build time. Fixes Server Action CSRF rejection on `gateway-admin.getplexo.com`.
+- **Skills page type safety** — `!!plugin.settings?.isGenerated` replaced with strict `=== true` equality check.
+
+### Changed
+- `cancelTask` callback in tasks page moved after `load` callback to respect JavaScript TDZ (was referencing `load` before declaration).
+
+### Tests
+- Added E2E tests: task cancel round-trip (T2), memory write via direct API (T3), task assets route shape (T4), agent status real-time shape validation.
+
 ---
 
 ## [0.8.0-beta.3] — 2026-03-09
