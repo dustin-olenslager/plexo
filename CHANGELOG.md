@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+---
+
+## [0.8.0-beta.3] — 2026-03-09
+
 ### Added
 - **Full memory pipeline** — end-to-end memory now works: write on task completion, read on task start (as WORKSPACE RULES in system prompt), auto-consolidate every 6h via cron.
   - `memory_entries` + `workspace_preferences` + `work_ledger` all wired and writing
@@ -13,54 +17,63 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - **MEMORY chat intent** — saying "remember to always do X", "never Y", "always prefer Z" is now detected as `MEMORY` intent, bypasses task queue, and writes directly to `memory_entries` (type=pattern) + `workspace_preferences`. Agent acknowledges immediately.
 - **Automatic memory consolidation cron** — `scheduleMemoryConsolidation()` runs `runSelfImprovementCycle()` for every workspace every 6h. First run is 5 minutes after startup. Visible as a 'Memory consolidation' entry in the Cron UI (seeded per workspace on startup).
 - **Behavioral injection** — at task start, executor loads workspace preferences (Redis-cached) and injects them as `WORKSPACE RULES (always follow these)` in the system prompt, linking user-set instructions to actual agent behavior.
-
-### Fixed
-- **Sprint tasks running forever (no output)** — `agent-loop.ts` only updated the `tasks` table on completion; `sprint_tasks.status` was never transitioned from `running` to `complete`/`failed`. `waitForWave` polls `sprint_tasks` and timed out after 30 minutes every time. Now agent-loop reads `task.context.sprintTaskId` (embedded by the sprint runner) and mirrors task terminal status into `sprint_tasks` immediately on completion or failure. All sprint categories (code, research, writing, ops, etc.) are covered.
-- **Over-eager task proposals** — intent classifier defaulted to `TASK` before classification ran, so any failure caused a task confirmation prompt. Changed default to `CONVERSATION`. Rewrote `CLASSIFY_SYSTEM` prompt: `TASK` now requires an unmistakable action verb with a clear deliverable; questions, lookups, and status checks route to `CONVERSATION`.
-- **Input field locked during task execution** — `pollReply()` (SSE) was `await`ed inside `sendMessageWith`, holding `setSending(true)` for the full duration of a task (minutes). Now fired as `void pollReply()` so the input unlocks immediately once the initial response is received.
-- **Project creation hijacked navigation** — on project creation success, `window.location.href` redirected to an empty/planning-state project page. Now stays in chat and shows a completion bubble with an "Open project" link.
-- **confirm_action bubble too generic** — header "What would you like to do with this?" replaced with intent-aware copy: tasks say "I can run this as an automated task." / projects say "I can set this up as a coordinated project."
-- `POST /api/v1/memory/improvements/run` — was fire-and-forget; now synchronous and returns `{ok, count, applied, proposals}`
-- `runSelfImprovementCycle` — removed min-3-ledger-entry threshold; falls back to task history if `work_ledger` is sparse
-- `executor/index.ts` — memory write failures now logged at warn level instead of silently discarded
-- `skills/page.tsx` — TS build error (`unknown` not assignable to ReactNode`) fixed with `!!` cast
-
-### Added (previous)
- When a user requests integration with a service that has no installed skill or connector, the agent scrapes official API docs, generates a valid ESM skill + `kapsel.json` manifest via LLM, writes code to a persistent Docker volume (`generated_skills`), registers a connection entry (so the credential UI appears immediately), and activates the skill in the same task invocation. No restart required.
-  - `packages/agent/src/plugins/synthesizer.ts` — new synthesizer module: `researchAPI`, `generateSkillCode`, `validateGeneratedCode`, `writeSkillToDisk`, `registerConnection`, `installAndActivate`, `synthesizeSkill`
+- **Sentry observability** — Sentry SDK wired into API and agent; unhandled exceptions captured at process level; sprint failures emit Sentry events; webhook integration enables self-correction loop tracking.
+- **Image paste and attach in chat** — users can paste or attach images directly in the chat input; forwarded to the agent as vision content.
+- **Full channel conversation sync** — conversation history synced across all configured channels; agent has cross-channel context on every invocation.
+- **Skill synthesizer** — when a user requests integration with a service that has no installed skill or connector, the agent scrapes official API docs, generates a valid ESM skill + `kapsel.json` manifest via LLM, writes code to a persistent Docker volume (`generated_skills`), registers a connection entry, and activates the skill in the same task invocation. No restart required.
+  - `packages/agent/src/plugins/synthesizer.ts` — `researchAPI`, `generateSkillCode`, `validateGeneratedCode`, `writeSkillToDisk`, `registerConnection`, `installAndActivate`, `synthesizeSkill`
   - `docker/compose.yml` — added `generated_skills` named volume mounted at `/var/plexo/generated-skills` in the API container
   - Migration `0019_generated_skills.sql` — `is_generated` boolean column on `connections_registry`; unique index on `plugins(workspace_id, name)` for upsert support
   - `packages/db/src/schema.ts` — schema reflects above migration changes
   - `apps/api/src/env.ts` — `GENERATED_SKILLS_DIR` optional env var documented
   - `packages/agent/src/connections/bridge.ts` — `synthesize_kapsel_skill` tool wired into `loadConnectionTools()` (always available, not connection-gated)
   - `packages/agent/src/executor/index.ts` — system prompt extended with self-extension instructions
-- **✦ Custom badge** — generated skills and connections display a **✦ Custom** badge in the Skills, Tools, and Marketplace pages, distinguishing them from marketplace-installed components. Driven by `settings.isGenerated` on plugins and `is_generated` on registry entries.
-- **README updated** — new "Self-Extending" section under The Extensibility Moat documents the agent's ability to generate its own tools, with an example interaction flow.
-
-### Added (previous)
-- **Version check service** — `GET /api/v1/system/version` polls GitHub Releases API, falls back to commit SHA comparison; `POST /api/v1/system/update` streams Docker pull + restart or git pull progress via SSE; `UpdateModal` component polls every 6 hours and opens automatically when behind
-- **`scripts/self-update.sh`** — self-hosted one-click update script: git pull → pnpm install → db:migrate → docker compose build + up; respects `PLEXO_MANAGED=true` to skip Docker steps on managed hosting
-- **Version source of truth** — `NEXT_PUBLIC_APP_VERSION` injected from root `package.json` via `next.config.ts`; sidebar and dashboard footer read from same env var; eliminates hardcoded version strings
-
+- **✦ Custom badge** — generated skills and connections display a **✦ Custom** badge in Skills, Tools, and Marketplace pages, distinguishing them from marketplace-installed components. Driven by `settings.isGenerated` on plugins and `is_generated` on registry entries.
+- **Version check service** — `GET /api/v1/system/version` polls GitHub Releases API, falls back to commit SHA comparison; `POST /api/v1/system/update` streams Docker pull + restart or git pull progress via SSE; `UpdateModal` polls every 6 hours and opens automatically when behind.
+- **`scripts/self-update.sh`** — one-click update script: git pull → pnpm install → db:migrate → docker compose build + up; respects `PLEXO_MANAGED=true` to skip Docker steps on managed hosting.
+- **Version source of truth** — `NEXT_PUBLIC_APP_VERSION` injected from root `package.json` via `next.config.ts`; sidebar and dashboard footer read from the same env var; eliminates hardcoded version strings.
+- **Router** — completed remaining gaps: `enabled` flag respected, accurate identity line, judge/planner router wiring finalized.
 - AGPL-3.0-only license
 - Commercial context + ZeroClaw parity gate in AGENTS.md
 - `.agents-local.md` gitignored for private operational notes
-- **Multi-category projects** — new project creation supports Code, Research, Writing, Ops, Data, Marketing, and General project types with category-appropriate terminology, form fields, and planner prompts
+- **Multi-category projects** — new project creation supports Code, Research, Writing, Ops, Data, Marketing, and General types with category-appropriate terminology, form fields, and planner prompts.
   - `sprints` table: `repo` now nullable; `category` (text, default 'code') and `metadata` (jsonb, default '{}') columns added
-  - New project page redesigned with visual category picker and progressive disclosure of category-specific fields
   - Sprint planner and runner are category-aware; non-code projects skip the GitHub branch/PR workflow
   - Project list and detail pages show category badges and use category-specific unit labels
 
 ### Fixed
-- **ENCRYPTION_SECRET env var mismatch** — `apps/api/src/crypto.ts` and `packages/agent/src/connections/crypto-util.ts` were reading `PLEXO_ENCRYPTION_KEY` but `docker/compose.yml` and `.env.example` both declare `ENCRYPTION_SECRET`. Every `encrypt()` call threw at runtime, silently 500-ing all `PUT /api/workspaces/:id/ai-providers` requests. AI provider credentials were never written to the DB, causing the agent loop and health check to report `not_configured` even after a user saved a valid key in the UI. Fixed by renaming the env var read in both crypto files to `ENCRYPTION_SECRET`.
-- **ENCRYPTION_SECRET not validated at startup** — `apps/api/src/env.ts` did not include `ENCRYPTION_SECRET` in `ENV_SPEC`, so a missing or empty value produced no error or warning at boot. Added as a required field with a 32-character minimum and a generation hint — process now exits on startup if unset.
-- **Workspace Creation and Listing** — Fixed an issue where workspaces weren't showing up or couldn't be created on the frontend by updating API endpoints to the properly prefixed `/api/v1/workspaces` paths, and explicitly returning `ownerId` from the workspaces API to prevent foreign key errors on creation.
+- **Sprint tasks running forever (no output)** — `agent-loop.ts` only updated the `tasks` table on completion; `sprint_tasks.status` was never transitioned from `running` to `complete`/`failed`. `waitForWave` polls `sprint_tasks` and timed out after 30 minutes every time. Now agent-loop reads `task.context.sprintTaskId` and mirrors task terminal status into `sprint_tasks` immediately on completion or failure.
+- **Over-eager task proposals** — intent classifier defaulted to `TASK` before classification ran, so any failure caused a task confirmation prompt. Changed default to `CONVERSATION`. Rewrote `CLASSIFY_SYSTEM` prompt: `TASK` now requires an unmistakable action verb with a clear deliverable; questions, lookups, and status checks route to `CONVERSATION`.
+- **Input field locked during task execution** — `pollReply()` (SSE) was `await`ed inside `sendMessageWith`, holding `setSending(true)` for the full duration of a task. Now fired as `void pollReply()` so the input unlocks immediately once the initial response is received.
+- **Project creation hijacked navigation** — on project creation success, `window.location.href` redirected to an empty/planning-state project page. Now stays in chat and shows a completion bubble with an "Open project" link.
+- **confirm_action bubble too generic** — header "What would you like to do with this?" replaced with intent-aware copy: tasks say "I can run this as an automated task." / projects say "I can set this up as a coordinated project."
+- **Sprint failures reported to user** — sprint task failures now surfaced back to the user in chat; Sentry integration captures failure context for self-correction tracking.
+- **Silent all-task failures on unconfigured workspaces** — agent and sprint runner now surface configuration errors to the user explicitly instead of silently failing all tasks.
+- **Empty Insights page** — Insights page now renders correctly by allowing empty queries and defaulting to an empty schema array.
+- **Current Focus empty state** — dashboard renders a proper empty state when no active work is found instead of a blank panel.
+- **Recent activity feed height** — constrained to prevent layout overflow on the dashboard.
+- **Dashboard column alignment** — fixed column height coupling and alignment issues across multiple layout passes (beta.2, beta.3).
+- **Memory write pipeline** — repaired broken memory write path; user instructions now accumulate instead of overwriting on repeated writes.
+- `POST /api/v1/memory/improvements/run` — now synchronous, returns `{ok, count, applied, proposals}` instead of fire-and-forget.
+- `runSelfImprovementCycle` — removed min-3-ledger-entry threshold; falls back to task history if `work_ledger` is sparse.
+- `executor/index.ts` — memory write failures now logged at warn level instead of silently discarded.
+- `skills/page.tsx` — TS build error (`unknown` not assignable to `ReactNode`) fixed with `!!` cast.
+- **ENCRYPTION_SECRET env var mismatch** — `apps/api/src/crypto.ts` and `packages/agent/src/connections/crypto-util.ts` were reading `PLEXO_ENCRYPTION_KEY` but `docker/compose.yml` and `.env.example` both declare `ENCRYPTION_SECRET`. Every `encrypt()` call threw at runtime, silently 500-ing all `PUT /api/workspaces/:id/ai-providers` requests. Fixed by renaming the env var read in both crypto files to `ENCRYPTION_SECRET`.
+- **ENCRYPTION_SECRET not validated at startup** — added as a required field in `apps/api/src/env.ts` with a 32-character minimum and a generation hint; process now exits on startup if unset.
+- **Workspace creation and listing** — fixed workspaces not showing or failing to create on the frontend by updating API endpoints to the properly prefixed `/api/v1/workspaces` paths and explicitly returning `ownerId`.
 
 ### Changed
-- **Intent Classification** — `chat` and `telegram` router classifiers now distinguish `PROJECT` intents along with `TASK` and `CONVERSATION`.
-- **Conversation Context in Routing** — Intent classifiers in webchat and Telegram now analyze full session history to properly route follow-up confirmations.
-- **Consultative Agent Prompt** — The conversational system prompt now prevents aggressive task creation by explicitly probing vague requests (e.g., troubleshooting) for more details first.
-- **README Redesign** — Rewrote the README.md to match the high-quality, polished style of top-tier open-source projects, improving visual hierarchy, copy crispness, and feature presentation while maintaining Plexo's unique value props.
+- **Provider-agnostic credential resolution** — removed Anthropic OAuth; credentials now resolved generically across all configured providers; `handleByok` throws an explicit error on missing token; all remaining `oauthToken` refs removed.
+- **Intent classification** — `chat` and `telegram` router classifiers now distinguish `PROJECT` intents along with `TASK` and `CONVERSATION`.
+- **Conversation context in routing** — intent classifiers in webchat and Telegram now analyze full session history to properly route follow-up confirmations.
+- **Consultative agent prompt** — conversational system prompt now prevents aggressive task creation by probing vague requests for more details first.
+- **README redesign** — rewrote README.md with improved visual hierarchy, copy crispness, and feature presentation.
+
+### Infrastructure
+- Relicensed from BSL 1.1 to **AGPL-3.0-only**
+- Added `.dockerignore` to prevent stale host symlinks from leaking into image builds
+- Busted `db` package build cache to clear stale symlinks from prior builds
+- `AUTH_URL` now derived from `ADMIN_URL` in gateway compose config; hardcoded production domains removed from gateway
 
 ---
 
@@ -405,4 +418,3 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - Express 5 API server, Next.js 15 dashboard
 - Docker Compose: Postgres 16 + pgvector, Valkey, Caddy
 - AGENTS.md, .env.example, docs stubs
-
