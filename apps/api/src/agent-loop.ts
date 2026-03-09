@@ -103,7 +103,35 @@ export async function loadWorkspaceAISettings(workspaceId: string): Promise<{
     const envKey = process.env.ANTHROPIC_API_KEY
     if (envKey && envKey !== 'placeholder' && !envKey.startsWith('sk-ant-oat')) {
         logger.info({ workspaceId }, 'ai-cred: using ANTHROPIC_API_KEY env var override')
-        return { credential: { type: 'api_key', apiKey: envKey }, aiSettings }
+        // If no workspace DB settings exist, synthesize a minimal WorkspaceAISettings
+        // from the env key. Without this, the executor falls into defaultSettings() which
+        // builds { primaryProvider: 'anthropic', providers: { anthropic: { provider: 'anthropic' } } }
+        // — no apiKey field — and resolveModel either re-reads the env var (works) or fails.
+        // Making it explicit avoids the ambiguity and ensures the router always has a key.
+        const resolvedSettings: WorkspaceAISettings = aiSettings ?? {
+            primaryProvider: 'anthropic',
+            fallbackChain: [],
+            providers: {
+                anthropic: {
+                    provider: 'anthropic',
+                    apiKey: envKey,
+                    enabled: true,
+                },
+            },
+        }
+        // Ensure the env key is always present in the anthropic provider slot,
+        // even when workspace settings exist but have no anthropic key.
+        if (!resolvedSettings.providers?.anthropic?.apiKey) {
+            resolvedSettings.providers = {
+                ...resolvedSettings.providers,
+                anthropic: {
+                    ...(resolvedSettings.providers?.anthropic ?? { provider: 'anthropic' }),
+                    apiKey: envKey,
+                    enabled: true,
+                },
+            }
+        }
+        return { credential: { type: 'api_key', apiKey: envKey }, aiSettings: resolvedSettings }
     }
 
     // 2. Walk the full provider chain — first one with a usable credential wins.

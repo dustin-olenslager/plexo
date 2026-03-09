@@ -455,29 +455,23 @@ chatRouter.post('/execute-action', async (req, res) => {
             // Pre-check: verify at least one AI provider is configured before creating the sprint row.
             // This avoids leaving a zombie sprint in 'planning' state when credentials are missing.
             let aiSettings: any
+            let hasCredential = false
             try {
                 const loaded = await loadWorkspaceAISettings(workspaceId)
+                hasCredential = !!loaded.credential
                 if (loaded.aiSettings) aiSettings = loaded.aiSettings
             } catch (err) {
                 logger.warn({ err, workspaceId }, 'Could not resolve AI settings for sprint planner — using env fallback')
             }
 
-            if (aiSettings) {
-                const chain = [aiSettings.primaryProvider, ...(aiSettings.fallbackChain ?? [])]
-                const hasUsableProvider = chain.some((key: string) => {
-                    const p = aiSettings.providers?.[key]
-                    if (!p || p.enabled === false) return false
-                    return !!(p.apiKey || p.oauthToken || p.baseUrl || p.status === 'configured')
+            if (!hasCredential) {
+                res.status(402).json({
+                    error: {
+                        code: 'NO_AI_CREDENTIAL',
+                        message: 'No AI provider is configured for this workspace. Go to Settings → AI Providers and add at least one API key before starting a project.',
+                    },
                 })
-                if (!hasUsableProvider) {
-                    res.status(400).json({
-                        error: {
-                            code: 'NO_AI_PROVIDER',
-                            message: 'No AI provider is configured for this workspace. Go to Settings → AI Providers and add at least one API key before starting a project.',
-                        },
-                    })
-                    return
-                }
+                return
             }
 
             const id = ulid()
