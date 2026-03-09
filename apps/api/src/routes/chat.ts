@@ -131,24 +131,44 @@ const sessionHistory = new Map<string, Array<{ role: 'user' | 'assistant'; conte
 // ── POST /api/chat/message ────────────────────────────────────────────────────
 
 chatRouter.post('/message', async (req, res) => {
-    const { workspaceId, message, sessionId, forceConversation } = req.body as {
+    const { workspaceId, message, sessionId, forceConversation, images } = req.body as {
         workspaceId?: string
         message?: string
         sessionId?: string
         forceConversation?: boolean
+        images?: Array<{ data: string; mimeType: string; name: string }>
     }
-
 
     if (!workspaceId || !UUID_RE.test(workspaceId)) {
         res.status(400).json({ error: { code: 'INVALID_WORKSPACE', message: 'Valid workspaceId required' } })
         return
     }
-    if (!message || message.trim().length === 0) {
-        res.status(400).json({ error: { code: 'MISSING_MESSAGE', message: 'message required' } })
+
+    // Validate images if present
+    const validImages: Array<{ data: string; mimeType: string; name: string }> = []
+    if (Array.isArray(images)) {
+        if (images.length > 5) {
+            res.status(400).json({ error: { code: 'TOO_MANY_IMAGES', message: 'Maximum 5 images per message' } })
+            return
+        }
+        for (const img of images) {
+            if (typeof img.data !== 'string' || !img.data.startsWith('data:image/')) {
+                res.status(400).json({ error: { code: 'INVALID_IMAGE', message: 'Images must be base64 data URLs (data:image/...)' } })
+                return
+            }
+            validImages.push(img)
+        }
+    }
+
+    const hasImages = validImages.length > 0
+    const textMessage = (message ?? '').trim()
+
+    if (!hasImages && textMessage.length === 0) {
+        res.status(400).json({ error: { code: 'MISSING_MESSAGE', message: 'message or images required' } })
         return
     }
-    if (message.length > 2000) {
-        res.status(400).json({ error: { code: 'MESSAGE_TOO_LONG', message: 'Max 2000 characters' } })
+    if (textMessage.length > 4000) {
+        res.status(400).json({ error: { code: 'MESSAGE_TOO_LONG', message: 'Max 4000 characters' } })
         return
     }
 
@@ -207,14 +227,30 @@ chatRouter.post('/message', async (req, res) => {
         let intent: 'TASK' | 'PROJECT' | 'MEMORY' | 'CONVERSATION' = 'CONVERSATION'
         const sid = sessionId ?? 'default'
         const history = sessionHistory.get(sid) ?? []
-        const trimmedMsg = message.trim()
+        const trimmedMsg = textMessage || (hasImages ? `[Image${validImages.length > 1 ? 's' : ''} attached]` : '')
+
+        // Build multimodal user content for AI SDK v6
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        type ContentPart = { type: 'text'; text: string } | { type: 'image'; image: string; mimeType: string }
+        const userContent: ContentPart[] = hasImages
+            ? [
+                { type: 'text', text: trimmedMsg },
+                ...validImages.map((img) => ({
+                    type: 'image' as const,
+                    // strip the data URL prefix — AI SDK expects raw base64
+                    image: img.data.replace(/^data:image\/[^;]+;base64,/, ''),
+                    mimeType: img.mimeType,
+                })),
+              ]
+            : [{ type: 'text', text: trimmedMsg }]
 
         let isComplex = false
         let suggestedCategory = 'general'
 
         if (!forceConversation) {
             try {
-                const messages = [
+                // For classification we always use text-only (images don't affect intent)
+                const classifyMessages = [
                     ...history.map(m => ({ role: m.role, content: m.content })),
                     { role: 'user' as const, content: trimmedMsg }
                 ]
@@ -223,7 +259,7 @@ chatRouter.post('/message', async (req, res) => {
                     generateText({
                         model,
                         system: CLASSIFY_SYSTEM,
-                        messages,
+                        messages: classifyMessages,
                         abortSignal: AbortSignal.timeout(10_000),
                     })
                 )
@@ -331,7 +367,11 @@ chatRouter.post('/message', async (req, res) => {
                         system: `${personaPrefix}You are ${agentName}${taglineHint}, an AI agent. ${identityLine}
 
 Keep replies concise and friendly. If the user proposes a single distinct action, tell them you can execute it as a task and ask for confirmation. If the user proposes a large conceptual goal, tell them you can create a Project for it and ask for confirmation. If they ask for troubleshooting, help, or advice, ask clarifying questions first and do not rush to create tasks. Only agree to start a task or project when the scope is clear.`,
-                        messages: history.map(m => ({ role: m.role, content: m.content })),
+                        messages: [
+                            ...history.slice(0, -1).map((m) => ({ role: m.role, content: m.content })),
+                            // Last message may include images as multimodal content
+                            { role: 'user' as const, content: userContent },
+                        ],
                         abortSignal: AbortSignal.timeout(30_000),
                     })
                 )

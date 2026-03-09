@@ -18,20 +18,19 @@ import type { WorkspaceAISettings } from '../providers/registry.js'
 import { judgeQuality } from './quality-judge.js'
 import type { JudgeMeta } from './quality-judge.js'
 
-// ── Tool dispatcher — Phase 2 stubs ──────────────────────────────────────────
-// Each tool runs locally for now. Phase 3 moves to sandboxed worker containers.
+// ── Tool dispatcher ───────────────────────────────────────────
 
 async function dispatchTool(
     name: string,
     input: Record<string, unknown>,
     ctx: ExecutionContext,
 ): Promise<string> {
-    const { execSync } = await import('node:child_process')
     const { readFileSync, writeFileSync, mkdirSync, existsSync } = await import('node:fs')
-    const { dirname, resolve, isAbsolute } = await import('node:path')
+    const { dirname, resolve, isAbsolute, relative } = await import('node:path')
 
     // defaultCwd: for sprint coding tasks this is the cloned repo working dir
     const defaultCwd = (ctx.sprintWorkDir as string | undefined) ?? process.cwd()
+    const emit = ctx.emitStepEvent
 
     switch (name) {
         case 'read_file': {
@@ -49,8 +48,34 @@ async function dispatchTool(
                 const rawPath = input.path as string
                 const p = isAbsolute(rawPath) ? rawPath : resolve(defaultCwd, rawPath)
                 mkdirSync(dirname(p), { recursive: true })
-                writeFileSync(p, input.content as string, 'utf8')
-                return `OK: wrote ${(input.content as string).length} bytes to ${p}`
+
+                // Capture old content for diff (Code Mode)
+                let oldContent = ''
+                try { oldContent = readFileSync(p, 'utf8') } catch { /* new file */ }
+
+                const newContent = input.content as string
+                writeFileSync(p, newContent, 'utf8')
+
+                // Emit file write event with unified diff
+                if (emit) {
+                    let patch = ''
+                    try {
+                        const { createPatch } = await import('diff')
+                        const relPath = defaultCwd ? relative(defaultCwd, p) : p
+                        patch = createPatch(relPath, oldContent, newContent, '', '')
+                    } catch { /* diff not available — emit empty patch */ }
+                    const relPath = defaultCwd ? relative(defaultCwd, p) : p
+                    emit({
+                        type: 'step.file_write',
+                        taskId: ctx.taskId,
+                        workspaceId: ctx.workspaceId,
+                        path: relPath,
+                        patch,
+                        ts: Date.now(),
+                    })
+                }
+
+                return `OK: wrote ${newContent.length} bytes to ${p}`
             } catch (e) {
                 return `ERROR: ${(e as Error).message}`
             }
@@ -58,19 +83,56 @@ async function dispatchTool(
 
         case 'shell': {
             try {
+                const { spawnSync } = await import('node:child_process')
                 const cwd = (input.cwd as string | undefined) ?? defaultCwd
-                const out = execSync(input.command as string, {
+                const command = input.command as string
+
+                // Detect label from command content for better UI grouping
+                const label = /ssh\s/.test(command)
+                    ? 'ssh'
+                    : /playwright|vitest|jest|mocha/.test(command)
+                        ? 'test'
+                        : 'shell'
+
+                const result = spawnSync('sh', ['-c', command], {
                     cwd,
-                    timeout: 60_000,  // 60s — enough for pnpm install / test runs
-                    maxBuffer: 2 * 1024 * 1024,  // 2MB
+                    timeout: 60_000,
+                    maxBuffer: 2 * 1024 * 1024,
                     encoding: 'utf8',
                     env: {
                         ...process.env,
-                        // Ensure pnpm/node/git are on path
                         PATH: process.env.PATH ?? '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
                     },
                 })
-                return out.trim()
+
+                const combined = [
+                    result.stdout?.trim() ?? '',
+                    result.stderr?.trim() ?? '',
+                ]
+                    .filter(Boolean)
+                    .join('\n')
+
+                // Emit each line as a streaming SSE event (Code Mode)
+                if (emit && combined) {
+                    for (const line of combined.split('\n')) {
+                        if (line) {
+                            emit({
+                                type: 'step.shell_line',
+                                taskId: ctx.taskId,
+                                workspaceId: ctx.workspaceId,
+                                label,
+                                line,
+                                ts: Date.now(),
+                            })
+                        }
+                    }
+                }
+
+                if (result.status !== 0) {
+                    const detail = combined || (result.error?.message ?? ('exit code ' + String(result.status)))
+                    return `ERROR: ${detail.slice(0, 2000)}`
+                }
+                return (result.stdout ?? '').trim()
             } catch (e) {
                 const err = e as { stdout?: string; stderr?: string; message: string }
                 const stderr = err.stderr?.trim() ?? ''
