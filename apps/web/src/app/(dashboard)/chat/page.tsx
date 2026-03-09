@@ -170,7 +170,11 @@ function MessageBubble({
                         </div>
                     ) : msg.status === 'confirm_action' && msg.intent ? (
                         <div className="flex flex-col gap-3">
-                            <span className="font-medium text-zinc-200">{msg.content}</span>
+                            <span className="font-medium text-zinc-200">
+                                {msg.intent === 'TASK'
+                                    ? 'I can run this as an automated task.'
+                                    : 'I can set this up as a coordinated project.'}
+                            </span>
                             <span className="text-sm text-zinc-400 italic">&quot;{msg.actionDescription}&quot;</span>
 
                             {/* Project category picker — only shown when PROJECT is selected */}
@@ -222,7 +226,17 @@ function MessageBubble({
                             </div>
                         </div>
                     ) : (
-                        <span className="whitespace-pre-wrap">{msg.content}</span>
+                        <div className="flex flex-col gap-2">
+                            <span className="whitespace-pre-wrap">{msg.content}</span>
+                            {msg.fixUrl && (
+                                <Link
+                                    href={msg.fixUrl}
+                                    className="inline-flex items-center gap-1 self-start rounded-md bg-zinc-700/60 border border-zinc-600/50 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:bg-zinc-600 hover:text-zinc-100 transition-colors"
+                                >
+                                    {msg.fixLabel ?? 'View'} →
+                                </Link>
+                            )}
+                        </div>
                     )}
 
                     {/* Copy button — hover-visible */}
@@ -714,12 +728,20 @@ function ChatContent() {
                 setMessages((prev) => prev.map((m) =>
                     m.id === msgId ? { ...m, taskId: data.taskId, status: 'running' } : m
                 ))
-                await pollReply(data.taskId, msgId)
+                // pollReply is long-running (SSE). Don't await — let it run async so the
+                // input stays enabled and the user can send more messages while it works.
+                void pollReply(data.taskId, msgId)
             } else if (data.sprintId) {
+                // Project created — stay in chat, show a link. Don't redirect away blindly.
                 setMessages((prev) => prev.map((m) =>
-                    m.id === msgId ? { ...m, status: 'complete', content: '' } : m
+                    m.id === msgId ? {
+                        ...m,
+                        status: 'complete',
+                        content: `Project created and running. Track progress →`,
+                        fixUrl: `/projects/${data.sprintId}`,
+                        fixLabel: 'Open project',
+                    } : m
                 ))
-                window.location.href = `/projects/${data.sprintId}`
             }
         } catch (err) {
             const msg = err instanceof Error ? err.message : 'Failed to start action.'
@@ -838,6 +860,8 @@ function ChatContent() {
                 m.id === pendingId ? { ...m, status: 'failed', content: 'Network error.' } : m
             ))
         } finally {
+            // Release the input immediately — don't hold it for the duration of task polling.
+            // Task polling runs async via SSE; the user should be able to send more messages.
             setSending(false)
             setTimeout(() => inputRef.current?.focus(), 50)
         }

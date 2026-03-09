@@ -111,10 +111,13 @@ function classifyAIError(err: unknown): ClassifiedError {
 const CLASSIFY_SYSTEM = `You are an intent classifier for an AI agent called Plexo.
 Decide if the user's message is a TASK, PROJECT, MEMORY, or CONVERSATION.
 
-TASK: The user is explicitly asking to start a clear, immediate, actionable task. Or the user is confirming (e.g. "yes", "do it") a previous proposal to create a task.
-PROJECT: The user is explicitly asking to start a large, multi-step goal requiring planning (e.g., "Build a new features"). Or the user is confirming a proposal to create a project.
-MEMORY: The user wants the agent to remember something, behave differently, or follow a rule going forward. Examples: "remember to always use TypeScript", "don't use semicolons", "always respond in bullet points", "prefer tabs over spaces", "never deploy on Fridays".
-CONVERSATION: Vague requests, troubleshooting, requests needing clarification, greetings, checks, small talk, or rejecting proposals.
+CONVERSATION: Use this as the default. Questions, queries, troubleshooting help, greetings, status checks, information requests ("what is X", "show me", "list", "how do I"), small talk, vague or ambiguous messages, or any message where the user is asking FOR information rather than asking the agent TO DO something. Also use this when the user is rejecting or dismissing a prior proposal.
+
+TASK: The user is EXPLICITLY and unambiguously asking the agent to perform a specific, distinct, actionable operation — e.g. "create X", "fix Y", "deploy Z", "send an email to", "run the migration". There must be a clear deliverable or outcome. Pure questions, lookups, and summaries are NOT tasks — those are CONVERSATION. Also use TASK when the user is confirming ("yes", "go ahead", "do it") a previous explicit task proposal.
+
+PROJECT: The user is explicitly asking to start a large, multi-step goal requiring coordinated planning across multiple files/systems — e.g. "build a new feature", "refactor the entire auth system", "launch a new product". Also use PROJECT when the user confirms a prior project proposal. Single-step actions are TASK not PROJECT.
+
+MEMORY: The user wants the agent to remember something or follow a behavioral rule going forward. Examples: "remember to always use TypeScript", "don't use semicolons", "always respond in bullet points", "prefer tabs over spaces", "never deploy on Fridays".
 
 Also determine the complexity: SIMPLE or COMPLEX.
 COMPLEX means the task requires reasoning, complex coding, architecture, or multi-step logic.
@@ -140,7 +143,9 @@ MEMORY SIMPLE
 For PROJECT: Reply with EXACTLY three words separated by spaces:
 PROJECT [COMPLEXITY] [CATEGORY]
 Example: PROJECT COMPLEX marketing
-Example: PROJECT SIMPLE general`
+Example: PROJECT SIMPLE general
+
+When in doubt, use CONVERSATION. Only classify as TASK or PROJECT when the user's intent to have the agent perform work is unmistakable.`
 
 // Per-session conversation history (last 20 messages, in-memory)
 const sessionHistory = new Map<string, Array<{ role: 'user' | 'assistant'; content: string }>>()
@@ -220,7 +225,8 @@ chatRouter.post('/message', async (req, res) => {
         const taglineHint = agentTagline ? ` (${agentTagline})` : ''
 
         // Classify intent — skip if caller forced CONVERSATION (e.g. "Just answer" button)
-        let intent: 'TASK' | 'PROJECT' | 'MEMORY' | 'CONVERSATION' = forceConversation ? 'CONVERSATION' : 'TASK'
+        // Default to CONVERSATION — tasks only get proposed when classifier explicitly says so.
+        let intent: 'TASK' | 'PROJECT' | 'MEMORY' | 'CONVERSATION' = 'CONVERSATION'
         const sid = sessionId ?? 'default'
         const history = sessionHistory.get(sid) ?? []
         const trimmedMsg = message.trim()
@@ -384,8 +390,8 @@ Keep replies concise and friendly. If the user proposes a single distinct action
 
         // TASK or PROJECT — Record the conversation exchange, no task yet (user must confirm)
         const confirmReply = intent === 'TASK'
-            ? 'I can execute this as an automated task. Do you want me to proceed?' + recommendedSwitch
-            : `I can create a **${suggestedCategory}** project to track this larger goal. Do you want me to set that up?` + recommendedSwitch
+            ? 'I can execute this as an automated task. Ready to start?' + recommendedSwitch
+            : `I can set up a **${suggestedCategory}** project to coordinate this work. Want me to create it?` + recommendedSwitch
         try {
             await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply: confirmReply, status: 'complete', intent })
         } catch (err) {
