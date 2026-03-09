@@ -17,6 +17,7 @@ import { loadWorkspaceAISettings, cancelActiveTask } from '../agent-loop.js'
 import { logSprintEvent } from '@plexo/agent/sprint/logger'
 import { logger } from '../logger.js'
 import { emitToWorkspace } from '../sse-emitter.js'
+import { captureException } from '../sentry.js'
 
 export const sprintRunnerRouter: RouterType = Router()
 
@@ -92,6 +93,7 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
         aiSettings,
     }).catch((err: unknown) => {
         logger.error({ err, sprintId }, 'Sprint run failed')
+        captureException(err, { sprintId, workspaceId, category: sprint.category })
     })
 
     res.status(202).json({ sprintId, status: 'started', message: 'Sprint execution started — follow progress via SSE' })

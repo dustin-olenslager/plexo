@@ -31,6 +31,7 @@ import {
     replyToChannel,
 } from '../conversation-log.js'
 import { getTelegramToken } from './telegram.js'
+import { captureException } from '../sentry.js'
 
 export const chatRouter: RouterType = Router()
 
@@ -411,12 +412,13 @@ Keep replies concise and friendly. If the user proposes a single distinct action
 const VALID_CATEGORIES = new Set(['code', 'research', 'writing', 'ops', 'data', 'marketing', 'general'])
 
 chatRouter.post('/execute-action', async (req, res) => {
-    const { workspaceId, intent, description, sessionId, category } = req.body as {
+    const { workspaceId, intent, description, sessionId, category, repo } = req.body as {
         workspaceId?: string
         intent?: 'TASK' | 'PROJECT'
         description?: string
         sessionId?: string
         category?: string
+        repo?: string   // owner/repo — required only for code category
     }
 
     if (!workspaceId || !UUID_RE.test(workspaceId)) {
@@ -428,7 +430,10 @@ chatRouter.post('/execute-action', async (req, res) => {
         return
     }
 
-    const resolvedCategory = (category && VALID_CATEGORIES.has(category)) ? category : 'general'
+    // 'code' category requires a repo. If none supplied (chat flow), downgrade to 'general'
+    // so the sprint doesn't fail immediately inside the async runner.
+    const rawCategory = (category && VALID_CATEGORIES.has(category)) ? category : 'general'
+    const resolvedCategory = rawCategory === 'code' && !repo ? 'general' : rawCategory
 
     try {
         if (intent === 'TASK') {
@@ -476,6 +481,7 @@ chatRouter.post('/execute-action', async (req, res) => {
                 workspaceId,
                 request: description,
                 category: resolvedCategory,
+                repo: repo ?? null,
                 status: 'planning',
                 metadata: {},
             }).returning()
@@ -486,10 +492,35 @@ chatRouter.post('/execute-action', async (req, res) => {
                 sprintId: sprint.id,
                 workspaceId,
                 category: resolvedCategory,
+                repo: repo ?? undefined,
                 request: description,
                 aiSettings,
             }).catch((err: unknown) => {
                 logger.error({ err, sprintId: sprint.id }, 'Sprint run failed')
+                captureException(err, { sprintId: sprint.id, workspaceId, category: resolvedCategory })
+
+                // Report the failure back to the originating conversation/session
+                // so the user isn't left staring at a silent "Created" status.
+                const errMsg = err instanceof Error ? err.message : String(err)
+                const userFacingReply = `The project failed to start: ${errMsg}. Check Settings → AI Providers if a provider is not configured, or verify the repo field is set for code projects.`
+
+                recordConversation({
+                    workspaceId,
+                    sessionId: sessionId ?? null,
+                    source: 'dashboard',
+                    message: description,
+                    reply: userFacingReply,
+                    errorMsg: errMsg,
+                    status: 'failed',
+                    intent: 'PROJECT',
+                }).catch((recErr: unknown) => logger.warn({ recErr }, 'Failed to record sprint error turn'))
+
+                emitToWorkspace(workspaceId, {
+                    type: 'chat_error',
+                    sessionId: sessionId ?? null,
+                    sprintId: sprint.id,
+                    message: userFacingReply,
+                })
             })
 
             res.status(201).json({ sprintId: sprint.id, status: 'created', category: resolvedCategory })

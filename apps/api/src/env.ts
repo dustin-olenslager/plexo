@@ -74,6 +74,12 @@ const ENV_SPEC: EnvVar[] = [
         description: 'Writable directory for agent-generated Kapsel skills (default: /var/plexo/generated-skills)',
         required: false,
     },
+    // ── Optional — Error tracking ─────────────────────────────────────────────
+    {
+        key: 'SENTRY_DSN',
+        description: 'Sentry DSN for error reporting (https://sentry.io or self-hosted)',
+        required: false,
+    },
 ]
 
 export function validateEnv(): void {
