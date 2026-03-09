@@ -38,6 +38,24 @@ import {
     plexoHealth,
     plexoWorkspaceInfo,
 } from './tools/system.js'
+import {
+    listTasksInputSchema,
+    createTaskInputSchema,
+    getTaskInputSchema,
+    cancelTaskInputSchema,
+    plexoListTasks,
+    plexoCreateTask,
+    plexoGetTask,
+    plexoCancelTask,
+} from './tools/tasks.js'
+import {
+    searchMemoryInputSchema,
+    rememberInputSchema,
+    plexoSearchMemory,
+    plexoRemember,
+} from './tools/memory.js'
+import { resourceDefinitions, readResource } from './resources/index.js'
+import { promptDefinitions, getPromptMessages } from './prompts/index.js'
 import type { McpContext } from './types.js'
 
 // ── Per-server context registry ───────────────────────────────────────────────
@@ -99,6 +117,124 @@ function createMcpServer(ctx: McpContext | null): McpServer {
             }
         },
     )
+
+    // ── plexo_list_tasks — requires tasks:read ───────────────────────────────
+    server.tool(
+        'plexo_list_tasks',
+        'List recent tasks in the workspace. Filter by status. Requires tasks:read scope.',
+        listTasksInputSchema.shape,
+        async (input) => {
+            const resolvedCtx = getCtx(server)
+            if (!resolvedCtx) return { content: [{ type: 'text', text: JSON.stringify({ error: 'Unauthorized', code: 'UNAUTHORIZED' }) }], isError: true }
+            const result = await plexoListTasks(input as z.infer<typeof listTasksInputSchema>, resolvedCtx)
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], isError: 'error' in (result as Record<string, unknown>) }
+        },
+    )
+
+    // ── plexo_create_task — requires tasks:write ─────────────────────────────
+    server.tool(
+        'plexo_create_task',
+        'Create and queue a new task for the Plexo agent. Requires tasks:write scope.',
+        createTaskInputSchema.shape,
+        async (input) => {
+            const resolvedCtx = getCtx(server)
+            if (!resolvedCtx) return { content: [{ type: 'text', text: JSON.stringify({ error: 'Unauthorized', code: 'UNAUTHORIZED' }) }], isError: true }
+            const result = await plexoCreateTask(input as z.infer<typeof createTaskInputSchema>, resolvedCtx)
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], isError: 'error' in (result as Record<string, unknown>) }
+        },
+    )
+
+    // ── plexo_get_task — requires tasks:read ─────────────────────────────────
+    server.tool(
+        'plexo_get_task',
+        'Get details for a single task by ID. Requires tasks:read scope.',
+        getTaskInputSchema.shape,
+        async (input) => {
+            const resolvedCtx = getCtx(server)
+            if (!resolvedCtx) return { content: [{ type: 'text', text: JSON.stringify({ error: 'Unauthorized', code: 'UNAUTHORIZED' }) }], isError: true }
+            const result = await plexoGetTask(input as z.infer<typeof getTaskInputSchema>, resolvedCtx)
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], isError: 'error' in (result as Record<string, unknown>) }
+        },
+    )
+
+    // ── plexo_cancel_task — requires tasks:write ─────────────────────────────
+    server.tool(
+        'plexo_cancel_task',
+        'Cancel a queued or running task by ID. Requires tasks:write scope.',
+        cancelTaskInputSchema.shape,
+        async (input) => {
+            const resolvedCtx = getCtx(server)
+            if (!resolvedCtx) return { content: [{ type: 'text', text: JSON.stringify({ error: 'Unauthorized', code: 'UNAUTHORIZED' }) }], isError: true }
+            const result = await plexoCancelTask(input as z.infer<typeof cancelTaskInputSchema>, resolvedCtx)
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], isError: 'error' in (result as Record<string, unknown>) }
+        },
+    )
+
+    // ── plexo_search_memory — requires memory:read ───────────────────────────
+    server.tool(
+        'plexo_search_memory',
+        'Search workspace memory entries by keyword. Requires memory:read scope.',
+        searchMemoryInputSchema.shape,
+        async (input) => {
+            const resolvedCtx = getCtx(server)
+            if (!resolvedCtx) return { content: [{ type: 'text', text: JSON.stringify({ error: 'Unauthorized', code: 'UNAUTHORIZED' }) }], isError: true }
+            const result = await plexoSearchMemory(input as z.infer<typeof searchMemoryInputSchema>, resolvedCtx)
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], isError: 'error' in (result as Record<string, unknown>) }
+        },
+    )
+
+    // ── plexo_remember — requires memory:write ───────────────────────────────
+    server.tool(
+        'plexo_remember',
+        'Store a fact, pattern, or preference in workspace memory. Requires memory:write scope.',
+        rememberInputSchema.shape,
+        async (input) => {
+            const resolvedCtx = getCtx(server)
+            if (!resolvedCtx) return { content: [{ type: 'text', text: JSON.stringify({ error: 'Unauthorized', code: 'UNAUTHORIZED' }) }], isError: true }
+            const result = await plexoRemember(input as z.infer<typeof rememberInputSchema>, resolvedCtx)
+            return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], isError: 'error' in (result as Record<string, unknown>) }
+        },
+    )
+
+    // ── Resources ────────────────────────────────────────────────────────────
+    // Register each resource individually (SDK requires a single URI string per call)
+    for (const def of resourceDefinitions) {
+        server.resource(
+            def.name,
+            def.uri,
+            async (uri) => {
+                const resolvedCtx = getCtx(server)
+                if (!resolvedCtx) {
+                    return { contents: [{ uri: uri.href, text: JSON.stringify({ error: 'Unauthorized' }) }] }
+                }
+                try {
+                    const text = await readResource(uri.href, resolvedCtx)
+                    return { contents: [{ uri: uri.href, text, mimeType: 'application/json' }] }
+                } catch (err) {
+                    const msg = err instanceof Error ? err.message : 'Error'
+                    return { contents: [{ uri: uri.href, text: JSON.stringify({ error: msg }) }] }
+                }
+            },
+        )
+    }
+
+    // ── Prompts ──────────────────────────────────────────────────────────────
+    for (const def of promptDefinitions) {
+        server.prompt(
+            def.name,
+            def.description,
+            Object.fromEntries(def.arguments.map((a) => [a.name, z.string().optional()])),
+            (args) => {
+                const msgs = getPromptMessages(def.name, args as Record<string, string>)
+                return {
+                    messages: msgs.map((m) => ({
+                        role: m.role,
+                        content: { type: 'text' as const, text: m.content },
+                    })),
+                }
+            },
+        )
+    }
 
     return server
 }

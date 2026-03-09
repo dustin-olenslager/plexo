@@ -6,6 +6,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ## [Unreleased]
 
 ### Added
+- **MCP Tools (Phase 4 complete)** — MCP server now exposes 8 fully-scoped tools:
+  - `plexo_health` (no auth), `plexo_workspace_info` (system:read)
+  - `plexo_list_tasks`, `plexo_get_task` (tasks:read)
+  - `plexo_create_task`, `plexo_cancel_task` (tasks:write)
+  - `plexo_search_memory` (memory:read), `plexo_remember` (memory:write)
+- **MCP Resources** — three workspace resources exposed at `workspace://tasks/recent`, `workspace://memory/recent`, `workspace://stats`
+- **MCP Prompts** — three prompt templates: `create_task`, `search_memory`, `agent_status` for bootstrapping common flows in MCP clients
+- **MCP settings panel** — Settings → MCP now lists all 8 tools with their required scopes and all 3 resource URIs
 - **`web_fetch` tool** — agent can now fetch content from any URL (GET/POST, 30s timeout, 50k char truncation). Enables research and external data retrieval in tasks.
 - **`web_search` tool** — DuckDuckGo Instant Answer integration, no API key required. Returns answer, topic summary, and related links for any query.
 - **Task assets API** — `GET /api/v1/tasks/:id/assets` lists and returns inline content for agent-produced files written via `write_asset` tool. Text files up to 200 KB returned inline.

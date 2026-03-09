@@ -670,6 +670,27 @@ GROQ_API_KEY=gsk_…`}
   }
 }`}
                                 />
+                                <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
+                                    <p className="text-[10px] uppercase tracking-widest text-zinc-600 font-medium mb-2">Available Tools (8)</p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-1 gap-x-4">
+                                        {[
+                                            { name: 'plexo_health', desc: 'Check system health (no auth)' },
+                                            { name: 'plexo_workspace_info', desc: 'Stats & costs (system:read)' },
+                                            { name: 'plexo_list_tasks', desc: 'List recent tasks (tasks:read)' },
+                                            { name: 'plexo_create_task', desc: 'Queue a task (tasks:write)' },
+                                            { name: 'plexo_get_task', desc: 'Get task by ID (tasks:read)' },
+                                            { name: 'plexo_cancel_task', desc: 'Cancel a task (tasks:write)' },
+                                            { name: 'plexo_search_memory', desc: 'Search memory (memory:read)' },
+                                            { name: 'plexo_remember', desc: 'Store memory (memory:write)' },
+                                        ].map((t) => (
+                                            <div key={t.name} className="flex items-start gap-2 py-0.5">
+                                                <code className="text-[10px] text-indigo-300 font-mono shrink-0">{t.name}</code>
+                                                <span className="text-[10px] text-zinc-600">{t.desc}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <p className="text-[10px] text-zinc-700 mt-2 pt-2 border-t border-zinc-800">Resources: <code className="text-zinc-500 font-mono">workspace://tasks/recent</code> · <code className="text-zinc-500 font-mono">workspace://memory/recent</code> · <code className="text-zinc-500 font-mono">workspace://stats</code></p>
+                                </div>
                             </div>
                         </div>
                     </div>
