@@ -22,6 +22,21 @@ const API_COST_CEILING = parseFloat(process.env.API_COST_CEILING_USD ?? '10')
 let running = true
 let activeAbort: AbortController | null = null
 let activeTaskId: string | null = null
+let sessionCount = 0
+let lastActivity: string | null = null
+
+/**
+ * Returns the current agent loop status snapshot.
+ * Used by GET /api/v1/agent/status to serve real data.
+ */
+export function getAgentStatus(): {
+    activeTaskId: string | null
+    currentModel: string | null
+    sessionCount: number
+    lastActivity: string | null
+} {
+    return { activeTaskId, currentModel: null, sessionCount, lastActivity }
+}
 
 /**
  * Abort the currently-running task if it matches the given id.
@@ -365,6 +380,8 @@ async function processOneTask(): Promise<boolean> {
     const abort = new AbortController()
     activeAbort = abort
     activeTaskId = task.id
+    sessionCount++
+    lastActivity = new Date().toISOString()
 
     // Per-task model override: task.context.modelOverrideId forces Mode 4 routing
     const taskContext0 = task.context as Record<string, unknown> | null | undefined

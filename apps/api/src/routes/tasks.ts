@@ -212,7 +212,60 @@ tasksRouter.post('/:id/retry', async (req, res) => {
     }
 })
 
-// ── GET /api/tasks/stats?workspaceId= ───────────────────────────────────────
+// ── GET /api/tasks/:id/assets ──────────────────────────────────────────────
+// Lists agent-produced assets for a task (files in /tmp/plexo-assets/{taskId}).
+// Returns filenames + inline content for text files (≤200KB).
+
+tasksRouter.get('/:id/assets', async (req, res) => {
+    const { id } = req.params
+    if (!id || id.length > 64) {
+        res.status(400).json({ error: { code: 'INVALID_ID', message: 'Invalid task id' } })
+        return
+    }
+    try {
+        const { readdirSync, statSync, readFileSync } = await import('node:fs')
+        const { join, extname } = await import('node:path')
+
+        const dir = `/tmp/plexo-assets/${id}`
+        let files: string[]
+        try {
+            files = readdirSync(dir)
+        } catch {
+            // No assets directory — task produced no file assets
+            res.json({ items: [] })
+            return
+        }
+
+        const TEXT_EXTS = new Set(['.txt', '.md', '.json', '.csv', '.html', '.xml', '.yaml', '.yml', '.toml', '.sh', '.py', '.ts', '.js', '.sql'])
+        const MAX_INLINE = 200 * 1024 // 200KB
+
+        const items = files.map((filename) => {
+            const filePath = join(dir, filename)
+            const stat = statSync(filePath)
+            const ext = extname(filename).toLowerCase()
+            const isText = TEXT_EXTS.has(ext)
+            let content: string | null = null
+            if (isText && stat.size <= MAX_INLINE) {
+                try {
+                    content = readFileSync(filePath, 'utf8')
+                } catch { /* skip */ }
+            }
+            return {
+                filename,
+                bytes: stat.size,
+                isText,
+                content,
+                path: filePath,
+            }
+        })
+
+        res.json({ items })
+    } catch (err) {
+        logger.error({ err, id }, 'GET /api/tasks/:id/assets failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to list assets' } })
+    }
+})
+
 
 tasksRouter.get('/stats/summary', async (req, res) => {
     const { workspaceId } = req.query as { workspaceId?: string }

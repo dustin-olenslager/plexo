@@ -307,6 +307,16 @@ export default function TasksPage() {
 
     useEffect(() => { void load() }, [load])
 
+    // Cancel a task via DELETE
+    const cancelTask = useCallback(async (taskId: string, e: React.MouseEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+        try {
+            await fetch(`${apiBase}/api/v1/tasks/${taskId}`, { method: 'DELETE' })
+            void load(true)
+        } catch { /* ignore */ }
+    }, [apiBase, load])
+
     // Auto-refresh while active tasks exist
     useEffect(() => {
         if (!tasks.some((t) => t.status === 'running' || t.status === 'queued' || t.status === 'claimed')) return
@@ -468,9 +478,10 @@ export default function TasksPage() {
                         const Icon = cfg.icon
                         const sprint = task.projectId ? sprintMap[task.projectId] : null
                         const projectLabel = sprint ? sprintLabel(sprint) : task.project ?? null
+                        const isCancellable = task.status === 'running' || task.status === 'queued' || task.status === 'claimed' || task.status === 'pending'
                         return (
+                            <div key={task.id} className="relative group/row">
                             <Link
-                                key={task.id}
                                 href={`/tasks/${task.id}`}
                                 className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3.5 hover:border-zinc-700 hover:bg-zinc-900/70 transition-colors group"
                             >
@@ -517,6 +528,16 @@ export default function TasksPage() {
                                     </div>
                                 </div>
                             </Link>
+                            {isCancellable && (
+                                <button
+                                    onClick={(e) => void cancelTask(task.id, e)}
+                                    title="Cancel task"
+                                    className="absolute top-2 right-2 z-10 opacity-0 group-hover/row:opacity-100 transition-opacity flex items-center gap-1 rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1 text-[10px] text-zinc-400 hover:border-red-700/50 hover:text-red-400 hover:bg-red-950/20"
+                                >
+                                    <X className="h-3 w-3" /> Cancel
+                                </button>
+                            )}
+                            </div>
                         )
                     })}
                 </div>

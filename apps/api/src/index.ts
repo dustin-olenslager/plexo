@@ -145,8 +145,36 @@ v1.use('/system', systemRouter)
 v1.use('/workspaces/:id/introspect', introspectRouter)
 v1.use('/code', codeRouter)
 
-v1.get('/agent/status', (_req, res) => {
-    res.json({ status: 'idle', currentTask: null, currentModel: null, sessionCount: 0, lastActivity: null })
+v1.get('/agent/status', async (req, res) => {
+    const { workspaceId } = req.query as { workspaceId?: string }
+    try {
+        // Get active task from the running loop
+        const { getAgentStatus } = await import('./agent-loop.js')
+        const status = getAgentStatus()
+
+        // Resolve current model from workspace if workspaceId provided
+        let currentModel: string | null = status.currentModel ?? null
+        if (!currentModel && workspaceId) {
+            try {
+                const { loadDecryptedAIProviders } = await import('./routes/ai-provider-creds.js')
+                const ap = await loadDecryptedAIProviders(workspaceId)
+                if (ap?.primary && ap?.providers?.[ap.primary]) {
+                    const p = ap.providers[ap.primary] as Record<string, unknown>
+                    currentModel = (p.selectedModel ?? p.defaultModel ?? ap.primary) as string
+                }
+            } catch { /* non-fatal */ }
+        }
+
+        res.json({
+            status: status.activeTaskId ? 'running' : 'idle',
+            currentTask: status.activeTaskId ?? null,
+            currentModel,
+            sessionCount: status.sessionCount,
+            lastActivity: status.lastActivity,
+        })
+    } catch {
+        res.json({ status: 'idle', currentTask: null, currentModel: null, sessionCount: 0, lastActivity: null })
+    }
 })
 
 // Canonical versioned prefix

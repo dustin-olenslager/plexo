@@ -210,6 +210,79 @@ function buildTools(ctx: ExecutionContext) {
                 return `Asset saved: ${filePath} (${(input.content as string).length} bytes)`
             },
         }),
+        web_fetch: tool({
+            description: 'Fetch the text content of a URL. Returns the response body as a string. Use for reading documentation, APIs, web pages, JSON endpoints, or any public URL.',
+            inputSchema: z.object({
+                url: z.string().url().describe('The URL to fetch'),
+                method: z.enum(['GET', 'POST']).optional().default('GET').describe('HTTP method'),
+                body: z.string().optional().describe('Request body for POST requests (JSON string)'),
+                headers: z.record(z.string()).optional().describe('Additional request headers'),
+            }),
+            execute: async ({ url, method = 'GET', body, headers = {} }) => {
+                try {
+                    const opts: RequestInit = {
+                        method,
+                        headers: { 'User-Agent': 'Plexo-Agent/1.0', ...headers },
+                        signal: AbortSignal.timeout(30_000),
+                    }
+                    if (body && method === 'POST') {
+                        opts.body = body
+                        ;(opts.headers as Record<string, string>)['Content-Type'] = 'application/json'
+                    }
+                    const res = await fetch(url, opts)
+                    const text = await res.text()
+                    // Truncate very large responses to avoid context overflow
+                    const truncated = text.length > 50_000 ? text.slice(0, 50_000) + '\n\n[Response truncated at 50k chars]' : text
+                    return `HTTP ${res.status} ${res.statusText}\n\n${truncated}`
+                } catch (err) {
+                    return `ERROR: ${err instanceof Error ? err.message : String(err)}`
+                }
+            },
+        }),
+        web_search: tool({
+            description: 'Search the web using DuckDuckGo Instant Answer API. Returns a summary, abstract URL, and related topics. Not a full web crawler — best for factual lookups, definitions, and quick research.',
+            inputSchema: z.object({
+                query: z.string().describe('Search query'),
+                region: z.string().optional().default('wt-wt').describe('Region code, e.g. us-en, gb-en'),
+            }),
+            execute: async ({ query, region = 'wt-wt' }) => {
+                try {
+                    const params = new URLSearchParams({
+                        q: query,
+                        format: 'json',
+                        no_redirect: '1',
+                        no_html: '1',
+                        skip_disambig: '1',
+                        kl: region,
+                    })
+                    const res = await fetch(`https://api.duckduckgo.com/?${params}`, {
+                        headers: { 'User-Agent': 'Plexo-Agent/1.0' },
+                        signal: AbortSignal.timeout(15_000),
+                    })
+                    const data = await res.json() as {
+                        Heading?: string
+                        AbstractText?: string
+                        AbstractURL?: string
+                        Answer?: string
+                        RelatedTopics?: Array<{ Text?: string; FirstURL?: string } | { Topics?: Array<{ Text?: string; FirstURL?: string }> }>
+                    }
+                    const lines: string[] = []
+                    if (data.Answer) lines.push(`Answer: ${data.Answer}`)
+                    if (data.Heading) lines.push(`Topic: ${data.Heading}`)
+                    if (data.AbstractText) lines.push(`Summary: ${data.AbstractText}`)
+                    if (data.AbstractURL) lines.push(`Source: ${data.AbstractURL}`)
+                    type DDGTopic = { Text?: string; FirstURL?: string }
+                    const related = (data.RelatedTopics ?? [])
+                        .flatMap((t): DDGTopic[] => 'Topics' in t ? (t.Topics ?? []) : [t as DDGTopic])
+                        .slice(0, 5)
+                        .map((t) => `- ${t.Text ?? ''} (${t.FirstURL ?? ''})`)
+                    if (related.length > 0) lines.push('\nRelated:\n' + related.join('\n'))
+                    return lines.length > 0 ? lines.join('\n') : 'No results found for this query.'
+                } catch (err) {
+                    return `ERROR: ${err instanceof Error ? err.message : String(err)}`
+                }
+            },
+        }),
         self_reflect: tool({
             description: 'Query your own runtime state. Returns your active model, installed connections, available tools, memory statistics, cost position, and safety limits. Call this when asked about your capabilities, identity, architecture, or configuration, or when you need to verify what tools/connections are available before attempting a task.',
             inputSchema: z.object({

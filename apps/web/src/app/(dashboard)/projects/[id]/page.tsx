@@ -35,6 +35,7 @@ import {
     BadgeDollarSign,
     Wifi,
     StopCircle,
+    FileText,
 } from 'lucide-react'
 import Link from 'next/link'
 import { getCategoryDef } from '@web/lib/project-categories'
@@ -496,7 +497,12 @@ export default function ProjectControlRoom() {
     const [loading, setLoading] = useState(true)
     const [notFound, setNotFound] = useState(false)
     const [elapsedMs, setElapsedMs] = useState(0)
-    const [tab, setTab] = useState<'workers' | 'tasks' | 'features' | 'log'>('workers')
+    const [tab, setTab] = useState<'workers' | 'tasks' | 'features' | 'deliverables' | 'log'>('workers')
+    const [deliverables, setDeliverables] = useState<Array<{ taskId: string; filename: string; bytes: number; isText: boolean; content: string | null }>>([]
+    )
+    const [delivLoading, setDelivLoading] = useState(false)
+    const [delivLoaded, setDelivLoaded] = useState(false)
+    const [openDeliv, setOpenDeliv] = useState<string | null>(null)
     const [stopping, setStopping] = useState(false)
     const esRef = useRef<EventSource | null>(null)
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -512,6 +518,41 @@ export default function ProjectControlRoom() {
             setLoading(false)
         }
     }, [sprintId])
+
+    // Load deliverables for all completed tasks in this sprint
+    const loadDeliverables = useCallback(async () => {
+        if (delivLoaded || delivLoading) return
+        setDelivLoading(true)
+        try {
+            // Fetch all tasks for this sprint then pull assets for each completed one
+            const res = await fetch(`${API}/api/v1/sprints/${sprintId}/tasks`, { cache: 'no-store' })
+            if (!res.ok) return
+            const d = await res.json() as SprintDetail
+            const doneTasks = d.tasks.filter((t) => t.status === 'complete' && t.handoff?.taskId)
+            const results: Array<{ taskId: string; filename: string; bytes: number; isText: boolean; content: string | null }> = []
+            await Promise.all(
+                doneTasks.map(async (t) => {
+                    const tid = t.handoff!.taskId!
+                    try {
+                        const ar = await fetch(`${API}/api/v1/tasks/${tid}/assets`)
+                        if (!ar.ok) return
+                        const ad = await ar.json() as { items: Array<{ filename: string; bytes: number; isText: boolean; content: string | null }> }
+                        for (const item of ad.items ?? []) {
+                            results.push({ taskId: tid, ...item })
+                        }
+                    } catch { /* skip */ }
+                })
+            )
+            setDeliverables(results)
+            setDelivLoaded(true)
+        } finally {
+            setDelivLoading(false)
+        }
+    }, [sprintId, delivLoaded, delivLoading])
+
+    useEffect(() => {
+        if (tab === 'deliverables') void loadDeliverables()
+    }, [tab, loadDeliverables])
 
     async function handleStop() {
         if (!confirm('Stop this project? All running and queued tasks will be cancelled.')) return
@@ -715,6 +756,7 @@ export default function ProjectControlRoom() {
                         { id: 'workers' as const, label: `${def.unitPlural} (${tasks.length})`, badge: false },
                         { id: 'tasks' as const, label: `All ${def.unitPlural.toLowerCase()}`, badge: false },
                         { id: 'features' as const, label: `Delivered (${sprint.featuresCompleted.length})`, badge: false },
+                        { id: 'deliverables' as const, label: 'Deliverables', badge: false },
                         { id: 'log' as const, label: 'Activity Log', badge: isActive },
                     ]).map(({ id, label, badge }) => (
                         <button
@@ -810,6 +852,53 @@ export default function ProjectControlRoom() {
                                     <p className="text-sm text-zinc-300">{f}</p>
                                 </div>
                             ))
+                        )}
+                    </div>
+                )}
+
+                {tab === 'deliverables' && (
+                    <div className="flex flex-col gap-3">
+                        {delivLoading ? (
+                            <div className="flex items-center gap-2 py-12 justify-center text-sm text-zinc-600">
+                                <RefreshCw className="h-4 w-4 animate-spin" />
+                                Loading deliverables…
+                            </div>
+                        ) : deliverables.length === 0 ? (
+                            <div className="flex flex-col items-center gap-3 py-12">
+                                <FileText className="h-8 w-8 text-zinc-700" />
+                                <p className="text-sm text-zinc-500">No file deliverables yet.</p>
+                                <p className="text-xs text-zinc-600">Agent-produced files (documents, scripts, reports) appear here when tasks complete.</p>
+                            </div>
+                        ) : (
+                            deliverables.map((d, i) => {
+                                const key = `${d.taskId}-${d.filename}`
+                                const isOpen = openDeliv === key
+                                return (
+                                    <div key={i} className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+                                        <button
+                                            onClick={() => setOpenDeliv(isOpen ? null : key)}
+                                            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-zinc-800/30 transition-colors"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <FileText className="h-4 w-4 text-zinc-500 shrink-0" />
+                                                <div>
+                                                    <p className="text-sm font-medium text-zinc-200">{d.filename}</p>
+                                                    <p className="text-[11px] text-zinc-600 font-mono">{(d.bytes / 1024).toFixed(1)} KB · Task {d.taskId.slice(0, 8)}</p>
+                                                </div>
+                                            </div>
+                                            <ChevronDown className={`h-4 w-4 text-zinc-600 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                                        </button>
+                                        {isOpen && d.content && (
+                                            <div className="border-t border-zinc-800 bg-zinc-950/60">
+                                                <pre className="p-4 text-xs text-zinc-300 font-mono whitespace-pre-wrap overflow-x-auto max-h-[60vh] leading-relaxed">{d.content}</pre>
+                                            </div>
+                                        )}
+                                        {isOpen && !d.content && (
+                                            <div className="border-t border-zinc-800 p-4 text-xs text-zinc-600">Binary or oversized file — not previewable inline.</div>
+                                        )}
+                                    </div>
+                                )
+                            })
                         )}
                     </div>
                 )}
