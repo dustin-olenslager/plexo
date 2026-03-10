@@ -182,6 +182,15 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 
 ---
 
+### 2026-03 — Cost Tracking: Double-Write Round 2 (work_ledger)
+
+- **Root cause**: `agent-loop.ts` inserted a `work_ledger` row on task completion. `executor/index.ts` also inserted a `work_ledger` row after `executeTask()` returned. The executor row contains richer data (`deliverables jsonb`, `wall_clock_ms`) but both rows carried the same `cost_usd`. Net effect: every task reported 2x real cost in dashboard and intelligence aggregate queries.
+- **Fix**: Removed the insert from `agent-loop.ts`. Executor is now the single canonical writer. `agent-loop.ts` owns only `api_cost_tracking` (weekly accumulator). No schema change needed.
+- **Verification**: Task `01KKC6A7` post-fix has exactly 1 `work_ledger` row; pre-fix tasks `01KKC538` and `01KKC5VY` each have 2.
+- **Lesson**: There must be exactly one write path to any accumulator. When `executor` and `agent-loop` both had ledger writes, neither was clearly authoritative — a classic case where two reasonable places to put the write results in double-counting.
+
+---
+
 ### 2026-03 — Cost Tracking: Double-Write + Wrong-Table Reads
 
 - **Root cause 1 (double-write)**: `executor/index.ts` wrote to `api_cost_tracking` at end of `executeTask()`. `agent-loop.ts` then wrote the same amount again after calling `completeTask()`. Every completed task's cost was counted exactly twice in the weekly accumulator.
