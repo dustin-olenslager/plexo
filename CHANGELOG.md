@@ -27,8 +27,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - **RSI unit tests** — Vitest tests covering all three anomaly detectors (`packages/agent`)
 - **Structured test results in Code Mode** — `parseTestOutput()` in the executor parses vitest (✓/×), jest (PASS/FAIL), mocha, and TAP output into `step.test_result` SSE events, populating the Test Results panel in real time during agent-run test commands
 - **Improvement apply routing** — `POST /api/v1/memory/improvements/:id/apply` now routes by `pattern_type`: `prompt_patch` entries apply as before (writes to `workspace_preferences.prompt_overrides`); all other types (`skill_proposal`, `plugin_proposal`, `agent_proposal`, `failure_pattern`, etc.) are marked `applied=true` as an acknowledgment without crashing the JSON parse
+- **Project detail: quality forecast metric** — When the sprint intelligence engine has produced a `forecastScore`, it now appears as a color-coded metric card (green ≥ 70%, amber 40–69%, red < 40%) in the sprint header metrics row
+- **Project detail: complete log event coverage** — `sprint_cancelled`, `pr_skipped`, `routing_trace`, `quality_forecast` added to `SprintLogEvent` type and `LOG_EVENT_CONFIG`; was falling back to `task_running` styles and missing icon/color for these events
 
-- **Sprint Task Auto-Fix Retry** — Added a `Retry Failed Tasks` button to the project detail page. When clicked, it calls `POST /api/sprints/:id/retry` which restarts failed and blocked sprint tasks with the specific failure error prepended to their execution context, enabling the agent loop to autonomously fix its own errors.
+- **Sprint retry endpoint** — `POST /api/sprints/:id/retry` now reads `workspaceId` from the sprint row directly instead of requiring it in the request body. Previously, the project detail page sent `sprint-${sprintId}` (the SSE channel ID) which failed UUID validation, making the Retry button always show an error
 - **MCP Tools (Phase 4 complete)** — MCP server now exposes 8 fully-scoped tools:
   - `plexo_health` (no auth), `plexo_workspace_info` (system:read)
   - `plexo_list_tasks`, `plexo_get_task` (tasks:read)
