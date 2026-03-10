@@ -76,6 +76,13 @@ interface PastedDocument {
 // Characters threshold above which pasted text becomes a doc attachment
 const LARGE_TEXT_THRESHOLD = 1000
 
+interface TaskAsset {
+    filename: string
+    bytes: number
+    isText: boolean
+    content: string | null
+}
+
 interface Message {
     id: string
     role: 'user' | 'agent'
@@ -92,6 +99,8 @@ interface Message {
     fixUrl?: string
     fixLabel?: string
     technicalDetail?: string
+    // Assets produced by the agent's write_asset tool
+    assets?: TaskAsset[]
     at: number
 }
 
@@ -112,6 +121,48 @@ const PROJECT_CATS = [
     { id: 'marketing', label: 'Marketing', Icon: Megaphone, },
     { id: 'general',   label: 'General',   Icon: FolderOpen,},
 ] as const
+
+// ── AssetCard — renders a write_asset file inline in the chat ────────────────
+
+function AssetCard({ asset }: { asset: TaskAsset }) {
+    const [copied, setCopied] = useState(false)
+    const sizeLabel = asset.bytes < 1024 ? `${asset.bytes}B` : asset.bytes < 1024 * 1024 ? `${(asset.bytes / 1024).toFixed(1)}KB` : `${(asset.bytes / (1024 * 1024)).toFixed(1)}MB`
+
+    function copyContent() {
+        if (!asset.content) return
+        navigator.clipboard.writeText(asset.content).then(() => {
+            setCopied(true)
+            setTimeout(() => setCopied(false), 1500)
+        })
+    }
+
+    return (
+        <details className="group/asset rounded-lg border border-zinc-700/60 bg-zinc-800/50 overflow-hidden">
+            <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-zinc-700/40 transition-colors list-none select-none">
+                <FileText className="h-3.5 w-3.5 shrink-0 text-indigo-400" />
+                <span className="flex-1 text-xs font-medium text-text-primary font-mono truncate">{asset.filename}</span>
+                <span className="text-[10px] text-text-muted shrink-0">{sizeLabel}</span>
+                <span className="text-[10px] text-text-muted shrink-0 group-open/asset:hidden">▸</span>
+                <span className="text-[10px] text-text-muted shrink-0 hidden group-open/asset:inline">▾</span>
+            </summary>
+            {asset.isText && asset.content && (
+                <div className="relative border-t border-zinc-700/60">
+                    <button
+                        onClick={copyContent}
+                        className="absolute top-2 right-2 rounded-md bg-zinc-700 border border-zinc-600 p-1 text-text-secondary hover:text-text-primary hover:bg-surface-3 transition-colors z-10"
+                        title="Copy content"
+                    >
+                        {copied ? <Check className="h-3 w-3 text-emerald" /> : <Copy className="h-3 w-3" />}
+                    </button>
+                    <pre className="text-[11px] font-mono text-text-secondary leading-relaxed p-3 pr-10 overflow-x-auto max-h-64 whitespace-pre-wrap break-words">{asset.content}</pre>
+                </div>
+            )}
+            {!asset.isText && (
+                <div className="border-t border-zinc-700/60 px-3 py-2 text-[11px] text-text-muted italic">Binary file — view in Tasks → {'{'}taskId{'}'}/assets</div>
+            )}
+        </details>
+    )
+}
 
 // ── MessageBubble ─────────────────────────────────────────────────────────────
 
@@ -307,6 +358,14 @@ function MessageBubble({
                                 >
                                     {msg.fixLabel ?? 'View'} →
                                 </Link>
+                            )}
+                            {/* Asset files produced by write_asset */}
+                            {msg.assets && msg.assets.length > 0 && (
+                                <div className="flex flex-col gap-1.5 mt-1">
+                                    {msg.assets.map((asset) => (
+                                        <AssetCard key={asset.filename} asset={asset} />
+                                    ))}
+                                </div>
                             )}
                         </div>
                     )}
@@ -640,6 +699,9 @@ function ChatContent() {
     const inputRef = useRef<HTMLTextAreaElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const sessionId = useRef(`session-${Date.now()}`)
+    const [isDraggingOver, setIsDraggingOver] = useState(false)
+    /** Counter tracks nested dragenter/dragleave so child elements don't flicker the overlay */
+    const dragCounterRef = useRef(0)
     const searchParams = useSearchParams()
 
     // ── Code Mode state ───────────────────────────────────────────────────────
@@ -805,7 +867,20 @@ function ChatContent() {
                     setMessages((prev) => prev.map((m) =>
                         m.id === msgId ? { ...m, status, content: reply } : m
                     ))
-                    if (status === 'complete') tts.speak(reply)
+                    if (status === 'complete') {
+                        tts.speak(reply)
+                        // Fetch assets produced by write_asset and attach to this message
+                        fetch(`${API}/api/v1/tasks/${taskId}/assets`)
+                            .then(r => r.ok ? r.json() as Promise<{ items: TaskAsset[] }> : null)
+                            .then(data => {
+                                if (data && data.items.length > 0) {
+                                    setMessages((prev) => prev.map((m) =>
+                                        m.id === msgId ? { ...m, assets: data.items } : m
+                                    ))
+                                }
+                            })
+                            .catch(() => { /* non-fatal */ })
+                    }
                 } catch { /* ignore */ }
                 cleanup()
                 resolve()
@@ -999,9 +1074,27 @@ function ChatContent() {
                             })
                     )
             )
-        ).then((resolved) => {
-            setPastedImages((prev) => [...prev, ...resolved])
-        })
+        )
+        setPastedImages((prev) => [...prev, ...resolved])
+    }
+
+    function handleDragEnter(e: React.DragEvent) {
+        e.preventDefault()
+        dragCounterRef.current += 1
+        if (dragCounterRef.current === 1) setIsDraggingOver(true)
+    }
+
+    function handleDragLeave(e: React.DragEvent) {
+        e.preventDefault()
+        dragCounterRef.current -= 1
+        if (dragCounterRef.current === 0) setIsDraggingOver(false)
+    }
+
+    function handlePageDrop(e: React.DragEvent) {
+        e.preventDefault()
+        dragCounterRef.current = 0
+        setIsDraggingOver(false)
+        void processDroppedDataTransfer(e.dataTransfer)
     }
 
     function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1246,8 +1339,25 @@ function ChatContent() {
     const wantsAttachment = checkAttachmentPrompt(input)
 
     const chatPanel = (
-        <div className="flex h-full flex-col">
+        <div
+            className="flex h-full flex-col relative"
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handlePageDrop}
+        >
+            {/* Page-wide drop overlay */}
+            {isDraggingOver && (
+                <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-indigo/60 bg-surface-0/90 backdrop-blur-sm pointer-events-none">
+                    <div className="flex flex-col items-center gap-2">
+                        <FileUp className="h-10 w-10 text-indigo opacity-80" />
+                        <p className="text-base font-semibold text-text-primary">Drop files here</p>
+                        <p className="text-xs text-text-muted">Images, SVG, PDF</p>
+                    </div>
+                </div>
+            )}
             {/* Header */}
+
             <div className="flex items-center justify-between pb-4 border-b border-border shrink-0">
                 <div>
                     <div className="flex items-center gap-3">
