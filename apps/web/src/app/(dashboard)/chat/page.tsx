@@ -47,6 +47,7 @@ import { getModelCapabilities, recommendModelForInput, checkAttachmentPrompt } f
 import { CapabilityList } from '@web/components/capabilities'
 import { PlexoMark } from '@web/components/plexo-logo'
 import { extractPdfText } from '@web/lib/pdf-extract'
+import { CopyId } from '@web/components/copy-id'
 
 const API = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
@@ -1372,7 +1373,10 @@ function ChatContent() {
                             </div>
                         )}
                     </div>
-                    <p className="text-sm text-text-muted mt-1">Talk directly with your agent</p>
+                    <p className="text-sm text-text-muted mt-1">
+                        Talk directly with your agent
+                        <CopyId id={sessionId.current} label="session" className="ml-2 align-middle" />
+                    </p>
                 </div>
                 <div className="flex items-center gap-3">
                     {/* TTS toggle */}

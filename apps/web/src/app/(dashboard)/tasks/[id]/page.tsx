@@ -18,6 +18,7 @@ import {
 import Link from 'next/link'
 import { CancelButton } from './_cancel-button'
 import { BlockedActions } from './_blocked-actions'
+import { CopyId } from '@web/components/copy-id'
 
 interface TaskStep {
     id: string
