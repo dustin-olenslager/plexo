@@ -1,4 +1,4 @@
-CREATE TYPE "public"."member_role" AS ENUM('owner', 'admin', 'member', 'viewer');--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."member_role" AS ENUM('owner', 'admin', 'member', 'viewer'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
 CREATE TYPE "public"."rule_source" AS ENUM('platform', 'workspace', 'project', 'task');--> statement-breakpoint
 CREATE TYPE "public"."rule_type" AS ENUM('safety_constraint', 'operational_rule', 'communication_style', 'domain_knowledge', 'persona_trait', 'tool_preference', 'quality_gate');--> statement-breakpoint
 ALTER TYPE "public"."task_source" ADD VALUE 'extension';--> statement-breakpoint
@@ -136,7 +136,7 @@ CREATE TABLE "sprint_logs" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "workspace_invites" (
+CREATE TABLE IF NOT EXISTS "workspace_invites" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"token" text NOT NULL,
@@ -159,7 +159,7 @@ CREATE TABLE "workspace_key_shares" (
 	"granted_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "workspace_members" (
+CREATE TABLE IF NOT EXISTS "workspace_members" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"user_id" uuid NOT NULL,
@@ -231,14 +231,14 @@ CREATE INDEX "models_knowledge_provider_idx" ON "models_knowledge" USING btree (
 CREATE INDEX "models_knowledge_model_idx" ON "models_knowledge" USING btree ("model_id");--> statement-breakpoint
 CREATE INDEX "sprint_logs_sprint_idx" ON "sprint_logs" USING btree ("sprint_id","created_at");--> statement-breakpoint
 CREATE INDEX "sprint_logs_sprint_level_idx" ON "sprint_logs" USING btree ("sprint_id","level");--> statement-breakpoint
-CREATE UNIQUE INDEX "workspace_invites_token_idx" ON "workspace_invites" USING btree ("token");--> statement-breakpoint
-CREATE INDEX "workspace_invites_workspace_idx" ON "workspace_invites" USING btree ("workspace_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "workspace_invites_token_idx" ON "workspace_invites" USING btree ("token");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "workspace_invites_workspace_idx" ON "workspace_invites" USING btree ("workspace_id");--> statement-breakpoint
 CREATE INDEX "key_shares_source_idx" ON "workspace_key_shares" USING btree ("source_ws_id");--> statement-breakpoint
 CREATE INDEX "key_shares_target_idx" ON "workspace_key_shares" USING btree ("target_ws_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "key_shares_unique_idx" ON "workspace_key_shares" USING btree ("source_ws_id","target_ws_id","provider_key");--> statement-breakpoint
-CREATE UNIQUE INDEX "workspace_members_workspace_user_idx" ON "workspace_members" USING btree ("workspace_id","user_id");--> statement-breakpoint
-CREATE INDEX "workspace_members_workspace_idx" ON "workspace_members" USING btree ("workspace_id");--> statement-breakpoint
-CREATE INDEX "workspace_members_user_idx" ON "workspace_members" USING btree ("user_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "workspace_members_workspace_user_idx" ON "workspace_members" USING btree ("workspace_id","user_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "workspace_members_workspace_idx" ON "workspace_members" USING btree ("workspace_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "workspace_members_user_idx" ON "workspace_members" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "workspace_preferences_workspace_idx" ON "workspace_preferences" USING btree ("workspace_id");--> statement-breakpoint
 ALTER TABLE "tasks" ADD CONSTRAINT "tasks_project_id_sprints_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."sprints"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "installed_connections_workspace_registry_uq" ON "installed_connections" USING btree ("workspace_id","registry_id");--> statement-breakpoint
