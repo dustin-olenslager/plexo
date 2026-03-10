@@ -199,3 +199,13 @@
 /* Scrollbar thumb */
 .light ::-webkit-scrollbar-thumb { background: var(--color-border); }
 .light ::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+
+@layer utilities {
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
