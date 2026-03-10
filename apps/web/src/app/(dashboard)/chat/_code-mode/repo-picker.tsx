@@ -4,7 +4,7 @@
 'use client'
 
 import { useState } from 'react'
-import { GitBranch, Plus, Link2 } from 'lucide-react'
+import { GitBranch, Link2, Plus, Github, ArrowRight, FolderGit2 } from 'lucide-react'
 
 export interface RepoSelection {
     repo: string       // owner/repo
@@ -17,137 +17,127 @@ interface RepoPickerProps {
     className?: string
 }
 
-/**
- * Shown when Code Mode activates with no active sprint.
- * Lets the user specify a GitHub repo + branch to work with.
- * The selected repo/branch is injected into the next chat dispatch as context.
- */
 export function RepoPicker({ onSelect, className = '' }: RepoPickerProps) {
-    const [mode, setMode] = useState<'choose' | 'existing' | 'new'>('choose')
+    const [mode, setMode] = useState<'existing' | 'new'>('existing')
     const [repo, setRepo] = useState('')
     const [branch, setBranch] = useState('main')
     const [newRepo, setNewRepo] = useState('')
     const [newBranch, setNewBranch] = useState('main')
 
-    function submitExisting() {
-        if (!repo.trim()) return
-        onSelect({ repo: repo.trim(), branch: branch.trim() || 'main', isNew: false })
+    function submit() {
+        if (mode === 'existing') {
+            if (!repo.trim()) return
+            onSelect({ repo: repo.trim(), branch: branch.trim() || 'main', isNew: false })
+        } else {
+            if (!newRepo.trim()) return
+            onSelect({ repo: newRepo.trim(), branch: newBranch.trim() || 'main', isNew: true })
+        }
     }
 
-    function submitNew() {
-        if (!newRepo.trim()) return
-        onSelect({ repo: newRepo.trim(), branch: newBranch.trim() || 'main', isNew: true })
-    }
+    const isValid = mode === 'existing' ? !!repo.trim() : !!newRepo.trim()
 
-    if (mode === 'choose') {
-        return (
-            <div className={`flex items-center justify-center h-full ${className}`}>
-                <div className="max-w-sm w-full mx-4 space-y-3">
-                    <div className="text-center mb-6">
-                        <div className="w-12 h-12 rounded-2xl bg-surface-2 flex items-center justify-center mx-auto mb-3">
-                            <GitBranch className="w-6 h-6 text-text-secondary" />
+    return (
+        <div className={`flex items-center justify-center h-full w-full ${className}`}>
+            <div className="max-w-md w-full mx-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="bg-surface-2/60 backdrop-blur-xl border border-border/60 rounded-2xl p-6 shadow-2xl relative overflow-hidden group">
+                    {/* Glowing effect top center */}
+                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-24 bg-indigo/20 blur-[50px] pointer-events-none rounded-full" />
+                    
+                    <div className="text-center mb-6 relative">
+                        <div className="w-12 h-12 rounded-xl bg-surface-3 border border-border flex items-center justify-center mx-auto mb-4 shadow-sm group-hover:border-indigo/30 group-hover:bg-indigo-dim transition-all duration-500">
+                            <FolderGit2 className="w-6 h-6 text-indigo" />
                         </div>
-                        <h3 className="text-sm font-semibold text-text-primary">Connect a repository</h3>
-                        <p className="text-xs text-text-muted mt-1">
-                            The agent will clone this repo and work inside it
+                        <h3 className="text-xl font-bold text-text-primary tracking-tight font-display">Workspace Configuration</h3>
+                        <p className="text-sm text-text-muted mt-1.5">
+                            Connect your agent to a codebase.
                         </p>
                     </div>
 
-                    <button
-                        onClick={() => setMode('existing')}
-                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-surface-2 hover:bg-zinc-700/80 border border-border hover:border-zinc-600 transition-all text-left group"
-                    >
-                        <Link2 className="w-4 h-4 text-text-secondary group-hover:text-blue-400 transition-colors" />
-                        <div>
-                            <div className="text-sm text-text-primary font-medium">Use existing repo</div>
-                            <div className="text-xs text-text-muted">Connect to a GitHub repository</div>
-                        </div>
-                    </button>
-
-                    <button
-                        onClick={() => setMode('new')}
-                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-surface-2 hover:bg-zinc-700/80 border border-border hover:border-zinc-600 transition-all text-left group"
-                    >
-                        <Plus className="w-4 h-4 text-text-secondary group-hover:text-emerald transition-colors" />
-                        <div>
-                            <div className="text-sm text-text-primary font-medium">Create new repo</div>
-                            <div className="text-xs text-text-muted">Agent will initialise a fresh repository</div>
-                        </div>
-                    </button>
-                </div>
-            </div>
-        )
-    }
-
-    if (mode === 'existing') {
-        return (
-            <div className={`flex items-center justify-center h-full ${className}`}>
-                <div className="max-w-sm w-full mx-4 space-y-3">
-                    <button onClick={() => setMode('choose')} className="text-xs text-text-muted hover:text-text-secondary transition-colors mb-2">
-                        ← back
-                    </button>
-                    <h3 className="text-sm font-semibold text-text-primary">Existing repository</h3>
-                    <div className="space-y-2">
-                        <input
-                            value={repo}
-                            onChange={(e) => setRepo(e.target.value)}
-                            placeholder="owner/repo (e.g. joeybuilt-official/plexo)"
-                            className="w-full bg-surface-1 border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-zinc-600 outline-none focus:border-blue-500 transition-colors font-mono"
+                    {/* Segmented Control */}
+                    <div className="flex p-1 bg-surface-1 rounded-xl mb-6 border border-border/50 relative">
+                        <div 
+                            className={`absolute inset-y-1 w-[calc(50%-4px)] bg-surface-3 border border-border rounded-lg shadow-sm transition-all duration-300 ease-out z-0`}
+                            style={{ 
+                                left: mode === 'existing' ? '4px' : 'calc(50%)' 
+                            }}
                         />
-                        <div className="flex items-center gap-2">
-                            <GitBranch className="w-4 h-4 text-text-muted flex-shrink-0" />
-                            <input
-                                value={branch}
-                                onChange={(e) => setBranch(e.target.value)}
-                                placeholder="branch (default: main)"
-                                className="flex-1 bg-surface-1 border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-zinc-600 outline-none focus:border-blue-500 transition-colors font-mono"
-                            />
+                        <button
+                            onClick={() => setMode('existing')}
+                            className={`relative z-10 w-1/2 flex items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${mode === 'existing' ? 'text-text-primary' : 'text-text-muted hover:text-text-secondary'}`}
+                        >
+                            <Link2 className="w-4 h-4" />
+                            Existing Repo
+                        </button>
+                        <button
+                            onClick={() => setMode('new')}
+                            className={`relative z-10 w-1/2 flex items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${mode === 'new' ? 'text-text-primary' : 'text-text-muted hover:text-text-secondary'}`}
+                        >
+                            <Plus className="w-4 h-4" />
+                            Create New
+                        </button>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="space-y-1.5 relative z-10">
+                            <label className="text-xs font-semibold uppercase tracking-wider text-text-muted ml-1">
+                                {mode === 'existing' ? 'Repository Path' : 'Project Name'}
+                            </label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
+                                    <Github className="w-4.5 h-4.5" />
+                                </span>
+                                <input
+                                    value={mode === 'existing' ? repo : newRepo}
+                                    onChange={(e) => mode === 'existing' ? setRepo(e.target.value) : setNewRepo(e.target.value)}
+                                    placeholder={mode === 'existing' ? "owner/repo (e.g. joeybuilt-official/plexo)" : "my-awesome-project"}
+                                    className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-indigo focus:ring-1 focus:ring-indigo/20 transition-all font-mono"
+                                    onKeyDown={(e) => e.key === 'Enter' && isValid && submit()}
+                                    autoFocus
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-1.5 relative z-10">
+                            <label className="text-xs font-semibold uppercase tracking-wider text-text-muted ml-1">
+                                Target Branch
+                            </label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
+                                    <GitBranch className="w-4.5 h-4.5" />
+                                </span>
+                                <input
+                                    value={mode === 'existing' ? branch : newBranch}
+                                    onChange={(e) => mode === 'existing' ? setBranch(e.target.value) : setNewBranch(e.target.value)}
+                                    placeholder="main"
+                                    className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-indigo focus:ring-1 focus:ring-indigo/20 transition-all font-mono shadow-sm"
+                                    onKeyDown={(e) => e.key === 'Enter' && isValid && submit()}
+                                />
+                            </div>
                         </div>
                     </div>
-                    <button
-                        onClick={submitExisting}
-                        disabled={!repo.trim()}
-                        className="w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium text-text-primary transition-colors"
-                    >
-                        Connect repository
-                    </button>
-                </div>
-            </div>
-        )
-    }
 
-    // mode === 'new'
-    return (
-        <div className={`flex items-center justify-center h-full ${className}`}>
-            <div className="max-w-sm w-full mx-4 space-y-3">
-                <button onClick={() => setMode('choose')} className="text-xs text-text-muted hover:text-text-secondary transition-colors mb-2">
-                    ← back
-                </button>
-                <h3 className="text-sm font-semibold text-text-primary">New repository</h3>
-                <div className="space-y-2">
-                    <input
-                        value={newRepo}
-                        onChange={(e) => setNewRepo(e.target.value)}
-                        placeholder="Name (e.g. my-project)"
-                        className="w-full bg-surface-1 border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-zinc-600 outline-none focus:border-emerald-500 transition-colors font-mono"
-                    />
-                    <div className="flex items-center gap-2">
-                        <GitBranch className="w-4 h-4 text-text-muted flex-shrink-0" />
-                        <input
-                            value={newBranch}
-                            onChange={(e) => setNewBranch(e.target.value)}
-                            placeholder="default branch (main)"
-                            className="flex-1 bg-surface-1 border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder-zinc-600 outline-none focus:border-emerald-500 transition-colors font-mono"
-                        />
-                    </div>
+                    <button
+                        onClick={submit}
+                        disabled={!isValid}
+                        className={`w-full mt-8 py-3 px-4 rounded-xl text-sm font-semibold text-white transition-all flex items-center justify-center gap-2 group relative z-10 overflow-hidden ${mode === 'existing' ? 'bg-indigo hover:bg-indigo-600 focus:ring-indigo/50' : 'bg-emerald hover:bg-emerald-600 focus:ring-emerald/50'} disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2`}
+                    >
+                        <span className="relative z-10 flex items-center gap-2">
+                            {mode === 'existing' ? 'Connect Repository' : 'Create & Connect'}
+                            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </span>
+                        {/* Shimmer effect */}
+                        <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
+                    </button>
+                    
+                    {/* Inline shimmer animation for button */}
+                    <style dangerouslySetInnerHTML={{__html: `
+                        @keyframes shimmer {
+                            100% {
+                                transform: translateX(100%);
+                            }
+                        }
+                    `}} />
                 </div>
-                <button
-                    onClick={submitNew}
-                    disabled={!newRepo.trim()}
-                    className="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium text-text-primary transition-colors"
-                >
-                    Create &amp; connect
-                </button>
             </div>
         </div>
     )
