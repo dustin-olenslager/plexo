@@ -21,6 +21,72 @@ import type { WorkspaceAISettings } from '../providers/registry.js'
 import { judgeQuality } from './quality-judge.js'
 import type { JudgeMeta } from './quality-judge.js'
 
+// ── Test output parser ────────────────────────────────────────
+
+interface ParsedTestResult {
+    pass: boolean
+    name: string
+    detail: string
+}
+
+/**
+ * Extracts structured pass/fail info from common test runner output.
+ * Handles: vitest, jest, mocha, TAP.
+ * Returns an empty array if no test result lines are found.
+ */
+function parseTestOutput(output: string): ParsedTestResult[] {
+    const results: ParsedTestResult[] = []
+    const lines = output.split('\n')
+
+    // Collect 2-line context for detail
+    for (let i = 0; i < lines.length; i++) {
+        const raw = lines[i]
+        if (raw === undefined) continue
+        const line = raw.replace(/\x1b\[[0-9;]*m/g, '').trim() // strip ANSI
+
+        // vitest / jest individual test lines: ✓ or × or ✕
+        // e.g. "  ✓ should return 200 (15ms)"
+        //      "  × should parse JSON"
+        const vitestMatch = line.match(/^[✓✔]\s+(.+?)(?:\s+\(\d+ms\))?$/)
+        if (vitestMatch?.[1]) {
+            results.push({ pass: true, name: vitestMatch[1].trim(), detail: '' })
+            continue
+        }
+        const vitestFail = line.match(/^[×✕✗]\s+(.+?)(?:\s+\(\d+ms\))?$/)
+        if (vitestFail?.[1]) {
+            const detail = lines.slice(i + 1, i + 4).map(l => (l ?? '').replace(/\x1b\[[0-9;]*m/g, '').trim()).filter(Boolean).join('\n')
+            results.push({ pass: false, name: vitestFail[1].trim(), detail })
+            continue
+        }
+
+        // TAP: ok 1 - test name / not ok 1 - test name
+        const tapOk = line.match(/^ok\s+\d+\s+-?\s*(.+)$/)
+        if (tapOk?.[1]) {
+            results.push({ pass: true, name: tapOk[1].trim(), detail: '' })
+            continue
+        }
+        const tapFail = line.match(/^not ok\s+\d+\s+-?\s*(.+)$/)
+        if (tapFail?.[1]) {
+            results.push({ pass: false, name: tapFail[1].trim(), detail: '' })
+            continue
+        }
+
+        // Jest file-level PASS/FAIL (used as synthetic result when no individual lines follow)
+        // "PASS src/foo.test.ts" or "FAIL src/foo.test.ts"
+        const jestFile = line.match(/^(PASS|FAIL)\s+(.+\.(?:test|spec)\.[jt]sx?)$/)
+        if (jestFile?.[1] && jestFile[2] && results.length === 0) {
+            // Only add file-level result when no fine-grained results were found
+            results.push({
+                pass: jestFile[1] === 'PASS',
+                name: jestFile[2].trim(),
+                detail: jestFile[1] === 'FAIL' ? 'See terminal output for details' : '',
+            })
+        }
+    }
+
+    return results
+}
+
 // ── Tool dispatcher ───────────────────────────────────────────
 
 async function dispatchTool(
@@ -125,6 +191,21 @@ async function dispatchTool(
                                 workspaceId: ctx.workspaceId,
                                 label,
                                 line,
+                                ts: Date.now(),
+                            })
+                        }
+                    }
+
+                    // Parse structured test results for test commands
+                    if (label === 'test') {
+                        for (const { pass, name, detail } of parseTestOutput(combined)) {
+                            emit({
+                                type: 'step.test_result',
+                                taskId: ctx.taskId,
+                                workspaceId: ctx.workspaceId,
+                                pass,
+                                name,
+                                detail,
                                 ts: Date.now(),
                             })
                         }

@@ -25,6 +25,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - **RSI Auto-Scheduler** — RSI monitor runs every 6h in-process (first run 7min after startup, offset from memory consolidation). Cron row seeded per workspace as `RSI Monitor (0 */6 * * *)` so it's visible in the Cron UI
 - **RSI E2E test** — Playwright test simulates admin approval flow with mocked API routes
 - **RSI unit tests** — Vitest tests covering all three anomaly detectors (`packages/agent`)
+- **Structured test results in Code Mode** — `parseTestOutput()` in the executor parses vitest (✓/×), jest (PASS/FAIL), mocha, and TAP output into `step.test_result` SSE events, populating the Test Results panel in real time during agent-run test commands
 
 - **Sprint Task Auto-Fix Retry** — Added a `Retry Failed Tasks` button to the project detail page. When clicked, it calls `POST /api/sprints/:id/retry` which restarts failed and blocked sprint tasks with the specific failure error prepended to their execution context, enabling the agent loop to autonomously fix its own errors.
 - **MCP Tools (Phase 4 complete)** — MCP server now exposes 8 fully-scoped tools:
