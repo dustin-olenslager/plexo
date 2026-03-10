@@ -4,6 +4,7 @@
 import { Router, type Router as RouterType } from 'express'
 import { db, rsiProposals, rsiTestResults, eq, and, desc } from '@plexo/db'
 import { logger } from '../logger.js'
+import { emitRsiProposalResolved } from '../telemetry/events.js'
 
 export const rsiRouter: RouterType = Router({ mergeParams: true })
 
@@ -53,6 +54,7 @@ rsiRouter.post('/proposals/:proposalId/approve', async (req, res, next) => {
             .then(({ runShadowTest }) => runShadowTest(proposalId, workspaceId))
             .catch(err => logger.warn({ err, proposalId }, 'Shadow test failed non-fatally'))
 
+        emitRsiProposalResolved({ anomalyType: updated.anomalyType, action: 'approved' })
         res.json(updated)
     } catch (err) {
         next(err)
@@ -77,6 +79,7 @@ rsiRouter.post('/proposals/:proposalId/reject', async (req, res, next) => {
             return res.status(404).json({ error: 'Proposal not found' })
         }
 
+        emitRsiProposalResolved({ anomalyType: updated.anomalyType, action: 'rejected' })
         res.json(updated)
     } catch (err) {
         next(err)

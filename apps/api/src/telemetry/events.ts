@@ -175,6 +175,7 @@ export async function emitHeartbeat(opts: {
         sentry: boolean
         memory: boolean
         sprints: boolean
+        rsi: boolean
     }
 }): Promise<void> {
     await emit('instance_heartbeat', {
@@ -188,5 +189,28 @@ export async function emitHeartbeat(opts: {
         has_sentry_webhook: opts.activeIntegrations.sentry,
         has_memory: opts.activeIntegrations.memory,
         has_sprints: opts.activeIntegrations.sprints,
+        has_rsi: opts.activeIntegrations.rsi,
     })
+}
+/**
+ * Emit when the RSI monitor generates a new proposal.
+ * No hypothesis text — anomaly type only.
+ */
+export function emitRsiProposalCreated(anomalyType: string): void {
+    void emit('rsi_proposal_created', {
+        anomaly_type: anomalyType,
+    }).catch(() => { /* never throws */ })
+}
+
+/**
+ * Emit when an operator approves or rejects an RSI proposal.
+ */
+export function emitRsiProposalResolved(opts: {
+    anomalyType: string
+    action: 'approved' | 'rejected'
+}): void {
+    void emit('rsi_proposal_resolved', {
+        anomaly_type: opts.anomalyType,
+        action: opts.action,
+    }).catch(() => { /* never throws */ })
 }

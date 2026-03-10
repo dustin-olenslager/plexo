@@ -6,6 +6,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ## [Unreleased]
 
 ### Added
+- **RSI Engine (Phase 13)** — Real-Time Self-Inspection engine that detects behavioral anomalies and proposes protocol changes:
+  - `runRSIMonitor` scans `work_ledger` over a 14-day window per workspace, detecting `quality_degradation`, `confidence_skew`, and `cost_spikes`
+  - Cost spike detection replaced hardcoded `$0.50` baseline with a dynamic split-window comparison (oldest vs newest half of sample)
+  - Proposals persist to `rsi_proposals` table (migration `0017_living_warhawk.sql`) with `pending/approved/rejected` status
+  - Deduplication guard prevents re-inserting identical pending proposals
+- **RSI Shadow Testing** — `runShadowTest` executes when a proposal is approved:
+  - Pulls last 10 tasks from `work_ledger` as baseline; simulates proposed change effect per anomaly type
+  - Writes per-task rows to `rsi_test_results` with `baselineQuality`, `shadowQuality`, and `tokenDelta`
+  - Fires non-fatally via dynamic import from the approve route (no LLM calls, no blocking)
+- **RSI API** — `GET|POST` routes under `/api/v1/workspaces/:id/rsi/`:
+  - `GET /proposals` — list with desc order, limit 50
+  - `POST /proposals/:id/approve` — marks approved, fires shadow test
+  - `POST /proposals/:id/reject` — marks rejected
+  - `GET /proposals/:id/test-results` — returns raw rows + aggregate summary (baseline avg, shadow avg, quality delta)
+- **Accountability Dashboard** — Settings → Accountability tab shows RSI proposals with approve/reject actions; after approval displays shadow test results (3-column grid: Baseline Quality / Shadow Quality / Δ with trend icons)
+- **RSI Telemetry** — `rsi_proposal_created` and `rsi_proposal_resolved` events emitted on proposal lifecycle actions; `has_rsi` boolean added to instance heartbeat
+- **RSI Auto-Scheduler** — RSI monitor runs every 6h in-process (first run 7min after startup, offset from memory consolidation). Cron row seeded per workspace as `RSI Monitor (0 */6 * * *)` so it's visible in the Cron UI
+- **RSI E2E test** — Playwright test simulates admin approval flow with mocked API routes
+- **RSI unit tests** — Vitest tests covering all three anomaly detectors (`packages/agent`)
+
 - **Sprint Task Auto-Fix Retry** — Added a `Retry Failed Tasks` button to the project detail page. When clicked, it calls `POST /api/sprints/:id/retry` which restarts failed and blocked sprint tasks with the specific failure error prepended to their execution context, enabling the agent loop to autonomously fix its own errors.
 - **MCP Tools (Phase 4 complete)** — MCP server now exposes 8 fully-scoped tools:
   - `plexo_health` (no auth), `plexo_workspace_info` (system:read)

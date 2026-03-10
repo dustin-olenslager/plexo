@@ -7,6 +7,9 @@ import { db, sql } from '@plexo/db'
 import { logger } from './logger.js'
 import { loadWorkspaceAISettings } from './agent-loop.js'
 import { runRSIMonitor } from '@plexo/agent/introspection/rsi-monitor'
+import { emitRsiProposalCreated } from './telemetry/events.js'
+
+export { runRSIMonitor }
 
 /**
  * Executes background cron jobs.
@@ -19,6 +22,8 @@ export async function runCronJobs() {
         await syncModelKnowledge()
         const inserted = await runRSIMonitor()
         logger.info({ event: 'rsi_scan_complete', inserted }, 'RSI monitor scan completed')
+        // Emit one telemetry event per new proposal (anomaly type unknown at this level — use generic label)
+        for (let i = 0; i < inserted; i++) emitRsiProposalCreated('unknown')
         logger.info('Cron jobs completed successfully.')
     } catch (err) {
         logger.error({ err }, 'Cron jobs failed.')

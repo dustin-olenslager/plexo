@@ -1,6 +1,5 @@
 import { db, workLedger, rsiProposals, workspaces } from '@plexo/db'
-import { eq, gte, and, sql, desc } from 'drizzle-orm'
-import { randomUUID } from 'crypto'
+import { eq, gte, and, desc } from 'drizzle-orm'
 import { eventBus, TOPICS } from '../plugins/event-bus.js'
 const logger = console
 

@@ -69,7 +69,7 @@ import { workspaceRateLimit } from './middleware/workspace-rate-limit.js'
 import { startAgentLoop, stopAgentLoop } from './agent-loop.js'
 import { db, eq, sql } from '@plexo/db'
 import { sprints } from '@plexo/db'
-import { runCronJobs, scheduleMemoryConsolidation } from './cron.js'
+import { runCronJobs, scheduleMemoryConsolidation, runRSIMonitor } from './cron.js'
 import { emitHeartbeat } from './telemetry/events.js'
 
 const app: Express = express()
@@ -232,6 +232,12 @@ const server = app.listen(port, '0.0.0.0', () => {
     // Schedule automatic memory consolidation (every 6h, first run after 5m)
     scheduleMemoryConsolidation()
 
+    // Schedule RSI monitor every 6h (first run after 7m so it doesn't contend with memory consolidation)
+    setTimeout(() => {
+        void runRSIMonitor()
+        setInterval(() => { void runRSIMonitor() }, 6 * 60 * 60 * 1000)
+    }, 7 * 60 * 1000)
+
     // Seed default "Memory consolidation" cron job row per workspace so it's visible in UI
     db.execute(sql`
         SELECT id FROM workspaces LIMIT 50
@@ -253,6 +259,21 @@ const server = app.listen(port, '0.0.0.0', () => {
             `)
         }
     }).catch((err: unknown) => logger.warn({ err }, 'Startup: failed to seed memory cron rows — non-fatal'))
+
+    // Seed RSI monitor cron row per workspace
+    db.execute(sql`SELECT id FROM workspaces LIMIT 50`)
+        .then(async (wsRows) => {
+            for (const ws of wsRows as unknown as { id: string }[]) {
+                await db.execute(sql`
+                    INSERT INTO cron_jobs (id, workspace_id, name, schedule, enabled, created_at)
+                    SELECT gen_random_uuid(), ${ws.id}::uuid, 'RSI Monitor', '0 */6 * * *', true, now()
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM cron_jobs
+                        WHERE workspace_id = ${ws.id}::uuid AND name = 'RSI Monitor'
+                    )
+                `)
+            }
+        }).catch((err: unknown) => logger.warn({ err }, 'Startup: failed to seed RSI cron rows — non-fatal'))
 
     // Wire sprint activity logger → SSE emitter so runner events stream to Control Room
     initSprintLogger((workspaceId: string, event: Record<string, unknown>) => emitToWorkspace(workspaceId, event as import('./sse-emitter.js').AgentEvent))
@@ -291,6 +312,10 @@ const server = app.listen(port, '0.0.0.0', () => {
                 SELECT 1 FROM sprints WHERE status = 'complete' LIMIT 1
             `)
 
+            const [rsiRow] = await db.execute(sql`
+                SELECT 1 FROM rsi_proposals LIMIT 1
+            `)
+
             await emitHeartbeat({
                 taskVolumeThisWeek: taskCount,
                 memoryEntryCount: memEntryCount,
@@ -302,6 +327,7 @@ const server = app.listen(port, '0.0.0.0', () => {
                     sentry: !!process.env.SENTRY_DSN,
                     memory: memEntryCount > 0,
                     sprints: !!sprintRow,
+                    rsi: !!rsiRow,
                 },
             })
             logger.debug('Telemetry heartbeat sent')

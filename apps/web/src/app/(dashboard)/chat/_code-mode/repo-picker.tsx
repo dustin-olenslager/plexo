@@ -3,46 +3,185 @@
 
 'use client'
 
-import { useState } from 'react'
-import { GitBranch, Link2, Plus, Github, ArrowRight, FolderGit2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import {
+    GitBranch,
+    Link2,
+    Plus,
+    Github,
+    ArrowRight,
+    FolderGit2,
+    Folder,
+    ExternalLink,
+    Loader2,
+    AlertCircle,
+} from 'lucide-react'
+import Link from 'next/link'
 
 export interface RepoSelection {
-    repo: string       // owner/repo
+    repo: string       // owner/repo OR absolute local path
     branch: string
-    isNew: boolean     // true if creating new repo
+    isNew: boolean
+    isLocal?: boolean  // true when a local directory is selected
 }
 
 interface RepoPickerProps {
+    workspaceId: string
     onSelect: (selection: RepoSelection) => void
     className?: string
 }
 
-export function RepoPicker({ onSelect, className = '' }: RepoPickerProps) {
-    const [mode, setMode] = useState<'existing' | 'new'>('existing')
+const API_BASE = typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL ?? 'http://localhost:3001')
+const LOCAL_MODE = process.env.NEXT_PUBLIC_LOCAL_MODE === 'true'
+
+// ── Connection status check ──────────────────────────────────────────────────
+
+type CheckState = 'loading' | 'connected' | 'missing'
+
+async function checkGitHubConnection(workspaceId: string): Promise<CheckState> {
+    if (!workspaceId) return 'missing'
+    try {
+        const res = await fetch(`${API_BASE}/api/v1/connections/installed?workspaceId=${workspaceId}`)
+        if (!res.ok) return 'missing'
+        const data = await res.json() as { items: Array<{ registryId: string; status: string }> }
+        const github = data.items.find((i) => i.registryId === 'github')
+        return github?.status === 'active' ? 'connected' : 'missing'
+    } catch {
+        return 'missing'
+    }
+}
+
+// ── Not-connected wall ────────────────────────────────────────────────────────
+
+function GitHubNotConnected() {
+    return (
+        <div className="flex items-center justify-center h-full w-full">
+            <div className="max-w-md w-full mx-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="bg-surface-2/60 backdrop-blur-xl border border-border/60 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
+                    {/* Top glow */}
+                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-24 bg-amber/10 blur-[50px] pointer-events-none rounded-full" />
+
+                    <div className="text-center mb-6 relative">
+                        <div className="w-12 h-12 rounded-xl bg-surface-3 border border-amber/30 flex items-center justify-center mx-auto mb-4 shadow-sm">
+                            <AlertCircle className="w-6 h-6 text-amber" />
+                        </div>
+                        <h3 className="text-xl font-bold text-text-primary tracking-tight">GitHub not connected</h3>
+                        <p className="text-sm text-text-muted mt-1.5 leading-relaxed">
+                            Code mode requires a GitHub connection so the agent can clone, read, and push to repositories.
+                        </p>
+                    </div>
+
+                    <div className="rounded-xl border border-border bg-surface-1/60 p-4 mb-5 text-xs text-text-secondary leading-relaxed">
+                        <p className="font-semibold text-text-primary mb-1">What you need</p>
+                        <ul className="space-y-1 list-disc list-inside text-text-muted">
+                            <li>A GitHub Personal Access Token with <code className="text-indigo">repo</code> scope</li>
+                            <li>Or connect via OAuth from the Integrations page</li>
+                        </ul>
+                    </div>
+
+                    <Link
+                        href="/settings/connections"
+                        className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold bg-indigo hover:bg-indigo/90 text-white transition-all group"
+                    >
+                        <Github className="w-4 h-4" />
+                        Connect GitHub
+                        <ExternalLink className="w-3.5 h-3.5 ml-1 opacity-60 group-hover:opacity-100 transition-opacity" />
+                    </Link>
+
+                    {LOCAL_MODE && (
+                        <p className="text-center text-xs text-text-muted mt-4">
+                            or use a{' '}
+                            <button
+                                className="text-indigo hover:underline"
+                                onClick={() => {
+                                    // Scroll past this wall — parent will detect LOCAL_MODE and show local tab
+                                    // We signal this by dispatching a custom event that the parent picker listens to
+                                    window.dispatchEvent(new CustomEvent('plexo:force-local-mode'))
+                                }}
+                            >
+                                local directory
+                            </button>
+                            {' '}instead
+                        </p>
+                    )}
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// ── Main picker ───────────────────────────────────────────────────────────────
+
+type Tab = 'existing' | 'new' | 'local'
+
+export function RepoPicker({ workspaceId, onSelect, className = '' }: RepoPickerProps) {
+    const [checkState, setCheckState] = useState<CheckState>('loading')
+    const [forceLocal, setForceLocal] = useState(false)
+
+    const [tab, setTab] = useState<Tab>('existing')
     const [repo, setRepo] = useState('')
     const [branch, setBranch] = useState('main')
     const [newRepo, setNewRepo] = useState('')
     const [newBranch, setNewBranch] = useState('main')
+    const [localPath, setLocalPath] = useState('')
+
+    // Check GitHub connection on mount
+    useEffect(() => {
+        checkGitHubConnection(workspaceId).then(setCheckState)
+    }, [workspaceId])
+
+    // Local-mode bypass from the not-connected wall
+    useEffect(() => {
+        const handler = () => setForceLocal(true)
+        window.addEventListener('plexo:force-local-mode', handler)
+        return () => window.removeEventListener('plexo:force-local-mode', handler)
+    }, [])
 
     function submit() {
-        if (mode === 'existing') {
+        if (tab === 'existing') {
             if (!repo.trim()) return
             onSelect({ repo: repo.trim(), branch: branch.trim() || 'main', isNew: false })
-        } else {
+        } else if (tab === 'new') {
             if (!newRepo.trim()) return
             onSelect({ repo: newRepo.trim(), branch: newBranch.trim() || 'main', isNew: true })
+        } else {
+            if (!localPath.trim()) return
+            onSelect({ repo: localPath.trim(), branch: '', isNew: false, isLocal: true })
         }
     }
 
-    const isValid = mode === 'existing' ? !!repo.trim() : !!newRepo.trim()
+    const isValid =
+        tab === 'existing' ? !!repo.trim() :
+        tab === 'new'      ? !!newRepo.trim() :
+                             !!localPath.trim()
+
+    // ── Loading ──────────────────────────────────────────────────────────────
+    if (checkState === 'loading') {
+        return (
+            <div className={`flex items-center justify-center h-full w-full ${className}`}>
+                <Loader2 className="w-5 h-5 text-text-muted animate-spin" />
+            </div>
+        )
+    }
+
+    // ── GitHub not connected (and not bypassing to local) ────────────────────
+    if (checkState === 'missing' && !forceLocal) {
+        return <GitHubNotConnected />
+    }
+
+    // ── Full picker ───────────────────────────────────────────────────────────
+    const showLocalTab = LOCAL_MODE || forceLocal
+
+    // Tabs to show
+    const tabs: Tab[] = showLocalTab ? ['existing', 'new', 'local'] : ['existing', 'new']
 
     return (
         <div className={`flex items-center justify-center h-full w-full ${className}`}>
             <div className="max-w-md w-full mx-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="bg-surface-2/60 backdrop-blur-xl border border-border/60 rounded-2xl p-6 shadow-2xl relative overflow-hidden group">
-                    {/* Glowing effect top center */}
+                    {/* Top glow */}
                     <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-24 bg-indigo/20 blur-[50px] pointer-events-none rounded-full" />
-                    
+
                     <div className="text-center mb-6 relative">
                         <div className="w-12 h-12 rounded-xl bg-surface-3 border border-border flex items-center justify-center mx-auto mb-4 shadow-sm group-hover:border-indigo/30 group-hover:bg-indigo-dim transition-all duration-500">
                             <FolderGit2 className="w-6 h-6 text-indigo" />
@@ -53,90 +192,120 @@ export function RepoPicker({ onSelect, className = '' }: RepoPickerProps) {
                         </p>
                     </div>
 
-                    {/* Segmented Control */}
-                    <div className="flex p-1 bg-surface-1 rounded-xl mb-6 border border-border/50 relative">
-                        <div 
-                            className={`absolute inset-y-1 w-[calc(50%-4px)] bg-surface-3 border border-border rounded-lg shadow-sm transition-all duration-300 ease-out z-0`}
-                            style={{ 
-                                left: mode === 'existing' ? '4px' : 'calc(50%)' 
+                    {/* Segmented control */}
+                    <div className={`flex p-1 bg-surface-1 rounded-xl mb-6 border border-border/50 relative`}>
+                        <div
+                            className="absolute inset-y-1 bg-surface-3 border border-border rounded-lg shadow-sm transition-all duration-300 ease-out z-0"
+                            style={{
+                                width: `calc(${100 / tabs.length}% - 8px / ${tabs.length})`,
+                                left: `calc(${tabs.indexOf(tab)} * ${100 / tabs.length}% + 4px)`,
                             }}
                         />
-                        <button
-                            onClick={() => setMode('existing')}
-                            className={`relative z-10 w-1/2 flex items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${mode === 'existing' ? 'text-text-primary' : 'text-text-muted hover:text-text-secondary'}`}
-                        >
-                            <Link2 className="w-4 h-4" />
-                            Existing Repo
-                        </button>
-                        <button
-                            onClick={() => setMode('new')}
-                            className={`relative z-10 w-1/2 flex items-center justify-center gap-2 py-2 text-sm font-medium transition-colors ${mode === 'new' ? 'text-text-primary' : 'text-text-muted hover:text-text-secondary'}`}
-                        >
-                            <Plus className="w-4 h-4" />
-                            Create New
-                        </button>
+                        {tabs.map((t) => {
+                            const icons: Record<Tab, React.ReactNode> = {
+                                existing: <Link2 className="w-3.5 h-3.5" />,
+                                new:      <Plus className="w-3.5 h-3.5" />,
+                                local:    <Folder className="w-3.5 h-3.5" />,
+                            }
+                            const labels: Record<Tab, string> = {
+                                existing: 'Existing',
+                                new:      'Create New',
+                                local:    'Local',
+                            }
+                            return (
+                                <button
+                                    key={t}
+                                    onClick={() => setTab(t)}
+                                    className={`relative z-10 flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-medium transition-colors ${
+                                        tab === t ? 'text-text-primary' : 'text-text-muted hover:text-text-secondary'
+                                    }`}
+                                >
+                                    {icons[t]}
+                                    {labels[t]}
+                                </button>
+                            )
+                        })}
                     </div>
 
                     <div className="space-y-4">
-                        <div className="space-y-1.5 relative z-10">
-                            <label className="text-xs font-semibold uppercase tracking-wider text-text-muted ml-1">
-                                {mode === 'existing' ? 'Repository Path' : 'Project Name'}
-                            </label>
-                            <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
-                                    <Github className="w-4.5 h-4.5" />
-                                </span>
-                                <input
-                                    value={mode === 'existing' ? repo : newRepo}
-                                    onChange={(e) => mode === 'existing' ? setRepo(e.target.value) : setNewRepo(e.target.value)}
-                                    placeholder={mode === 'existing' ? "owner/repo (e.g. joeybuilt-official/plexo)" : "my-awesome-project"}
-                                    className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-indigo focus:ring-1 focus:ring-indigo/20 transition-all font-mono"
-                                    onKeyDown={(e) => e.key === 'Enter' && isValid && submit()}
-                                    autoFocus
-                                />
+                        {tab === 'local' ? (
+                            <div className="space-y-1.5 relative z-10">
+                                <label className="text-xs font-semibold uppercase tracking-wider text-text-muted ml-1">
+                                    Directory Path
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
+                                        <Folder className="w-4 h-4" />
+                                    </span>
+                                    <input
+                                        value={localPath}
+                                        onChange={(e) => setLocalPath(e.target.value)}
+                                        placeholder="/home/user/my-project"
+                                        className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-indigo focus:ring-1 focus:ring-indigo/20 transition-all font-mono"
+                                        onKeyDown={(e) => e.key === 'Enter' && isValid && submit()}
+                                        autoFocus
+                                    />
+                                </div>
+                                <p className="text-[11px] text-text-muted ml-1 mt-1">
+                                    Absolute path to a directory on the server where Plexo is running.
+                                </p>
                             </div>
-                        </div>
+                        ) : (
+                            <>
+                                <div className="space-y-1.5 relative z-10">
+                                    <label className="text-xs font-semibold uppercase tracking-wider text-text-muted ml-1">
+                                        {tab === 'existing' ? 'Repository Path' : 'Project Name'}
+                                    </label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
+                                            <Github className="w-4 h-4" />
+                                        </span>
+                                        <input
+                                            value={tab === 'existing' ? repo : newRepo}
+                                            onChange={(e) => tab === 'existing' ? setRepo(e.target.value) : setNewRepo(e.target.value)}
+                                            placeholder={tab === 'existing' ? 'owner/repo (e.g. joeybuilt-official/plexo)' : 'my-awesome-project'}
+                                            className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-indigo focus:ring-1 focus:ring-indigo/20 transition-all font-mono"
+                                            onKeyDown={(e) => e.key === 'Enter' && isValid && submit()}
+                                            autoFocus
+                                        />
+                                    </div>
+                                </div>
 
-                        <div className="space-y-1.5 relative z-10">
-                            <label className="text-xs font-semibold uppercase tracking-wider text-text-muted ml-1">
-                                Target Branch
-                            </label>
-                            <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
-                                    <GitBranch className="w-4.5 h-4.5" />
-                                </span>
-                                <input
-                                    value={mode === 'existing' ? branch : newBranch}
-                                    onChange={(e) => mode === 'existing' ? setBranch(e.target.value) : setNewBranch(e.target.value)}
-                                    placeholder="main"
-                                    className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-indigo focus:ring-1 focus:ring-indigo/20 transition-all font-mono shadow-sm"
-                                    onKeyDown={(e) => e.key === 'Enter' && isValid && submit()}
-                                />
-                            </div>
-                        </div>
+                                <div className="space-y-1.5 relative z-10">
+                                    <label className="text-xs font-semibold uppercase tracking-wider text-text-muted ml-1">
+                                        Target Branch
+                                    </label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted">
+                                            <GitBranch className="w-4 h-4" />
+                                        </span>
+                                        <input
+                                            value={tab === 'existing' ? branch : newBranch}
+                                            onChange={(e) => tab === 'existing' ? setBranch(e.target.value) : setNewBranch(e.target.value)}
+                                            placeholder="main"
+                                            className="w-full bg-surface-1 border border-border hover:border-border-subtle rounded-xl pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted/50 outline-none focus:border-indigo focus:ring-1 focus:ring-indigo/20 transition-all font-mono shadow-sm"
+                                            onKeyDown={(e) => e.key === 'Enter' && isValid && submit()}
+                                        />
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     <button
                         onClick={submit}
                         disabled={!isValid}
-                        className={`w-full mt-8 py-3 px-4 rounded-xl text-sm font-semibold text-white transition-all flex items-center justify-center gap-2 group relative z-10 overflow-hidden ${mode === 'existing' ? 'bg-indigo hover:bg-indigo-600 focus:ring-indigo/50' : 'bg-emerald hover:bg-emerald-600 focus:ring-emerald/50'} disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2`}
+                        className={`w-full mt-6 py-3 px-4 rounded-xl text-sm font-semibold text-white transition-all flex items-center justify-center gap-2 group relative z-10 overflow-hidden ${
+                            tab === 'new'
+                                ? 'bg-emerald hover:bg-emerald-600 focus:ring-emerald/50'
+                                : 'bg-indigo hover:bg-indigo/90 focus:ring-indigo/50'
+                        } disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:ring-2`}
                     >
                         <span className="relative z-10 flex items-center gap-2">
-                            {mode === 'existing' ? 'Connect Repository' : 'Create & Connect'}
+                            {tab === 'existing' ? 'Connect Repository' : tab === 'new' ? 'Create & Connect' : 'Use Directory'}
                             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                         </span>
-                        {/* Shimmer effect */}
-                        <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
                     </button>
-                    
-                    {/* Inline shimmer animation for button */}
-                    <style dangerouslySetInnerHTML={{__html: `
-                        @keyframes shimmer {
-                            100% {
-                                transform: translateX(100%);
-                            }
-                        }
-                    `}} />
                 </div>
             </div>
         </div>
