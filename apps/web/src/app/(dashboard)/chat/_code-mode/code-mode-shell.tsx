@@ -335,7 +335,7 @@ export function CodeModeShell({
                     onClick={(e) => { if (e.target === e.currentTarget) setRepoModalOpen(false) }}
                     onKeyDown={(e) => { if (e.key === 'Escape') setRepoModalOpen(false) }}
                 >
-                    <RepoPicker onSelect={handleRepoSelect} />
+                    <RepoPicker workspaceId={workspaceId} onSelect={handleRepoSelect} />
                 </div>
             )}
 
