@@ -47,6 +47,7 @@ import { useWorkspace } from '@web/context/workspace'
 import { getModelCapabilities, recommendModelForInput, checkAttachmentPrompt } from '@web/lib/models'
 import { CapabilityList } from '@web/components/capabilities'
 import { PlexoMark } from '@web/components/plexo-logo'
+import { extractPdfText } from '@web/lib/pdf-extract'
 
 const API = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
@@ -61,6 +62,8 @@ interface PastedImage {
     mimeType: string
     name: string
     kind: FileKind
+    /** For PDFs: text extracted by PDF.js. For SVG/raster: undefined. */
+    extractedText?: string
 }
 
 interface PastedDocument {
@@ -918,7 +921,7 @@ function ChatContent() {
     }
 
     function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
-        // ── Image paste ───────────────────────────────────────────────────────
+        // ── File paste (images, SVG, PDF) ─────────────────────────────────────
         const imgs = extractImagesFromDataTransfer(e.clipboardData)
         if (imgs.length > 0) {
             e.preventDefault()
@@ -932,7 +935,14 @@ function ChatContent() {
                                     const reader = new FileReader()
                                     reader.onload = () => {
                                         URL.revokeObjectURL(img.dataUrl)
-                                        resolve({ ...img, dataUrl: reader.result as string })
+                                        const dataUrl = reader.result as string
+                                        if (img.kind === 'pdf') {
+                                            extractPdfText(dataUrl).then((r) => {
+                                                resolve({ ...img, dataUrl, extractedText: r.text })
+                                            }).catch(() => resolve({ ...img, dataUrl }))
+                                        } else {
+                                            resolve({ ...img, dataUrl })
+                                        }
                                     }
                                     reader.readAsDataURL(blob)
                                 })
@@ -978,7 +988,14 @@ function ChatContent() {
                                 const reader = new FileReader()
                                 reader.onload = () => {
                                     URL.revokeObjectURL(img.dataUrl)
-                                    resolve({ ...img, dataUrl: reader.result as string })
+                                    const dataUrl = reader.result as string
+                                    if (img.kind === 'pdf') {
+                                        extractPdfText(dataUrl).then((r) => {
+                                            resolve({ ...img, dataUrl, extractedText: r.text })
+                                        }).catch(() => resolve({ ...img, dataUrl }))
+                                    } else {
+                                        resolve({ ...img, dataUrl })
+                                    }
                                 }
                                 reader.readAsDataURL(blob)
                             })
@@ -999,10 +1016,19 @@ function ChatContent() {
                         const reader = new FileReader()
                         const id = `img-${Date.now()}-${Math.random().toString(36).slice(2)}`
                         const kind = kindFromMime(file.type)!
-                        reader.onload = () =>
-                            resolve({ id, dataUrl: reader.result as string, mimeType: file.type, name: file.name, kind })
-                        // SVG is XML text — read as data URL (produces data:image/svg+xml;base64,...)
-                        // PDF and raster images also read as data URL
+                        reader.onload = () => {
+                            const dataUrl = reader.result as string
+                            if (kind === 'pdf') {
+                                // Extract text asynchronously; store on the object
+                                extractPdfText(dataUrl).then((result) => {
+                                    resolve({ id, dataUrl, mimeType: file.type, name: file.name, kind, extractedText: result.text })
+                                }).catch(() => {
+                                    resolve({ id, dataUrl, mimeType: file.type, name: file.name, kind })
+                                })
+                            } else {
+                                resolve({ id, dataUrl, mimeType: file.type, name: file.name, kind })
+                            }
+                        }
                         reader.readAsDataURL(file)
                     })
             )
@@ -1064,10 +1090,12 @@ function ChatContent() {
             const rasterImages = images?.filter(f => f.kind === 'image') ?? []
             // SVGs are sent as text documents so any model can read them
             const svgDocs = images?.filter(f => f.kind === 'svg') ?? []
-            const pdfFiles = images?.filter(f => f.kind === 'pdf') ?? []
+            // PDFs: use pre-extracted text (from PDF.js); never send raw binary to the API
+            const pdfDocs = images?.filter(f => f.kind === 'pdf') ?? []
 
-            // Build effective text with SVG source injected as code blocks
-            let textWithSvg = effectiveText
+            // Build effective text with SVG and PDF content injected as doc blocks
+            let textWithAttachments = effectiveText
+
             if (svgDocs.length > 0) {
                 const svgBlocks = await Promise.all(
                     svgDocs.map(async (f) => {
@@ -1077,9 +1105,21 @@ function ChatContent() {
                         return `--- ${f.name} (SVG) ---\n\`\`\`svg\n${text}\n\`\`\`\n---`
                     })
                 ).catch(() => [] as string[])
-                textWithSvg = textWithSvg
-                    ? `${textWithSvg}\n\n${svgBlocks.join('\n\n')}`
-                    : svgBlocks.join('\n\n')
+                if (svgBlocks.length > 0) {
+                    textWithAttachments = textWithAttachments
+                        ? `${textWithAttachments}\n\n${svgBlocks.join('\n\n')}`
+                        : svgBlocks.join('\n\n')
+                }
+            }
+
+            if (pdfDocs.length > 0) {
+                const pdfBlocks = pdfDocs.map((f) => {
+                    const content = f.extractedText ?? '(PDF text extraction unavailable.)'
+                    return `--- ${f.name} (PDF) ---\n${content}\n---`
+                })
+                textWithAttachments = textWithAttachments
+                    ? `${textWithAttachments}\n\n${pdfBlocks.join('\n\n')}`
+                    : pdfBlocks.join('\n\n')
             }
 
             const res = await fetch(`${API}/api/v1/chat/message`, {
@@ -1087,7 +1127,7 @@ function ChatContent() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     workspaceId: WS_ID,
-                    message: textWithSvg,
+                    message: textWithAttachments,
                     sessionId: sessionId.current,
                     // Inject Code Mode repo context if active
                     ...(codeMode && codeModeContext.repo ? {
@@ -1096,9 +1136,6 @@ function ChatContent() {
                     } : {}),
                     images: rasterImages.length > 0
                         ? rasterImages.map((img) => ({ data: img.dataUrl, mimeType: img.mimeType, name: img.name }))
-                        : undefined,
-                    files: pdfFiles.length > 0
-                        ? pdfFiles.map((f) => ({ data: f.dataUrl, mimeType: f.mimeType, name: f.name }))
                         : undefined,
                 }),
             })
