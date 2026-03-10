@@ -20,6 +20,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 interface WorkspaceContextValue {
     workspaceId: string
     workspaceName: string
+    userName: string
     setWorkspace: (id: string, name: string) => void
 }
 
@@ -28,6 +29,7 @@ const STORAGE_KEY = 'plexo_workspace_id'
 const WorkspaceContext = createContext<WorkspaceContextValue>({
     workspaceId: '',
     workspaceName: '',
+    userName: '',
     setWorkspace: () => undefined,
 })
 
@@ -35,15 +37,18 @@ export function WorkspaceProvider({
     children,
     initialId,
     initialName,
+    initialUserName,
 }: { 
     children: ReactNode
     initialId?: string
     initialName?: string
+    initialUserName?: string
 }) {
     const envId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? ''
 
     const [workspaceId, setWorkspaceId] = useState(initialId || envId)
     const [workspaceName, setWorkspaceName] = useState(initialName || '')
+    const [userName] = useState(initialUserName || '')
 
     // Hydrate from localStorage after mount (avoids SSR mismatch)
     useEffect(() => {
@@ -85,7 +90,7 @@ export function WorkspaceProvider({
     }
 
     return (
-        <WorkspaceContext.Provider value={{ workspaceId, workspaceName, setWorkspace }}>
+        <WorkspaceContext.Provider value={{ workspaceId, workspaceName, userName, setWorkspace }}>
             {children}
         </WorkspaceContext.Provider>
     )

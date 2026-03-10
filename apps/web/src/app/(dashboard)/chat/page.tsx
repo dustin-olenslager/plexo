@@ -171,11 +171,13 @@ function MessageBubble({
     onExecute,
     onCancel,
     onSelectCategory,
+    userInitial,
 }: {
     msg: Message
     onExecute: (id: string, intent: 'TASK' | 'PROJECT' | 'CONVERSATION', desc: string, cat?: string) => void
     onCancel: (id: string) => void
     onSelectCategory: (id: string, cat: string) => void
+    userInitial: string
 }) {
     const [copied, setCopied] = useState(false)
 
@@ -244,7 +246,9 @@ function MessageBubble({
                 : ' '
                 }`}>
                 {msg.role === 'user'
-                    ? <User className="h-4 w-4 text-text-secondary" />
+                    ? userInitial
+                        ? <span className="text-sm font-semibold text-text-primary select-none">{userInitial}</span>
+                        : <User className="h-4 w-4 text-text-secondary" />
                     : <PlexoMark className="h-6 w-6" idle={msg.status !== 'queued' && msg.status !== 'running'} working={msg.status === 'queued' || msg.status === 'running'} />
                 }
             </div>
@@ -685,8 +689,9 @@ export default function ChatPage() {
 }
 
 function ChatContent() {
-    const { workspaceId } = useWorkspace()
+    const { workspaceId, userName } = useWorkspace()
     const WS_ID = workspaceId || (process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE ?? '')
+    const userInitial = userName ? userName.trim().charAt(0).toUpperCase() : ''
     const [messages, setMessages] = useState<Message[]>([])
     const [input, setInput] = useState('')
     const [pastedImages, setPastedImages] = useState<PastedImage[]>([])
@@ -1483,6 +1488,7 @@ function ChatContent() {
                     <MessageBubble
                         key={msg.id}
                         msg={msg}
+                        userInitial={userInitial}
                         onExecute={executeConfirmedAction}
                         onCancel={cancelAction}
                         onSelectCategory={(id, cat) => setMessages((prev) => prev.map((m) =>

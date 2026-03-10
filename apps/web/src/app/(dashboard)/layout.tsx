@@ -31,7 +31,7 @@ export default async function DashboardLayout({
     }
 
     return (
-        <WorkspaceProvider initialId={workspaceId ?? undefined} initialName={workspaceName}>
+        <WorkspaceProvider initialId={workspaceId ?? undefined} initialName={workspaceName} initialUserName={session?.user?.name ?? undefined}>
             <div className="flex h-screen overflow-hidden">
                 <Sidebar user={session?.user} />
                 <main 
