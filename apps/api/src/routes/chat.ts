@@ -90,34 +90,79 @@ function classifyAIError(err: unknown): ClassifiedError {
 
 // ── Intent classification ────────────────────────────────────────────────────
 
+// Provider default models — mirrors registry.ts PROVIDER_DEFAULT_MODELS.
+// Used to give the model accurate self-knowledge about what it is.
+const PROVIDER_DEFAULT_MODELS: Record<string, string> = {
+    openai:       'gpt-4o',
+    anthropic:    'claude-3-5-sonnet-20241022',
+    google:       'gemini-2.5-flash',
+    mistral:      'mistral-large-latest',
+    groq:         'llama-3.1-8b-instant',
+    xai:          'grok-3-mini',
+    deepseek:     'deepseek-chat',
+    ollama:       'llama3.2',
+    ollama_cloud: 'gpt-oss:20b-cloud',
+    openrouter:   'deepseek/deepseek-chat-v3-0324:free',
+}
+
 const CLASSIFY_SYSTEM = `You are an intent classifier for an AI agent platform.
-Classify the user's message as TASK, PROJECT, MEMORY, or CONVERSATION.
+Classify the user's message into exactly one of: TASK, PROJECT, MEMORY, or CONVERSATION.
 
-Default to CONVERSATION. Use it for: questions, jokes, small talk, greetings, vague requests, opinions,
-anything that can be answered in a single reply, and anything where you are unsure.
+────────────────────────────────────────────────────────
+CONVERSATION — use this by default. It covers:
+- Any question ("what is X", "how does X work", "explain X")
+- Jokes, riddles, trivia, fun requests
+- Ideas, brainstorming, lists ("give me 5 ideas", "5 post ideas", "a few options")
+- Short creative writing: poems, taglines, captions, slogans
+- Social media posts (any quantity up to ~10)
+- Summaries, quick translations, text edits
+- Greetings, small talk, meta-questions ("who are you", "what can you do")
+- Anything that a capable assistant could answer in a single reply
+- Short confirmations AFTER a CONVERSATION exchange
+- Anything where you are unsure
+────────────────────────────────────────────────────────
+TASK — ONLY when ALL of these are true:
+1. The output is too large or complex to deliver in a single chat reply (e.g. a 20-page research report, a full content calendar, a detailed analysis of hundreds of rows of data)
+2. OR the task requires running code, searching the web, writing to files, or calling external APIs autonomously
+3. AND the user is explicitly requesting this autonomous work, not just asking for quick content
+NOT TASK: jokes, questions, ideas, lists, social media posts, short creative content, simple lookups
+NOT TASK: ambiguous requests that a smart assistant could just answer
+────────────────────────────────────────────────────────
+PROJECT — ONLY for large multi-step engineering/creative goals spanning days/weeks:
+"build a full product feature", "launch a complete marketing campaign", "refactor the auth system"
+Always PROJECT when user confirms a prior PROJECT proposal.
+────────────────────────────────────────────────────────
+MEMORY — user wants to set a persistent behavioral rule:
+"always use TypeScript", "never deploy on Fridays", "remember that I prefer dark mode"
+────────────────────────────────────────────────────────
 
-TASK: Only when the user is explicitly and unambiguously requesting an autonomous multi-step operation
-that produces a deliverable — e.g. "write a full report on X", "research Y and send me a summary",
-"build me a marketing plan for Z". NOT for jokes, questions, simple lookups, or anything conversational.
-Also TASK when user says yes/confirm/go ahead/do it after a prior TASK proposal.
+Examples (follow these exactly):
+"Tell me a joke" → CONVERSATION SIMPLE
+"Give me ideas for 5 social media posts" → CONVERSATION SIMPLE
+"Write me 3 Instagram captions for a coffee shop" → CONVERSATION SIMPLE
+"What's the capital of France?" → CONVERSATION SIMPLE
+"Who are you?" → CONVERSATION SIMPLE
+"What model are you using?" → CONVERSATION SIMPLE
+"Explain async/await" → CONVERSATION SIMPLE
+"Give me 10 taglines for my SaaS" → CONVERSATION SIMPLE
+"Write me a haiku" → CONVERSATION SIMPLE
+"Research AI coding tools and create a 30-page market analysis report" → TASK COMPLEX
+"Scrape 500 websites and compile a dataset" → TASK COMPLEX
+"Build a full marketing plan with competitive analysis and ROI projections" → TASK COMPLEX
+"Build me a complete e-commerce site" → PROJECT COMPLEX code
+"Remember: always reply in bullet points" → MEMORY SIMPLE
 
-PROJECT: Only for large multi-step engineering/creative goals spanning weeks of work —
-"build a new product feature", "launch a complete marketing campaign", "refactor the auth system".
-Also PROJECT when user confirms a prior PROJECT proposal.
+Critical: when in doubt, use CONVERSATION. The cost of making something a TASK when it should be CONVERSATION is very high — the user gets a queued task instead of an immediate answer.
 
-MEMORY: User wants the agent to remember a behavioral rule — "always use TypeScript", "never deploy on Fridays".
-
-Critical rules:
-- Jokes, riddles, fun requests → CONVERSATION
-- "Tell me X" → CONVERSATION  
-- "What is X" → CONVERSATION
-- Simple yes/no after a CONVERSATION exchange → CONVERSATION
-- Short confirmations ("yup", "go", "sure") only become TASK/PROJECT if the PRIOR message was a TASK/PROJECT proposal
-- When in doubt → CONVERSATION
-
-For TASK or CONVERSATION: reply with EXACTLY: [INTENT] [SIMPLE|COMPLEX]
-For MEMORY: reply with EXACTLY: MEMORY SIMPLE
-For PROJECT: reply with EXACTLY: PROJECT [SIMPLE|COMPLEX] [code|research|writing|ops|data|marketing|general]`
+Reply with EXACTLY one of:
+  CONVERSATION SIMPLE
+  CONVERSATION COMPLEX
+  TASK SIMPLE
+  TASK COMPLEX
+  PROJECT SIMPLE [category]
+  PROJECT COMPLEX [category]
+  MEMORY SIMPLE
+(where [category] is one of: code research writing ops data marketing general)`
 
 // Per-session conversation history now fetched dynamically per request from DB
 // to ensure persistence and full context even if the agent server restarts.
@@ -214,9 +259,9 @@ chatRouter.post('/message', async (req, res) => {
         } catch { /* non-fatal */ }
 
         // Resolve the actual active model ID for identity injection
-        const resolvedModel = config.model ?? 'your configured model'
+        const resolvedModel = config.model ?? PROVIDER_DEFAULT_MODELS[providerKey] ?? providerKey
         const resolvedProvider = String(providerKey)
-        const identityLine = `Your identity: you are running on provider "${resolvedProvider}", model "${resolvedModel}". If asked what model or system you are, answer truthfully with this information — do not guess or claim to be a different model.`
+        const identityLine = `Your identity: you are ${agentName}, running on provider "${resolvedProvider}", model "${resolvedModel}". If asked what model, AI, or system you are, answer truthfully using this information. Never claim to be a different model or say you don't know.`
         const personaPrefix = agentPersona ? agentPersona + '\n\n' : ''
         const taglineHint = agentTagline ? ` (${agentTagline})` : ''
 
@@ -365,17 +410,17 @@ chatRouter.post('/message', async (req, res) => {
                         model,
                         system: `${personaPrefix}You are ${agentName}${taglineHint}. ${identityLine}
 
-Personality: Warm, sharp, direct. You get things done. You do not hedge, over-explain, or ask unnecessary questions.
+Personality: Warm, sharp, direct. You get things done. Never hedge, over-explain, or ask unnecessary questions.
 
-Core rules — follow without exception:
+Critical rules — follow without exception:
 1. NEVER ask for confirmation before answering. Just answer.
-2. NEVER ask clarifying questions unless the request is genuinely ambiguous AND you cannot make a reasonable assumption.
-3. If you can make a reasonable assumption, state it briefly and proceed.
-4. For jokes, trivia, creative requests — just do it immediately.
-5. Keep replies concise. No filler phrases like "Certainly!", "Of course!", "Great question!".
-6. If the user expresses frustration, acknowledge it briefly and get to it — don't apologize excessively.
-7. When referencing prior context, use it naturally — don't re-summarize it back to the user.
-8. You are the agent. Act like one.`,
+2. NEVER ask clarifying questions unless the request is genuinely ambiguous AND a reasonable assumption cannot be made.
+3. For jokes — tell the joke immediately. No "Sure, here's a joke:" preamble. Just tell it.
+4. For ideas, lists, posts, captions, creative content — produce the content directly here in the reply. Do NOT say "I'll queue a task" or "should I create a task?" — just write it.
+5. For social media posts, taglines, slogans, or any creative content — produce them immediately in this reply.
+6. Keep replies concise. No filler: no "Certainly!", "Of course!", "Great question!", "I'd be happy to help!".
+7. If the user expresses frustration, acknowledge it in one word and get to it.
+8. You are the agent. Act like one. Produce results, not process descriptions.`,
                         messages: [
                             ...history.map((m) => ({ role: m.role, content: m.content })),
                             { role: 'user' as const, content: userContent },
