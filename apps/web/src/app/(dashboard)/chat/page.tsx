@@ -255,7 +255,7 @@ function MessageBubble({
             </div>
 
             {/* Bubble */}
-            <div className={`flex flex-col gap-1 max-w-[85%] md:max-w-[75%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+            <div className={`relative flex flex-col gap-1 max-w-[85%] md:max-w-[75%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                 {imageStrip}
                 {docStrip}
                 <div className={`relative w-full overflow-x-auto rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.role === 'user'
@@ -357,20 +357,21 @@ function MessageBubble({
                         </div>
                     )}
 
-                    {/* Copy button — hover-visible */}
-                    {msg.status !== 'queued' && msg.status !== 'running' && msg.status !== 'confirm_action' && msg.content && (
-                        <button
-                            onClick={copyMsg}
-                            className="absolute -top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity rounded-md bg-zinc-700 border border-zinc-600 p-1 text-text-secondary hover:text-text-primary hover:bg-surface-3"
-                            title="Copy"
-                        >
-                            {copied
-                                ? <Check className="h-3 w-3 text-azure" />
-                                : <Copy className="h-3 w-3" />
-                            }
-                        </button>
-                    )}
                 </div>
+
+                {/* Copy button — hover-visible, outside the overflow-clipped bubble */}
+                {msg.status !== 'queued' && msg.status !== 'running' && msg.status !== 'confirm_action' && msg.content && (
+                    <button
+                        onClick={copyMsg}
+                        className="absolute -top-2 right-0 opacity-0 group-hover:opacity-100 transition-opacity rounded-md bg-zinc-700 border border-zinc-600 p-1 text-text-secondary hover:text-text-primary hover:bg-surface-3 z-10"
+                        title="Copy"
+                    >
+                        {copied
+                            ? <Check className="h-3 w-3 text-azure" />
+                            : <Copy className="h-3 w-3" />
+                        }
+                    </button>
+                )}
 
                 {/* Meta */}
                 <div className="flex items-center gap-2 text-[10px] text-text-muted">
