@@ -61,6 +61,7 @@ import { systemRouter } from './routes/system.js'
 import { voiceRouter } from './routes/voice.js'
 import { introspectRouter } from './routes/introspect.js'
 import { codeRouter } from './routes/code.js'
+import { rsiRouter } from './routes/rsi.js'
 import { traceMiddleware } from './middleware/trace.js'
 import { generalLimiter, authLimiter, taskCreationLimiter } from './middleware/rate-limit.js'
 import { workspaceRateLimit } from './middleware/workspace-rate-limit.js'
@@ -143,8 +144,9 @@ v1.use('/conversations', conversationsRouter)
 v1.use('/voice', voiceRouter)
 v1.use('/behavior/:workspaceId', behaviorRouter)
 v1.use('/system', systemRouter)
-v1.use('/workspaces/:id/introspect', introspectRouter)
-v1.use('/code', codeRouter)
+    v1.use('/workspaces/:id/introspect', introspectRouter)
+    v1.use('/workspaces/:id/rsi', rsiRouter)
+    v1.use('/code', codeRouter)
 
 v1.get('/agent/status', async (req, res) => {
     const { workspaceId } = req.query as { workspaceId?: string }

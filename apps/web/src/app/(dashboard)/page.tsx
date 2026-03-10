@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { CommandCenter } from './_components/command-center'
 import { SystemHealth } from './_components/system-health'
 import { QuickSend } from './_components/quick-send'
+import { RSIProposalsPanel } from './_components/rsi-proposals-panel'
 import { DashboardRouter } from './_components/dashboard-router'
 
 export const dynamic = 'force-dynamic'
@@ -33,6 +34,8 @@ export default async function HomePage() {
                     <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
                     <p className="mt-1 text-sm text-zinc-500">Your AI agent — live</p>
                 </div>
+
+                <RSIProposalsPanel />
 
                 {/* User-focused overview: projects, tasks, blockers, approvals */}
                 <CommandCenter />

@@ -134,6 +134,18 @@ export const cronRunStatusEnum = pgEnum('cron_run_status', [
     'failure',
 ])
 
+export const rsiStatusEnum = pgEnum('rsi_status', [
+    'pending',
+    'approved',
+    'rejected',
+])
+
+export const rsiRiskEnum = pgEnum('rsi_risk', [
+    'low',
+    'medium',
+    'high',
+])
+
 // ── Auth.js Tables ───────────────────────────────────────────────
 
 export const users = pgTable('users', {
@@ -818,4 +830,39 @@ export const modelsKnowledge = pgTable('models_knowledge', {
 }, (table) => [
     index('models_knowledge_provider_idx').on(table.provider),
     index('models_knowledge_model_idx').on(table.modelId),
+])
+
+// ── RSI (Real-Time Self-Inspection) ────────────────────────────────────────────
+
+export const rsiProposals = pgTable('rsi_proposals', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    workspaceId: uuid('workspace_id')
+        .notNull()
+        .references(() => workspaces.id, { onDelete: 'cascade' }),
+    anomalyType: text('anomaly_type').notNull(),
+    hypothesis: text('hypothesis').notNull(),
+    proposedChange: jsonb('proposed_change').default('{}').notNull(),
+    risk: rsiRiskEnum('risk').default('medium').notNull(),
+    status: rsiStatusEnum('status').default('pending').notNull(),
+    approvedAt: timestamp('approved_at', { mode: 'date' }),
+    rejectedAt: timestamp('rejected_at', { mode: 'date' }),
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('rsi_proposals_workspace_idx').on(table.workspaceId),
+    index('rsi_proposals_status_idx').on(table.status),
+])
+
+export const rsiTestResults = pgTable('rsi_test_results', {
+    id: uuid('id').defaultRandom().primaryKey(),
+    proposalId: uuid('proposal_id')
+        .notNull()
+        .references(() => rsiProposals.id, { onDelete: 'cascade' }),
+    taskId: text('task_id').references(() => tasks.id),
+    isShadow: boolean('is_shadow').default(true).notNull(),
+    baselineQuality: real('baseline_quality'),
+    shadowQuality: real('shadow_quality'),
+    tokenDelta: integer('token_delta'),
+    createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+}, (table) => [
+    index('rsi_test_results_proposal_idx').on(table.proposalId),
 ])
