@@ -178,8 +178,8 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
     const tabs: Tab[] = showLocalTab ? ['existing', 'new', 'local'] : ['existing', 'new']
 
     return (
-        <div className={`flex items-center justify-center h-full w-full ${className}`}>
-            <div className="max-w-md w-full mx-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className={`flex items-center justify-center h-full w-full ${className}`} onClick={onClose}>
+            <div className="max-w-md w-full mx-4 animate-in fade-in slide-in-from-bottom-4 duration-500" onClick={(e) => e.stopPropagation()}>
                 <div className="bg-surface-2/60 backdrop-blur-xl border border-border/60 rounded-2xl p-6 shadow-2xl relative overflow-hidden group">
                     {/* Top glow */}
                     <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-24 bg-indigo/20 blur-[50px] pointer-events-none rounded-full" />
