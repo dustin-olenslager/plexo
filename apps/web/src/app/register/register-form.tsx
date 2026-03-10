@@ -139,7 +139,7 @@ export function RegisterForm({ isFirstRun }: { isFirstRun: boolean }) {
 
                 <p className="mt-5 text-center text-xs text-text-muted">
                     Already have an account?{' '}
-                    <Link href="/login" className="text-indigo hover:text-indigo-300">
+                    <Link href="/login" className="text-azure hover:text-azure-600">
                         Sign in
                     </Link>
                 </p>

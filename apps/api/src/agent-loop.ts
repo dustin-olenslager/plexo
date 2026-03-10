@@ -3,7 +3,7 @@
 
 import { claimTask, completeTask, blockTask } from '@plexo/queue'
 import { db, eq, sql } from '@plexo/db'
-import { tasks, apiCostTracking, workLedger, workspaces, sprints, sprintTasks } from '@plexo/db'
+import { tasks, apiCostTracking, workspaces, sprints, sprintTasks } from '@plexo/db'
 import { planTask } from '@plexo/agent/planner'
 import { executeTask } from '@plexo/agent/executor'
 import { recordTaskMemory } from '@plexo/agent/memory/store'
@@ -514,22 +514,8 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             logger.debug({ taskId: task.id }, 'api_cost_tracking: zero-cost task, skipping upsert')
         }
 
-        // Write a work_ledger row for per-task audit trail and 7d stats
-        try {
-            await db.insert(workLedger).values({
-                workspaceId: taskWorkspaceId ?? '',
-                taskId: task.id,
-                type: task.type,
-                source: task.source as string,
-                tokensIn: result.totalTokensIn,
-                tokensOut: result.totalTokensOut,
-                costUsd: result.totalCostUsd,
-                qualityScore: result.qualityScore,
-                completedAt: new Date(),
-            })
-        } catch (ledgerErr) {
-            logger.warn({ err: ledgerErr, taskId: task.id }, 'work_ledger insert failed — non-fatal')
-        }
+        // work_ledger is written by executor/index.ts (richer row with deliverables + wall_clock_ms).
+        // Do NOT write here — that was double-counted. agent-loop only owns api_cost_tracking.
 
         // ── Task memory ────────────────────────────────────────────────────────
         // Store a semantic memory entry so the Intelligence page has entries to show

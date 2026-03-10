@@ -40,13 +40,13 @@ export function LoginForm() {
     return (
         <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
             {/* Background pattern */}
-            <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo/10 via-canvas to-canvas" />
+            <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-azure/10 via-canvas to-canvas" />
 
             <div className="relative w-full max-w-sm">
                 {/* Logo */}
                 <div className="mb-8 text-center">
                     <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center">
-                        <PlexoMark className="w-10 h-10 text-indigo drop-shadow-lg" />
+                        <PlexoMark className="w-10 h-10 text-azure drop-shadow-lg" />
                     </div>
                     <h1 className="text-lg font-semibold tracking-tight">Sign in to Plexo</h1>
                     <p className="mt-1.5 text-sm text-text-muted">
@@ -69,7 +69,7 @@ export function LoginForm() {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     placeholder="you@example.com"
-                                    className="w-full rounded-lg border border-border bg-canvas py-2.5 pl-10 pr-3 text-sm text-text-primary placeholder:text-text-muted focus:border-indigo/50 focus:outline-none focus:ring-1 focus:ring-indigo/50"
+                                    className="w-full rounded-lg border border-border bg-canvas py-2.5 pl-10 pr-3 text-sm text-text-primary placeholder:text-text-muted focus:border-azure/50 focus:outline-none focus:ring-1 focus:ring-azure/50"
                                     required
                                 />
                             </div>
@@ -84,7 +84,7 @@ export function LoginForm() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 placeholder="••••••••••••"
-                                className="w-full rounded-lg border border-border bg-canvas px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-indigo/50 focus:outline-none focus:ring-1 focus:ring-indigo/50"
+                                className="w-full rounded-lg border border-border bg-canvas px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-azure/50 focus:outline-none focus:ring-1 focus:ring-azure/50"
                                 required
                                 minLength={12}
                             />
@@ -116,7 +116,7 @@ export function LoginForm() {
                 {/* Register link */}
                 <p className="mt-5 text-center text-xs text-text-muted">
                     Don&apos;t have an account?{' '}
-                    <Link href="/register" className="text-indigo hover:text-indigo-300">
+                    <Link href="/register" className="text-azure hover:text-azure-600">
                         Create one
                     </Link>
                 </p>

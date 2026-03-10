@@ -158,7 +158,7 @@ function AssetCard({ asset }: { asset: TaskAsset }) {
                 </div>
             )}
             {!asset.isText && (
-                <div className="border-t border-zinc-700/60 px-3 py-2 text-[11px] text-text-muted italic">Binary file — view in Tasks → {'{'}taskId{'}'}/assets</div>
+                <div className="border-t border-zinc-700/60 px-3 py-2 text-[11px] text-text-muted italic">Binary file — download from the Tasks page</div>
             )}
         </details>
     )

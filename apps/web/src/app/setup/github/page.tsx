@@ -23,7 +23,7 @@ const steps = [
                         href="https://github.com/settings/applications/new"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-indigo hover:text-indigo-300"
+                        className="inline-flex items-center gap-1 text-azure"
                     >
                         github.com/settings/applications/new
                         <ExternalLink className="h-3 w-3" />
@@ -132,8 +132,8 @@ export default function GithubSetupPage() {
                                 className="rounded-2xl border border-border bg-surface-1/50 p-6"
                             >
                                 <div className="mb-4 flex items-start gap-4">
-                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-dim border border-indigo/20">
-                                        <Icon className="h-4 w-4 text-indigo" />
+                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-azure-dim border border-azure/20">
+                                        <Icon className="h-4 w-4 text-azure" />
                                     </div>
                                     <div>
                                         <div className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">

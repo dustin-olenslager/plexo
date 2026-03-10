@@ -118,14 +118,14 @@ export function PlexoMark({
         `}
       </style>
       <g>
-        <circle className="glow-ring" cx="34" cy="22" r="5" fill="var(--color-indigo)" opacity="0.2"/>
-        <line className="line-1" x1="10" y1="10" x2="10" y2="34" stroke="var(--color-indigo)" strokeWidth="1.8" strokeLinecap="round"/>
-        <line className="line-2" x1="10" y1="10" x2="34" y2="22" stroke="var(--color-indigo)" strokeWidth="1.8" strokeLinecap="round"/>
-        <line className="line-3" x1="10" y1="34" x2="34" y2="22" stroke="var(--color-indigo)" strokeWidth="1.8" strokeLinecap="round"/>
-        <circle className="node-tl" cx="10" cy="10" r="3.5" fill="var(--color-indigo)"/>
-        <circle className="node-bl" cx="10" cy="34" r="3.5" fill="var(--color-indigo)"/>
-        <circle className="node-r-outer" cx="34" cy="22" r="6" fill="var(--color-indigo)"/>
-        <circle className="node-r-inner" cx="34" cy="22" r="3" fill="var(--color-emerald)"/>
+        <circle className="glow-ring" cx="34" cy="22" r="5" fill="var(--color-azure)" opacity="0.2"/>
+        <line className="line-1" x1="10" y1="10" x2="10" y2="34" stroke="var(--color-azure)" strokeWidth="1.8" strokeLinecap="round"/>
+        <line className="line-2" x1="10" y1="10" x2="34" y2="22" stroke="var(--color-azure)" strokeWidth="1.8" strokeLinecap="round"/>
+        <line className="line-3" x1="10" y1="34" x2="34" y2="22" stroke="var(--color-azure)" strokeWidth="1.8" strokeLinecap="round"/>
+        <circle className="node-tl" cx="10" cy="10" r="3.5" fill="var(--color-azure)"/>
+        <circle className="node-bl" cx="10" cy="34" r="3.5" fill="var(--color-azure)"/>
+        <circle className="node-r-outer" cx="34" cy="22" r="6" fill="var(--color-azure)"/>
+        <circle className="node-r-inner" cx="34" cy="22" r="3" fill="var(--color-amber)"/>
       </g>
     </svg>
   )

@@ -44,9 +44,9 @@ interface Sprint {
 const STATUS_CONFIG = {
     pending: { icon: Clock, color: 'text-amber', bg: 'bg-amber/10', label: 'Pending' },
     queued: { icon: Clock, color: 'text-amber', bg: 'bg-amber/10', label: 'Queued' },
-    claimed: { icon: Loader2, color: 'text-indigo-300', bg: 'bg-indigo-300/10', label: 'Claimed' },
-    running: { icon: Loader2, color: 'text-indigo', bg: 'bg-indigo-400/10', label: 'Running' },
-    complete: { icon: CheckCircle, color: 'text-emerald', bg: 'bg-emerald/10', label: 'Complete' },
+    claimed: { icon: Loader2, color: 'text-azure/70', bg: 'bg-azure/10', label: 'Claimed' },
+    running: { icon: Loader2, color: 'text-azure', bg: 'bg-azure/10', label: 'Running' },
+    complete: { icon: CheckCircle, color: 'text-azure', bg: 'bg-azure/10', label: 'Complete' },
     failed: { icon: XCircle, color: 'text-red', bg: 'bg-red/10', label: 'Failed' },
     blocked: { icon: XCircle, color: 'text-orange-400', bg: 'bg-orange-400/10', label: 'Blocked' },
     cancelled: { icon: XCircle, color: 'text-text-muted', bg: 'bg-zinc-500/10', label: 'Cancelled' },
@@ -187,7 +187,7 @@ function NewTaskSheet({ open, onClose, onCreated, sprints, workspaceId, apiBase 
                             onKeyDown={handleKeyDown}
                             placeholder="Describe the task the agent should execute…"
                             rows={5}
-                            className="rounded-xl border border-border bg-surface-1 px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none focus:ring-1 focus:ring-indigo/30 resize-none"
+                            className="rounded-xl border border-border bg-surface-1 px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none focus:ring-1 focus:ring-azure/30 resize-none"
                         />
                         <p className="text-[10px] text-text-muted">⌘ Enter to submit</p>
                     </div>
@@ -200,7 +200,7 @@ function NewTaskSheet({ open, onClose, onCreated, sprints, workspaceId, apiBase 
                                     key={t}
                                     type="button"
                                     onClick={() => setType(t)}
-                                    className={`rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-colors ${type === t ? 'bg-indigo text-text-primary' : 'border border-border text-text-secondary hover:border-zinc-600 hover:text-text-primary'}`}
+                                    className={`rounded-lg px-3 py-1.5 text-xs font-medium capitalize transition-colors ${type === t ? 'bg-azure text-white' : 'border border-border text-text-secondary hover:border-zinc-600 hover:text-text-primary'}`}
                                 >
                                     {t}
                                 </button>
@@ -218,7 +218,7 @@ function NewTaskSheet({ open, onClose, onCreated, sprints, workspaceId, apiBase 
                             <select
                                 value={projectId}
                                 onChange={(e) => setProjectId(e.target.value)}
-                                className="rounded-xl border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-indigo focus:outline-none"
+                                className="rounded-xl border border-border bg-surface-1 px-3 py-2 text-sm text-text-primary focus:border-azure focus:outline-none"
                             >
                                 <option value="">— No project (standalone) —</option>
                                 {sprints.map((s) => (
@@ -245,7 +245,7 @@ function NewTaskSheet({ open, onClose, onCreated, sprints, workspaceId, apiBase 
                         <button
                             type="submit"
                             disabled={submitting || !description.trim()}
-                            className="flex items-center gap-2 rounded-lg bg-indigo px-4 py-2 text-sm font-medium text-text-primary hover:bg-indigo/90 disabled:opacity-50 transition-colors"
+                            className="flex items-center gap-2 rounded-lg bg-azure px-4 py-2 text-sm font-medium text-white hover:bg-azure/90 disabled:opacity-50 transition-colors"
                         >
                             {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
                             Create task
@@ -423,7 +423,7 @@ export default function TasksPage() {
                     <button
                         id="new-task-btn"
                         onClick={() => setSheetOpen(true)}
-                        className="flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-1.5 text-xs font-medium text-text-primary hover:bg-indigo/90 transition-colors"
+                        className="flex items-center gap-1.5 rounded-lg bg-azure px-3 py-1.5 text-xs font-medium text-white hover:bg-azure/90 transition-colors"
                     >
                         <Plus className="h-3.5 w-3.5" />
                         New task
@@ -464,7 +464,7 @@ export default function TasksPage() {
                     ) : (
                         <button
                             onClick={() => setSheetOpen(true)}
-                            className="mt-3 flex items-center gap-1.5 rounded-lg bg-indigo/10 border border-indigo-800/30 px-3 py-1.5 text-xs text-indigo hover:bg-indigo/20 transition-colors mx-auto"
+                            className="mt-3 flex items-center gap-1.5 rounded-lg bg-azure/10 border border-azure/30 px-3 py-1.5 text-xs text-azure hover:bg-azure/20 transition-colors mx-auto"
                         >
                             <Plus className="h-3.5 w-3.5" />
                             Create your first task
@@ -496,7 +496,7 @@ export default function TasksPage() {
                                             <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-text-muted capitalize">{task.type}</span>
                                             <span className="rounded bg-surface-2/50 px-1.5 py-0.5 text-[10px] text-text-muted hidden sm:inline-block">{task.source}</span>
                                             {projectLabel && (
-                                                <span className="flex items-center gap-1 rounded bg-indigo-900/30 border border-indigo-800/30 px-1.5 py-0.5 text-[10px] text-indigo max-w-[140px] sm:max-w-[180px]">
+                                                <span className="flex items-center gap-1 rounded bg-azure/10 border border-azure/20 px-1.5 py-0.5 text-[10px] text-azure max-w-[140px] sm:max-w-[180px]">
                                                     <FolderOpen className="h-2.5 w-2.5 shrink-0" />
                                                     <span className="truncate">{projectLabel}</span>
                                                 </span>
@@ -512,7 +512,7 @@ export default function TasksPage() {
                                     <div className="flex items-center gap-2">
                                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
                                         {task.qualityScore !== null && (
-                                            <span className={`text-[10px] font-medium hidden sm:inline-block ${task.qualityScore >= 0.8 ? 'text-emerald' : task.qualityScore >= 0.5 ? 'text-amber' : 'text-red'}`}>
+                                            <span className={`text-[10px] font-medium hidden sm:inline-block ${task.qualityScore >= 0.8 ? 'text-azure' : task.qualityScore >= 0.5 ? 'text-amber' : 'text-red'}`}>
                                                 Q:{Math.round(task.qualityScore * 100)}%
                                             </span>
                                         )}

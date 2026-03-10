@@ -32,8 +32,8 @@ function StepIndicator({ current }: { current: Step }) {
         <div className="flex items-center gap-2 mb-8 flex-wrap">
             {STEPS.slice(0, -1).map((s, i) => (
                 <div key={s} className="flex items-center gap-2">
-                    <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all ${i < idx ? 'bg-indigo text-text-primary' :
-                        i === idx ? 'border-2 border-indigo text-indigo' :
+                    <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all ${i < idx ? 'bg-azure text-white' :
+                        i === idx ? 'border-2 border-azure text-azure' :
                             'border border-border text-text-muted'
                         }`}>
                         {i < idx ? <Check className="h-3.5 w-3.5" /> : i + 1}
@@ -85,7 +85,7 @@ function TelemetryStep({ workspaceId, onComplete }: { workspaceId: string | null
         <div className="flex flex-col gap-6">
             <div>
                 <div className="flex items-center gap-2 mb-1">
-                    <ShieldCheck className="h-5 w-5 text-indigo" />
+                    <ShieldCheck className="h-5 w-5 text-azure" />
                     <h2 className="text-lg font-bold text-zinc-50">Help us fix bugs faster</h2>
                 </div>
                 <p className="text-sm text-text-secondary leading-relaxed">
@@ -113,7 +113,7 @@ function TelemetryStep({ workspaceId, onComplete }: { workspaceId: string | null
                     role="switch"
                     aria-checked={enabled}
                     onClick={() => setEnabled(v => !v)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo ${enabled ? 'bg-indigo' : 'bg-zinc-700'
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-azure ${enabled ? 'bg-azure' : 'bg-zinc-700'
                         }`}
                 >
                     <span className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow transition-transform duration-200 ${enabled ? 'translate-x-5' : 'translate-x-1'
@@ -145,7 +145,7 @@ function TelemetryStep({ workspaceId, onComplete }: { workspaceId: string | null
                                 {COLLECT_ROWS.map(([yes, no]) => (
                                     <>
                                         <div key={`yes-${yes}`} className="flex items-start gap-2 py-1.5 border-b border-border-subtle">
-                                            <Check className="h-3.5 w-3.5 shrink-0 mt-0.5 text-emerald" />
+                                            <Check className="h-3.5 w-3.5 shrink-0 mt-0.5 text-azure" />
                                             <span className="text-text-secondary">{yes}</span>
                                         </div>
                                         <div key={`no-${no}`} className="flex items-start gap-2 py-1.5 border-b border-border-subtle">
@@ -178,7 +178,7 @@ function TelemetryStep({ workspaceId, onComplete }: { workspaceId: string | null
                     id="setup-telemetry-save"
                     onClick={() => void save()}
                     disabled={saving}
-                    className="flex-1 rounded-xl bg-indigo py-2.5 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                    className="flex-1 rounded-xl bg-azure py-2.5 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                 >
                     {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                     {saving ? 'Saving…' : 'Save and continue'}
@@ -283,7 +283,7 @@ export default function SetupPage() {
         <div className="min-h-screen bg-canvas flex items-center justify-center p-6">
             <div className="w-full max-w-xl">
                 <div className="mb-8 flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl   text-sm font-bold text-text-primary shadow-lg shadow-indigo-500/20">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl   text-sm font-bold text-text-primary shadow-lg shadow-azure/20">
                         P
                     </div>
                     <span className="text-lg font-bold text-text-primary">Plexo Setup</span>
@@ -313,7 +313,7 @@ export default function SetupPage() {
                             <button
                                 id="setup-get-started"
                                 onClick={() => setStep('workspace')}
-                                className="mt-2 w-full rounded-xl bg-indigo py-3 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors"
+                                className="mt-2 w-full rounded-xl bg-azure py-3 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors"
                             >
                                 Get started
                             </button>
@@ -335,7 +335,7 @@ export default function SetupPage() {
                                     value={workspaceName}
                                     onChange={(e) => setWorkspaceName(e.target.value)}
                                     placeholder="My Team"
-                                    className="rounded-lg border border-border bg-canvas px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none"
+                                    className="rounded-lg border border-border bg-canvas px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none"
                                     autoFocus
                                     onKeyDown={(e) => e.key === 'Enter' && workspaceName.trim() && void createWorkspace()}
                                 />
@@ -349,7 +349,7 @@ export default function SetupPage() {
                                 id="setup-create-workspace"
                                 onClick={() => void createWorkspace()}
                                 disabled={!workspaceName.trim() || saving}
-                                className="w-full rounded-xl bg-indigo py-3 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                                className="w-full rounded-xl bg-azure py-3 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                             >
                                 {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                                 {saving ? 'Creating…' : 'Continue'}
@@ -375,7 +375,7 @@ export default function SetupPage() {
                                         setSelectedProvider(e.target.value)
                                         setProviderCredential('')
                                     }}
-                                    className="rounded-lg border border-border bg-canvas px-3 py-2.5 text-sm text-text-primary focus:border-indigo focus:outline-none"
+                                    className="rounded-lg border border-border bg-canvas px-3 py-2.5 text-sm text-text-primary focus:border-azure focus:outline-none"
                                 >
                                     {MODELS.map(p => (
                                         <option key={p.key} value={p.key}>{p.name}</option>
@@ -393,7 +393,7 @@ export default function SetupPage() {
                                     value={providerCredential}
                                     onChange={(e) => setProviderCredential(e.target.value)}
                                     placeholder={MODELS.find(p => p.key === selectedProvider)?.placeholder}
-                                    className="rounded-lg border border-border bg-canvas px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-indigo focus:outline-none font-mono"
+                                    className="rounded-lg border border-border bg-canvas px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none font-mono"
                                     autoComplete="new-password"
                                     autoFocus
                                 />
@@ -402,7 +402,7 @@ export default function SetupPage() {
                                         href={MODELS.find(p => p.key === selectedProvider)?.link}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="flex items-center gap-1 text-[11px] text-indigo hover:text-indigo-300 mt-1"
+                                        className="flex items-center gap-1 text-[11px] text-azure mt-1"
                                     >
                                         Get a key from {new URL(MODELS.find(p => p.key === selectedProvider)?.link || 'https://example.com').hostname.replace('console.', '').replace('platform.', '')} <ExternalLink className="h-3 w-3" />
                                     </a>
@@ -420,7 +420,7 @@ export default function SetupPage() {
                                     id="setup-provider-save"
                                     onClick={() => void saveProvider()}
                                     disabled={saving}
-                                    className="flex-1 rounded-xl bg-indigo py-2.5 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                                    className="flex-1 rounded-xl bg-azure py-2.5 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                                 >
                                     {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                                     {saving ? 'Saving…' : 'Save & continue'}
@@ -440,10 +440,10 @@ export default function SetupPage() {
                                 type="text"
                                 value={testPrompt}
                                 onChange={(e) => setTestPrompt(e.target.value)}
-                                className="w-full rounded-xl border border-border bg-canvas px-4 py-3 text-sm font-mono text-text-secondary focus:border-indigo focus:outline-none focus:text-text-primary transition-colors"
+                                className="w-full rounded-xl border border-border bg-canvas px-4 py-3 text-sm font-mono text-text-secondary focus:border-azure focus:outline-none focus:text-text-primary transition-colors"
                             />
                             {testResult === 'ok' && (
-                                <div className="flex items-center gap-2 rounded-lg bg-emerald-950/40 border border-emerald-900/50 px-4 py-3 text-sm text-emerald">
+                                <div className="flex items-center gap-2 rounded-lg bg-azure/5 border border-azure/20 px-4 py-3 text-sm text-azure">
                                     <Check className="h-4 w-4 shrink-0" />
                                     Task queued successfully — your agent will pick it up shortly.
                                 </div>
@@ -467,7 +467,7 @@ export default function SetupPage() {
                                 <button
                                     id="setup-test-continue"
                                     onClick={() => setStep('telemetry')}
-                                    className="flex-1 rounded-xl bg-indigo py-2.5 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors"
+                                    className="flex-1 rounded-xl bg-azure py-2.5 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors"
                                 >
                                     {testResult === 'ok' ? 'Continue →' : 'Skip'}
                                 </button>
@@ -483,8 +483,8 @@ export default function SetupPage() {
                     {/* ── Done ── */}
                     {step === 'done' && (
                         <div className="flex flex-col items-center gap-5 py-4 text-center">
-                            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald/15 border border-emerald-500/30">
-                                <Check className="h-7 w-7 text-emerald" />
+                            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-azure/10 border border-azure/30">
+                                <Check className="h-7 w-7 text-azure" />
                             </div>
                             <div>
                                 <h2 className="text-lg font-bold text-zinc-50">You&apos;re all set!</h2>
@@ -493,7 +493,7 @@ export default function SetupPage() {
                             <Link
                                 id="setup-open-dashboard"
                                 href="/"
-                                className="w-full rounded-xl bg-indigo py-3 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors block"
+                                className="w-full rounded-xl bg-azure py-3 text-sm font-semibold text-text-primary hover:bg-indigo/90 transition-colors block"
                             >
                                 Open dashboard →
                             </Link>

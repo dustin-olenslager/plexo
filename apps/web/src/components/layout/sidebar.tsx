@@ -215,8 +215,8 @@ function WorkspaceSwitcher({ className = '' }: { className?: string }) {
                 className={`flex h-16 w-full items-center gap-3 px-3 hover:bg-surface-1/60 transition-colors ${className}`}
             >
                 {/* App icon */}
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo/10 ring-1 ring-inset ring-indigo/20">
-                    <PlexoMark className="w-7 h-7 text-indigo" />
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-azure/10 ring-1 ring-inset ring-azure/20">
+                    <PlexoMark className="w-7 h-7 text-azure" />
                 </div>
                 <div className="flex min-w-0 flex-col text-left">
                     <span className="text-[15px] font-semibold leading-tight tracking-tight text-text-primary truncate">{displayName}</span>
@@ -247,11 +247,11 @@ function WorkspaceSwitcher({ className = '' }: { className?: string }) {
                                 }}
                                 className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-zinc-800 transition-colors"
                             >
-                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-indigo/20 text-sm font-bold text-indigo uppercase pb-[1px]">
+                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-azure/20 text-sm font-bold text-azure uppercase pb-[1px]">
                                     {ws.name.slice(0, 1)}
                                 </div>
                                 <span className="flex-1 truncate text-sm font-medium text-zinc-200">{ws.name}</span>
-                                {ws.id === workspaceId && <Check className="h-4 w-4 text-indigo shrink-0" />}
+                                {ws.id === workspaceId && <Check className="h-4 w-4 text-azure shrink-0" />}
                             </button>
                         ))}
                     </div>
@@ -268,11 +268,11 @@ function WorkspaceSwitcher({ className = '' }: { className?: string }) {
                                         if (e.key === 'Escape') { setCreating(false); setNewName('') }
                                     }}
                                     placeholder="Workspace name"
-                                    className="flex-1 rounded-md border border-zinc-700 bg-canvas px-2 py-1 text-[12px] text-text-primary placeholder:text-zinc-600 focus:border-indigo focus:outline-none"
+                                    className="flex-1 rounded-md border border-zinc-700 bg-canvas px-2 py-1 text-[12px] text-text-primary placeholder:text-zinc-600 focus:border-azure focus:outline-none"
                                 />
                                 <button
                                     onClick={() => void handleCreate()}
-                                    className="rounded-md bg-indigo px-2 py-1 text-[11px] font-semibold text-white hover:bg-indigo/90"
+                                    className="rounded-md bg-azure px-2 py-1 text-[11px] font-semibold text-white hover:bg-azure/90"
                                 >
                                     Add
                                 </button>
@@ -384,13 +384,13 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
                                                 href={href}
                                                 onClick={onNavClick}
                                                 className={`group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors border-l-2 ${active
-                                                    ? 'border-indigo bg-zinc-800/80 text-text-primary'
+                                                    ? 'border-azure bg-zinc-800/80 text-text-primary'
                                                     : 'border-transparent text-text-muted hover:bg-surface-1 hover:text-zinc-300'
                                                     }`}
                                             >
                                                 <Icon
                                                     className={`h-4 w-4 shrink-0 ${active
-                                                        ? 'text-indigo'
+                                                        ? 'text-azure'
                                                         : 'text-zinc-600 group-hover:text-text-secondary'
                                                         }`}
                                                 />
@@ -453,10 +453,10 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
                     <Link
                         key={href}
                         href={href}
-                        className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${active ? 'text-indigo' : 'text-text-muted hover:text-zinc-300'
+                        className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${active ? 'text-azure' : 'text-text-muted hover:text-zinc-300'
                             }`}
                     >
-                        <div className={`flex items-center justify-center rounded-full p-1.5 ${active ? 'bg-indigo-500/10' : 'bg-transparent'}`}>
+                        <div className={`flex items-center justify-center rounded-full p-1.5 ${active ? 'bg-azure/10' : 'bg-transparent'}`}>
                             <Icon className="h-[22px] w-[22px]" />
                         </div>
                         <span className="text-[10px] font-medium">{label}</span>

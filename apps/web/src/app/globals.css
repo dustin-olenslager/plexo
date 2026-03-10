@@ -14,21 +14,25 @@
   --color-text-muted:   #545C72;
 
   /* Core Palette */
-  --color-indigo:       #6366F1;
-  --color-indigo-500:   var(--color-indigo);
-  --color-indigo-600:   var(--color-indigo);
-  --color-indigo-dim:   rgba(99,102,241,0.15);
-  --color-indigo-glow:  rgba(99,102,241,0.06);
+  /* Azure — platform color (hue 217°, pure electric blue, not purple) */
+  --color-azure:        #3B82F6;
+  --color-azure-500:    var(--color-azure);
+  --color-azure-600:    #2563EB;
+  --color-azure-dim:    rgba(59,130,246,0.14);
+  --color-azure-glow:   rgba(59,130,246,0.07);
 
-  --color-emerald:      #10B981;
-  --color-emerald-500:  var(--color-emerald);
-  --color-emerald-600:  var(--color-emerald);
-  --color-emerald-dim:  rgba(16,185,129,0.12);
+  /* Legacy aliases — map to azure so existing class references resolve */
+  --color-indigo:       #3B82F6;
+  --color-indigo-500:   var(--color-azure);
+  --color-indigo-600:   var(--color-azure-600);
+  --color-indigo-dim:   var(--color-azure-dim);
+  --color-indigo-glow:  var(--color-azure-glow);
 
+  /* Amber — agent active / one-way-door signal */
   --color-amber:        #F59E0B;
   --color-amber-500:    var(--color-amber);
-  --color-amber-600:    var(--color-amber);
-  --color-amber-dim:    rgba(245,158,11,0.12);
+  --color-amber-600:    #D97706;
+  --color-amber-dim:    rgba(245,158,11,0.13);
 
   --color-red:          #EF4444;
   --color-red-500:      var(--color-red);
@@ -76,7 +80,7 @@
 
 /* Focus visible */
 *:focus-visible {
-  outline: 2px solid theme(--color-indigo);
+  outline: 2px solid theme(--color-azure);
   outline-offset: 2px;
 }
 
@@ -89,7 +93,7 @@
 
 /* Card hover glow */
 .card-glow:hover {
-  box-shadow: 0 0 0 1px theme(--color-border), 0 0 20px -5px theme(--color-indigo-glow);
+  box-shadow: 0 0 0 1px theme(--color-border), 0 0 20px -5px theme(--color-azure-glow);
 }
 
 /* Activity log entry animation */

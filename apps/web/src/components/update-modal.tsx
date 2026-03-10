@@ -202,7 +202,7 @@ export function UpdateModal() {
 
                     {/* Header */}
                     <div className="flex items-center gap-3">
-                        <div className="h-11 w-11 rounded-xl bg-indigo/10 ring-1 ring-inset ring-indigo/20 flex items-center justify-center shrink-0">
+                        <div className="h-11 w-11 rounded-xl bg-azure/10 ring-1 ring-inset ring-azure/20 flex items-center justify-center shrink-0">
                             <PlexoMark
                                 className="h-7 w-7"
                                 idle={!updating}
@@ -233,13 +233,13 @@ export function UpdateModal() {
                         <div className="flex-1">
                             <p className="text-xs text-text-muted mb-1">Latest</p>
                             <div className="flex items-center gap-2">
-                                <code className="text-sm font-mono text-indigo">v{versionInfo.latest}</code>
+                                <code className="text-sm font-mono text-azure">v{versionInfo.latest}</code>
                                 {versionInfo.updateType === 'commit' ? (
                                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-dim text-amber border border-amber/20 font-medium">
                                         PATCH
                                     </span>
                                 ) : (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo/10 text-indigo border border-indigo/20 font-medium">
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-azure/10 text-azure border border-azure/20 font-medium">
                                         NEW
                                     </span>
                                 )}
@@ -275,7 +275,7 @@ export function UpdateModal() {
                                 {logs.map((log, i) => (
                                     <div key={i} className={cn('text-xs font-mono flex items-start gap-2', {
                                         'text-text-secondary': log.type === 'status' || log.type === 'progress',
-                                        'text-emerald': log.type === 'done',
+                                        'text-azure': log.type === 'done',
                                         'text-red': log.type === 'error',
                                     })}>
                                         <span className="text-text-muted shrink-0 mt-px">
@@ -312,7 +312,7 @@ export function UpdateModal() {
                                     aria-label="Copy commands"
                                 >
                                     {copied
-                                        ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald" />
+                                        ? <CheckCircle2 className="h-3.5 w-3.5 text-azure" />
                                         : <ClipboardCopy className="h-3.5 w-3.5" />
                                     }
                                 </button>
@@ -322,9 +322,9 @@ export function UpdateModal() {
 
                     {/* Result states */}
                     {done && (
-                        <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald/5 border border-emerald/20">
-                            <CheckCircle2 className="h-4 w-4 text-emerald shrink-0" />
-                            <p className="text-sm text-emerald">
+                        <div className="flex items-center gap-2 p-3 rounded-lg bg-azure/5 border border-azure/20">
+                            <CheckCircle2 className="h-4 w-4 text-azure shrink-0" />
+                            <p className="text-sm text-azure">
                                 {versionInfo.dockerEnabled ? 'Update complete — reload the page to use the new version.' : 'Update pulled. Server may restart automatically.'}
                             </p>
                         </div>
@@ -353,7 +353,7 @@ export function UpdateModal() {
                             {done ? (
                                 <button
                                     onClick={() => window.location.reload()}
-                                    className="h-8 px-3 text-xs rounded-lg bg-emerald hover:bg-emerald/90 text-white font-medium transition-colors"
+                                    className="h-8 px-3 text-xs rounded-lg bg-azure hover:bg-azure/90 text-white font-medium transition-colors"
                                 >
                                     Reload Page
                                 </button>
@@ -370,7 +370,7 @@ export function UpdateModal() {
                                         <button
                                             onClick={() => void handleUpdate()}
                                             disabled={updating}
-                                            className="h-8 px-3 text-xs rounded-lg bg-indigo hover:bg-indigo/90 text-white font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60"
+                                            className="h-8 px-3 text-xs rounded-lg bg-azure hover:bg-azure/90 text-white font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60"
                                         >
                                             {updating ? (
                                                 <><PlexoMark className="h-3.5 w-3.5" idle={false} working /> Updating…</>
