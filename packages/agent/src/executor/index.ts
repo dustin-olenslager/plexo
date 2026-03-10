@@ -163,15 +163,27 @@ async function dispatchTool(
                         ? 'test'
                         : 'shell'
 
+                // Allowlist — never spread process.env into the subshell.
+                // That would expose ENCRYPTION_SECRET, API keys, DATABASE_URL, etc.
+                const SAFE_ENV_KEYS = new Set([
+                    'PATH', 'HOME', 'USER', 'SHELL', 'LANG', 'LC_ALL', 'LC_CTYPE',
+                    'NODE_ENV', 'NODE_PATH', 'TMPDIR', 'TMP', 'TEMP',
+                    'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL',
+                    'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL',
+                    'PNPM_HOME', 'npm_config_cache',
+                ])
+                const safeEnv: Record<string, string> = {}
+                for (const [k, v] of Object.entries(process.env)) {
+                    if (v !== undefined && SAFE_ENV_KEYS.has(k)) safeEnv[k] = v
+                }
+                safeEnv.PATH = process.env.PATH ?? '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+
                 const result = spawnSync('sh', ['-c', command], {
                     cwd,
                     timeout: 60_000,
                     maxBuffer: 2 * 1024 * 1024,
                     encoding: 'utf8',
-                    env: {
-                        ...process.env,
-                        PATH: process.env.PATH ?? '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
-                    },
+                    env: safeEnv,
                 })
 
                 const combined = [
@@ -225,6 +237,7 @@ async function dispatchTool(
                 return `ERROR: ${detail.slice(0, 2000)}`
             }
         }
+
 
         case 'task_complete': {
             return JSON.stringify({ done: true, summary: input.summary, qualityScore: input.qualityScore })
@@ -723,7 +736,20 @@ You have ${plan.steps.length} planned steps. Work through them carefully.
 - Use write_asset to save any deliverable the user should receive (documents, scripts, email copy, HTML, etc.).
 - When you have completed all steps, call task_complete.
 - Be conservative. If something seems wrong, stop and report it.
-- NEVER output credentials, secrets, or tokens in any tool call or message.${capabilityBlock}${selfExtensionBlock}${preferencesBlock}${memoryBlock}${systemPromptExtra}${variantExtra}`
+- NEVER output credentials, secrets, or tokens in any tool call or message.${
+    // For non-coding sprint tasks: write_asset is MANDATORY, not optional.
+    // Without it, output only exists in outcomeSummary (1-3 sentences) and is invisible to the user.
+    !ctx.sprintWorkDir && ['research', 'writing', 'ops', 'data', 'marketing', 'general', 'automation', 'report'].includes(ctx.taskType)
+        ? `
+
+MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before calling task_complete.
+- Every significant output (report, plan, analysis, document, script, email copy, etc.) must be saved as a file using write_asset.
+- Do NOT put your primary deliverable only in the task_complete summary — the summary is a 1-3 sentence description, not the actual output.
+- If you research and synthesize information, write the full findings to a .md file via write_asset.
+- If you write copy, scripts, or plans, save them as appropriately-named files via write_asset.
+- Only call task_complete AFTER you have called write_asset at least once with the actual deliverable.`
+        : ''
+}${capabilityBlock}${selfExtensionBlock}${preferencesBlock}${memoryBlock}${systemPromptExtra}${variantExtra}`
 
     const genResult = await (async () => {
         let messages: any[] = [{ role: 'user', content: userMessage }]
