@@ -193,17 +193,17 @@ CREATE TABLE IF NOT EXISTS "workspace_preferences" (
 );
 --> statement-breakpoint
 ALTER TABLE "sprints" ALTER COLUMN "repo" DROP NOT NULL;--> statement-breakpoint
-ALTER TABLE "connections_registry" ADD COLUMN "is_generated" boolean DEFAULT false NOT NULL;--> statement-breakpoint
-ALTER TABLE "installed_connections" ADD COLUMN "enabled_tools" jsonb DEFAULT 'null'::jsonb;--> statement-breakpoint
-ALTER TABLE "plugins" ADD COLUMN "kapsel_version" text DEFAULT '0.2.0' NOT NULL;--> statement-breakpoint
-ALTER TABLE "plugins" ADD COLUMN "entry" text NOT NULL;--> statement-breakpoint
-ALTER TABLE "plugins" ADD COLUMN "kapsel_manifest" jsonb NOT NULL;--> statement-breakpoint
-ALTER TABLE "sprints" ADD COLUMN "category" text DEFAULT 'code' NOT NULL;--> statement-breakpoint
-ALTER TABLE "sprints" ADD COLUMN "metadata" jsonb DEFAULT '{}' NOT NULL;--> statement-breakpoint
-ALTER TABLE "sprints" ADD COLUMN "cost_ceiling_usd" real;--> statement-breakpoint
-ALTER TABLE "tasks" ADD COLUMN "project_id" text;--> statement-breakpoint
-ALTER TABLE "tasks" ADD COLUMN "cost_ceiling_usd" real;--> statement-breakpoint
-ALTER TABLE "tasks" ADD COLUMN "token_budget" integer;--> statement-breakpoint
+ALTER TABLE "connections_registry" ADD COLUMN IF NOT EXISTS "is_generated" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "installed_connections" ADD COLUMN IF NOT EXISTS "enabled_tools" jsonb DEFAULT 'null'::jsonb;--> statement-breakpoint
+ALTER TABLE "plugins" ADD COLUMN IF NOT EXISTS "kapsel_version" text DEFAULT '0.2.0' NOT NULL;--> statement-breakpoint
+ALTER TABLE "plugins" ADD COLUMN IF NOT EXISTS "entry" text NOT NULL;--> statement-breakpoint
+ALTER TABLE "plugins" ADD COLUMN IF NOT EXISTS "kapsel_manifest" jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "sprints" ADD COLUMN IF NOT EXISTS "category" text DEFAULT 'code' NOT NULL;--> statement-breakpoint
+ALTER TABLE "sprints" ADD COLUMN IF NOT EXISTS "metadata" jsonb DEFAULT '{}' NOT NULL;--> statement-breakpoint
+ALTER TABLE "sprints" ADD COLUMN IF NOT EXISTS "cost_ceiling_usd" real;--> statement-breakpoint
+ALTER TABLE "tasks" ADD COLUMN IF NOT EXISTS "project_id" text;--> statement-breakpoint
+ALTER TABLE "tasks" ADD COLUMN IF NOT EXISTS "cost_ceiling_usd" real;--> statement-breakpoint
+ALTER TABLE "tasks" ADD COLUMN IF NOT EXISTS "token_budget" integer;--> statement-breakpoint
 DO $block$ BEGIN EXECUTE $query$ALTER TABLE "agent_improvement_log" ADD CONSTRAINT "agent_improvement_log_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;$query$; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $block$;--> statement-breakpoint
 DO $block$ BEGIN EXECUTE $query$ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;$query$; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $block$;--> statement-breakpoint
 DO $block$ BEGIN EXECUTE $query$ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;$query$; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $block$;--> statement-breakpoint
@@ -258,8 +258,8 @@ DO $block$ BEGIN EXECUTE $query$ALTER TABLE "tasks" ADD CONSTRAINT "tasks_projec
 CREATE UNIQUE INDEX IF NOT EXISTS "installed_connections_workspace_registry_uq" ON "installed_connections" USING btree ("workspace_id","registry_id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "plugins_workspace_name_uq" ON "plugins" USING btree ("workspace_id","name");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "tasks_project_id_idx" ON "tasks" USING btree ("project_id");--> statement-breakpoint
-ALTER TABLE "plugins" DROP COLUMN "manifest";--> statement-breakpoint
+ALTER TABLE "plugins" DROP COLUMN IF EXISTS "manifest";--> statement-breakpoint
 ALTER TABLE "public"."plugins" ALTER COLUMN "type" SET DATA TYPE text;--> statement-breakpoint
-DROP TYPE "public"."plugin_type";--> statement-breakpoint
+DROP TYPE IF EXISTS "public"."plugin_type";--> statement-breakpoint
 DO $block$ BEGIN EXECUTE $query$CREATE TYPE "public"."plugin_type" AS ENUM('agent', 'skill', 'channel', 'tool', 'mcp-server');$query$; EXCEPTION WHEN duplicate_object THEN NULL; END $block$;--> statement-breakpoint
 ALTER TABLE "public"."plugins" ALTER COLUMN "type" SET DATA TYPE "public"."plugin_type" USING "type"::"public"."plugin_type";
