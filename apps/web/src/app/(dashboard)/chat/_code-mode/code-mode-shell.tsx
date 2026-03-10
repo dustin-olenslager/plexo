@@ -226,12 +226,19 @@ export function CodeModeShell({
     }, [taskId])
 
     const hasRepo = !!context.repo
+    const [repoModalOpen, setRepoModalOpen] = useState(!hasRepo)
+
+    function handleRepoSelect(sel: RepoSelection) {
+        setRepoModalOpen(false)
+        onRepoSelect(sel)
+    }
 
     return (
         <div className="flex flex-col h-full bg-surface-1 text-text-primary overflow-hidden relative">
             {/* ── Toolbar ─────────────────────────────────────────────────── */}
             <div className="flex items-center gap-1 px-2 h-9 bg-surface-1 border-b border-border flex-shrink-0">
-                {/* Sidebar toggle */}
+                {/* Sidebar toggle — only relevant once a repo is connected */}
+                {hasRepo && (
                 <button
                     onClick={() => setShowSidebar((v) => !v)}
                     title="Toggle file tree"
@@ -239,14 +246,27 @@ export function CodeModeShell({
                 >
                     <Layers className="w-3.5 h-3.5" />
                 </button>
+                )}
 
-                {/* Repo badge */}
-                {context.repo && (
-                    <div className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono bg-surface-2 text-text-secondary ml-1">
+                {/* Repo badge / connect button */}
+                {context.repo ? (
+                    <button
+                        onClick={() => setRepoModalOpen(true)}
+                        className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-mono bg-surface-2 hover:bg-surface-3 text-text-secondary ml-1 transition-colors"
+                        title="Change repository"
+                    >
                         <GitBranch className="w-3 h-3" />
                         <span>{context.repo}</span>
                         {context.branch && <span className="text-text-muted">@{context.branch}</span>}
-                    </div>
+                    </button>
+                ) : (
+                    <button
+                        onClick={() => setRepoModalOpen(true)}
+                        className="flex items-center gap-1.5 px-2.5 py-1 ml-1 rounded-md bg-indigo/10 hover:bg-indigo/20 border border-indigo/30 hover:border-indigo/50 text-xs font-medium text-indigo transition-all"
+                    >
+                        <GitBranch className="w-3 h-3" />
+                        Connect repository
+                    </button>
                 )}
 
                 <div className="flex-1" />
@@ -308,29 +328,36 @@ export function CodeModeShell({
                     <X className="w-3.5 h-3.5" />
                 </button>
             </div>
+            {/* ── Repo picker modal ───────────────────────────────────── */}
+            {repoModalOpen && (
+                <div
+                    className="absolute inset-0 z-50 flex items-center justify-center bg-canvas/70 backdrop-blur-sm"
+                    onClick={(e) => { if (e.target === e.currentTarget) setRepoModalOpen(false) }}
+                    onKeyDown={(e) => { if (e.key === 'Escape') setRepoModalOpen(false) }}
+                >
+                    <RepoPicker onSelect={handleRepoSelect} />
+                </div>
+            )}
 
             {/* ── Main area ───────────────────────────────────────────────── */}
             <div className="flex flex-1 overflow-hidden">
-                {/* File tree sidebar */}
-                {showSidebar && (
+                {/* File tree sidebar — only shown once a repo is set */}
+                {hasRepo && showSidebar && (
                     <div
                         className="flex flex-col border-r border-border bg-canvas flex-shrink-0"
                         style={{ width: sidebarWidth }}
                     >
-                        {hasRepo || files.length > 0
-                            ? <FileTree
-                                files={files}
-                                modifiedPaths={modifiedPaths}
-                                selectedPath={selectedFile}
-                                onSelect={openFile}
-                                className="flex-1"
-                            />
-                            : <RepoPicker onSelect={onRepoSelect} className="flex-1" />
-                        }
+                        <FileTree
+                            files={files}
+                            modifiedPaths={modifiedPaths}
+                            selectedPath={selectedFile}
+                            onSelect={openFile}
+                            className="flex-1"
+                        />
                     </div>
                 )}
 
-                {/* Content area: editor + chat stacked */}
+                {/* Content area: editor + chat always visible */}
                 <div className="flex flex-col flex-1 overflow-hidden">
                     {/* File editor (shown when a file is selected) */}
                     {selectedFile && (
@@ -358,7 +385,7 @@ export function CodeModeShell({
                         </div>
                     )}
 
-                    {/* Chat panel (always visible) */}
+                    {/* Chat panel */}
                     <div className="flex-1 overflow-hidden flex flex-col">
                         {children}
                     </div>

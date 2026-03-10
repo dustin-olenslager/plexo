@@ -33,7 +33,8 @@
     "./behavior/import": "./src/behavior/import.ts",
     "./behavior/export": "./src/behavior/export.ts",
     "./introspection": "./src/introspection/index.ts",
-    "./introspection/rsi-monitor": "./src/introspection/rsi-monitor.ts"
+    "./introspection/rsi-monitor": "./src/introspection/rsi-monitor.ts",
+    "./introspection/shadow-test": "./src/introspection/shadow-test.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
