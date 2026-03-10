@@ -391,6 +391,12 @@ async function processOneTask(): Promise<boolean> {
         ? taskContext0.modelOverrideId
         : undefined
 
+    let sprintId: string | undefined
+    try {
+        const tr = await db.select({ projectId: tasks.projectId }).from(tasks).where(eq(tasks.id, task.id)).limit(1)
+        sprintId = tr[0]?.projectId ?? undefined
+    } catch { /* non-fatal */ }
+
     const ctx: ExecutionContext = {
         taskId: task.id,
         workspaceId: taskWorkspaceId ?? '',
@@ -417,6 +423,7 @@ async function processOneTask(): Promise<boolean> {
         sprintWorkDir,
         sprintRepo,
         sprintBranch,
+        sprintId,
         // Code Mode: live event streaming to SSE clients
         emitStepEvent: sprintWorkDir
             ? (event) => emitToWorkspace(taskWorkspaceId ?? '', event as unknown as import('./sse-emitter.js').AgentEvent)

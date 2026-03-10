@@ -39,6 +39,7 @@ export type SprintLogEvent =
     | 'branch_created'
     | 'branch_failed'
     | 'pr_skipped'
+    | 'routing_trace'
 
 export interface SprintLogEntry {
     sprintId: string

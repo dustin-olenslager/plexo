@@ -428,6 +428,8 @@ export interface ExecutionContext {
     sprintRepo?: string
     /** Branch this sprint task is working on */
     sprintBranch?: string
+    /** ID of the sprint this task belongs to, for telemetry logging */
+    sprintId?: string
     /**
      * Code Mode: SSE stream callback. When set, the executor will emit
      * step events (shell lines, file writes, screenshots, test results)

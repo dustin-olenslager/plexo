@@ -597,6 +597,25 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
         return { model: fallbackModel, meta: { id: 'unknown', provider: settings.primaryProvider as import('../providers/registry.js').ProviderKey, mode: 'byok' as import('../providers/router.js').InferenceMode, costPerMIn: 3, costPerMOut: 15 } }
     })
 
+    if (ctx.sprintId) {
+        import('../sprint/logger.js').then(({ logSprintEvent }) => {
+            logSprintEvent({
+                sprintId: ctx.sprintId!,
+                level: 'info',
+                event: 'routing_trace',
+                message: `Task routed to ${resolvedMeta.provider}/${resolvedMeta.id} (mode: ${resolvedMeta.mode})`,
+                metadata: {
+                    taskType: 'codeGeneration',
+                    mode: resolvedMeta.mode,
+                    provider: resolvedMeta.provider,
+                    modelId: resolvedMeta.id,
+                    costPerMIn: resolvedMeta.costPerMIn,
+                    costPerMOut: resolvedMeta.costPerMOut,
+                }
+            }).catch(() => {})
+        })
+    }
+
     // Build systemPrompt here so identity line reflects the actual resolved model
     const identityLine = `Identity: running on ${resolvedMeta.provider} / ${resolvedMeta.id}. If asked what model, provider, or system you are, call self_reflect({focus:"identity"}) to get the accurate, live answer rather than guessing.`
 
