@@ -6,6 +6,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ## [Unreleased]
 
 ### Added
+- **Agent Behavior Configuration System (Phase 5)** — Structured, layered agent behavior rules replace the flat AGENTS.md file:
+  - **Schema** — `behavior_rules`, `behavior_groups`, `behavior_snapshots` tables (migration `0011_behavior_rules.sql`); `rule_type` and `rule_source` enums; self-referential `overrides_rule_id` for inheritance tracking
+  - **Resolution engine** — `packages/agent/src/behavior/resolver.ts`: merges platform defaults → workspace rules → project rules → task context (later layers win on key conflicts); non-fatal DB errors on each layer; snapshot written on every merge
+  - **Prompt compiler** — `packages/agent/src/behavior/compiler.ts`: type-aware section headers per `RuleType`; boolean rules only emitted when `value=true`; `text_block` rules emitted verbatim; clean fallback for empty rule sets
+  - **AGENTS.md import** — `packages/agent/src/behavior/import.ts`: header-section parser that categorizes blocks by keyword heuristics into the correct `RuleType`; each block becomes an independent `text_block` rule with a stable key
+  - **AGENTS.md export** — `packages/agent/src/behavior/export.ts`: regenerates a standards-compliant AGENTS.md from live DB rules; content-type `text/markdown` with `Content-Disposition: attachment`
+  - **Executor integration** — `packages/agent/src/executor/index.ts` calls `resolveBehavior` before every task; compiled prompt fragment injected into system prompt after WORKSPACE RULES block; snapshot triggered with `task_start` + task ID
+  - **Behavior API** — 8 endpoints under `/api/v1/behavior/:workspaceId`:
+    - `GET /` — workspace rules (optional `?projectId=` for project scope)
+    - `GET /groups` — seeded group definitions with color/icon/displayOrder
+    - `GET /resolve` — preview compiled `ResolvedBehavior` without writing a snapshot
+    - `GET /snapshots` — version history, newest first, limit 50
+    - `POST /rules` — create rule with `type`, `key`, `label`, `value` validation
+    - `PATCH /rules/:id` — update value/label/description/tags; rejects edits to locked rules
+    - `DELETE /rules/:id` — soft delete via `deleted_at`; rejects locked rules
+    - `POST /rules/import` — bulk import from AGENTS.md text; returns count + inserted rows
+    - `GET /rules/export` — download regenerated AGENTS.md attachment
+  - **Settings UI** — Settings → Agent → Behavior tab: `BehaviorCard` per group (color-coded, lock-aware, collapsible), `RuleRow` with type-appropriate inline editors (toggle/number/enum/text), `AddRuleForm` (inline, no modal), `InheritanceView` toggle, `SystemPromptPreview` (500ms debounce, read-only compiled output), `HistoryTab` (snapshot list, click-to-expand compiled prompt)
+  - **Plugin SDK composability** — `BehaviorRuleDefinition` interface exported from `packages/sdk`; plugins declare `behaviorRules[]` in their `KapselManifest`; uninstalling a plugin soft-deletes its contributed rules
+  - **Unit tests** — `resolver.test.ts`: layer merge order, platform defaults, task-context override; `compiler.test.ts`: empty input, per-RuleType section output, boolean gate, text_block passthrough
 - **RSI Engine (Phase 13)** — Real-Time Self-Inspection engine that detects behavioral anomalies and proposes protocol changes:
   - `runRSIMonitor` scans `work_ledger` over a 14-day window per workspace, detecting `quality_degradation`, `confidence_skew`, and `cost_spikes`
   - Cost spike detection replaced hardcoded `$0.50` baseline with a dynamic split-window comparison (oldest vs newest half of sample)

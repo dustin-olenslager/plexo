@@ -76,6 +76,35 @@ Plexo is built on a modern, typed, and scalable foundation:
 
 ---
 
+## ⚙️ Agent Behavior Configuration
+
+Agent behavior is not a document — it is a **structured, layered graph** of rules with inheritance, overrides, and scoped applicability.
+
+```
+Platform Defaults (read-only)
+    ↓ inherited by
+Workspace Defaults (you control)
+    ↓ inherited by
+Project Overrides (per-sprint rules)
+    ↓ inherited by
+Task Context (ephemeral, single-task injection)
+```
+
+Every task execution resolves this graph and compiles it into a system prompt fragment. The compiled output is what the agent actually receives — nothing more, nothing less.
+
+**Rule types:** Safety Constraints (locked, non-negotiable) · Operational Rules · Communication Style · Domain Knowledge · Persona Traits · Tool Preferences · Quality Gates
+
+**Settings → Agent → Behavior** exposes a full rule editor:
+*   Color-coded card groups with lock indicators for safety constraints
+*   Inline editors by value type: toggle, number slider, enum dropdown, text block
+*   Inheritance view that diffs workspace defaults against project overrides
+*   System Prompt Preview: live view of the exact compiled prompt the agent receives
+*   Snapshot history: every task start captures the resolved rule set
+
+**Import from AGENTS.md** — paste any markdown document; the parser categorizes each section header into the correct rule type. **Export** regenerates a standards-compliant `AGENTS.md` from live rules — no manual sync required.
+
+---
+
 ## 🧠 The Intelligent LLM Router
 
 Plexo features an automatic transmission for language models, optimizing for cost, context, and capabilities at runtime without developer intervention.
