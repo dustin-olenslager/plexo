@@ -1,4 +1,18 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+
+// Mock DB and event-bus so module loads in the package-local Vitest runner
+// (root vitest.config.ts aliases only apply when running from workspace root)
+vi.mock('@plexo/db', () => ({
+    db: { select: vi.fn(() => ({ from: vi.fn(() => ({ where: vi.fn().mockResolvedValue([]) })) })) },
+    workLedger: {}, rsiProposals: {}, workspaces: {},
+    eq: vi.fn(), gte: vi.fn(), and: vi.fn(), desc: vi.fn(),
+}))
+
+vi.mock('../plugins/event-bus.js', () => ({
+    eventBus: { emit: vi.fn() },
+    TOPICS: { RSI_PROPOSAL_CREATED: 'rsi.proposal.created' },
+}))
+
 import { detectAnomalies } from './rsi-monitor.js'
 
 describe('RSI Monitor Anomaly Detection', () => {
@@ -45,13 +59,17 @@ describe('RSI Monitor Anomaly Detection', () => {
         expect(skew?.hypothesis).toMatch(/failed to meet initial confidence/)
     })
 
-    it('should detect cost_spikes when average cost is > 2x historical ($0.50)', () => {
+    it('should detect cost_spikes when recent half is >2x the prior half avg', () => {
+        // Sort is by completedAt; explicit timestamps make the split deterministic
+        const now = Date.now()
         const tasks = [
-            { costUsd: 1.50 },
-            { costUsd: 1.20 },
-            { costUsd: 2.00 },
-            { costUsd: 1.10 },
-            { costUsd: 1.00 }
+            // Prior half (older) — low cost ~0.11 avg
+            { costUsd: 0.10, completedAt: new Date(now - 5000) },
+            { costUsd: 0.12, completedAt: new Date(now - 4000) },
+            // Recent half — >2x prior: ~1.77 avg
+            { costUsd: 1.50, completedAt: new Date(now - 3000) },
+            { costUsd: 1.80, completedAt: new Date(now - 2000) },
+            { costUsd: 2.00, completedAt: new Date(now - 1000) },
         ]
         const proposals = detectAnomalies(tasks)
         const spike = proposals.find(p => p.type === 'cost_spikes')
