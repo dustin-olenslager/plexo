@@ -21,6 +21,7 @@ import {
 import Link from 'next/link'
 import { useWorkspace } from '@web/context/workspace'
 import { getRuntimeContext } from '@plexo/ui/lib/runtime'
+import { PlexoMark } from '@web/components/plexo-logo'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -173,7 +174,7 @@ function ActiveWorkItem({ task }: { task: Task }) {
             <div className="flex items-center gap-3 min-w-0 flex-1">
                 <div className="relative flex h-7 w-7 shrink-0 items-center justify-center">
                     {isRunning ? (
-                        <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />
+                        <PlexoMark className="h-5 w-5" idle={false} working />
                     ) : (
                         <Clock className="h-4 w-4 text-amber" />
                     )}
@@ -181,8 +182,8 @@ function ActiveWorkItem({ task }: { task: Task }) {
                 <div className="min-w-0 flex-1">
                     <p className="truncate text-[13px] text-text-primary">{description}</p>
                     <div className="flex items-center gap-2 text-[11px] text-text-muted">
-                        <span className={`inline-flex items-center gap-1 ${isRunning ? 'text-blue-400' : 'text-amber'}`}>
-                            <span className={`h-1.5 w-1.5 rounded-full ${isRunning ? 'bg-blue-400 animate-pulse' : 'bg-amber'}`} />
+                        <span className={`inline-flex items-center gap-1 ${isRunning ? 'text-indigo' : 'text-amber'}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${isRunning ? 'bg-indigo animate-pulse' : 'bg-amber'}`} />
                             {task.status}
                         </span>
                         <span>·</span>

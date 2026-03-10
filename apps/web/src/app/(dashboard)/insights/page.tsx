@@ -13,6 +13,7 @@ import {
     PlayCircle,
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
+import { PlexoMark } from '@web/components/plexo-logo'
 
 const API_BASE = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
@@ -176,7 +177,7 @@ export default function InsightsPage() {
                         disabled={running || !WS_ID}
                         className="flex items-center gap-1.5 rounded-lg bg-indigo px-3 py-2 text-xs font-medium text-text-primary hover:bg-indigo/90 disabled:opacity-40 transition-colors"
                     >
-                        {running ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}
+                        {running ? <PlexoMark className="h-3.5 w-3.5" idle={false} working /> : <PlayCircle className="h-3.5 w-3.5" />}
                         {running ? 'Running…' : 'Run improvement cycle'}
                     </button>
                 </div>

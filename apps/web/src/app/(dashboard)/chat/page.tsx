@@ -46,6 +46,7 @@ import Link from 'next/link'
 import { useWorkspace } from '@web/context/workspace'
 import { getModelCapabilities, recommendModelForInput, checkAttachmentPrompt } from '@web/lib/models'
 import { CapabilityList } from '@web/components/capabilities'
+import { PlexoMark } from '@web/components/plexo-logo'
 
 const API = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
 
@@ -191,13 +192,13 @@ function MessageBubble({
                         : 'bg-surface-2 text-text-primary rounded-tl-md'
                     }`}>
                     {msg.status === 'queued' ? (
-                        <div className="flex items-center gap-2">
-                            <Loader2 className="h-3.5 w-3.5 animate-spin text-text-muted" />
+                        <div className="flex items-center gap-2.5 py-0.5">
+                            <PlexoMark className="h-5 w-5 shrink-0" idle={false} working />
                             <span className="text-text-muted text-sm italic">Queued…</span>
                         </div>
                     ) : msg.status === 'running' ? (
-                        <div className="flex items-start gap-2">
-                            <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-400 shrink-0 mt-0.5" />
+                        <div className="flex items-start gap-2.5">
+                            <PlexoMark className="h-5 w-5 shrink-0 mt-0.5" idle={false} working />
                             <span className="text-text-secondary text-sm italic">
                                 {msg.content || 'Working…'}
                             </span>
@@ -336,10 +337,16 @@ function MessageBubble({
 
 function StatusChip({ status }: { status: Message['status'] }) {
     if (!status || status === 'complete') return null
+    if (status === 'running' || status === 'pending') {
+        return (
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-indigo">
+                <PlexoMark className="h-3.5 w-3.5" idle={false} working />
+                {status === 'running' ? 'Working…' : 'Waiting…'}
+            </span>
+        )
+    }
     const map = {
         queued: { icon: Clock, cls: 'text-text-muted', label: 'Queued' },
-        running: { icon: Loader2, cls: 'text-blue-400 animate-spin', label: 'Working…' },
-        pending: { icon: Loader2, cls: 'text-text-muted animate-spin', label: 'Waiting…' },
         failed: { icon: XCircle, cls: 'text-red', label: 'Failed' },
     } as const
     const cfg = map[status as keyof typeof map]
@@ -597,8 +604,9 @@ function useTTS() {
 export default function ChatPage() {
     return (
         <Suspense fallback={
-            <div className="flex items-center justify-center py-16 text-text-muted">
-                <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading…
+            <div className="flex flex-col items-center justify-center py-20 gap-4 text-text-muted">
+                <PlexoMark className="h-10 w-10" idle={false} working />
+                <span className="text-sm">Loading chat…</span>
             </div>
         }>
             <ChatContent />

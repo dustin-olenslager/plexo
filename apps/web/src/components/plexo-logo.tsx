@@ -1,30 +1,50 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Joeybuilt LLC
+
 import React from 'react'
 
-export function PlexoMark({ className, idle = true }: { className?: string, idle?: boolean }) {
+/**
+ * PlexoMark — animated brand mark.
+ *
+ * Props:
+ *   idle    — default; soft breathing pulse on all nodes (2.4s cycle)
+ *   working — agent is actively processing; faster, brighter, all lines
+ *             light simultaneously to signal urgency (0.9s cycle)
+ */
+export function PlexoMark({
+  className,
+  idle = true,
+  working = false,
+}: {
+  className?: string
+  idle?: boolean
+  working?: boolean
+}) {
+  const mode = working ? 'mark-working' : idle ? 'mark-anim' : ''
   return (
-    <svg 
-      className={`plexo-mark ${className || ''}`}
-      viewBox="0 0 44 44" 
-      fill="none" 
+    <svg
+      className={`plexo-mark ${mode} ${className || ''}`}
+      viewBox="0 0 44 44"
+      fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
       <style>
         {`
+          /* ── Idle: soft staggered breathe ───────────────────────────── */
           @keyframes think-line {
             0%, 100% { opacity: 0.15; }
             50%       { opacity: 0.8; }
           }
-        
           @keyframes think-glow {
             0%, 100% { opacity: 0.2; r: 5; }
             50%       { opacity: 0.6; r: 9; }
           }
-        
           @keyframes think-core {
             0%, 100% { opacity: 0.7; }
             50%       { opacity: 1; }
           }
 
+          /* ── Entry: nodes fly in, lines draw in ─────────────────────── */
           @keyframes fly-in-tl {
             from { transform: translate(-20px,-20px); opacity: 0; }
             to   { transform: translate(0,0); opacity: 1; }
@@ -41,28 +61,63 @@ export function PlexoMark({ className, idle = true }: { className?: string, idle
             from { stroke-dashoffset: 60; }
             to   { stroke-dashoffset: 0; }
           }
-        
+
+          /* ── Idle state animations ──────────────────────────────────── */
           .mark-anim .line-1 { 
             stroke-dasharray: 60; stroke-dashoffset: 60;
-            animation: line-draw 0.4s cubic-bezier(0.16,1,0.3,1) 0.55s forwards, think-line 2.4s ease-in-out 1.55s infinite; 
+            animation: line-draw 0.4s cubic-bezier(0.16,1,0.3,1) 0.55s forwards,
+                       think-line 2.4s ease-in-out 1.55s infinite; 
           }
           .mark-anim .line-2 { 
             stroke-dasharray: 60; stroke-dashoffset: 60;
-            animation: line-draw 0.4s cubic-bezier(0.16,1,0.3,1) 0.7s forwards, think-line 2.4s ease-in-out 1.95s infinite; 
+            animation: line-draw 0.4s cubic-bezier(0.16,1,0.3,1) 0.7s forwards,
+                       think-line 2.4s ease-in-out 1.95s infinite; 
           }
           .mark-anim .line-3 { 
             stroke-dasharray: 60; stroke-dashoffset: 60;
-            animation: line-draw 0.4s cubic-bezier(0.16,1,0.3,1) 0.85s forwards, think-line 2.4s ease-in-out 2.35s infinite; 
+            animation: line-draw 0.4s cubic-bezier(0.16,1,0.3,1) 0.85s forwards,
+                       think-line 2.4s ease-in-out 2.35s infinite; 
           }
-        
-          .mark-anim .glow-ring { opacity: 0; animation: think-glow 2.4s ease-in-out 1.95s infinite; }
-          .mark-anim .node-tl   { animation: fly-in-tl 0.5s cubic-bezier(0.16,1,0.3,1) 0s both, think-core 2.4s ease-in-out 1.55s infinite; transform-origin: 10px 10px; }
-          .mark-anim .node-bl   { animation: fly-in-bl 0.5s cubic-bezier(0.16,1,0.3,1) 0.1s both, think-core 2.4s ease-in-out 2.35s infinite; transform-origin: 10px 34px; }
+          .mark-anim .glow-ring  { opacity: 0; animation: think-glow 2.4s ease-in-out 1.95s infinite; }
+          .mark-anim .node-tl    { animation: fly-in-tl 0.5s cubic-bezier(0.16,1,0.3,1) 0s both,    think-core 2.4s ease-in-out 1.55s infinite; transform-origin: 10px 10px; }
+          .mark-anim .node-bl    { animation: fly-in-bl 0.5s cubic-bezier(0.16,1,0.3,1) 0.1s both,  think-core 2.4s ease-in-out 2.35s infinite; transform-origin: 10px 34px; }
           .mark-anim .node-r-outer { animation: fly-in-r 0.6s cubic-bezier(0.16,1,0.3,1) 0.2s both, think-core 2.4s ease-in-out 1.95s infinite; transform-origin: 34px 22px; }
           .mark-anim .node-r-inner { animation: fly-in-r 0.6s cubic-bezier(0.16,1,0.3,1) 0.2s both; transform-origin: 34px 22px; }
+
+          /* ── Working: faster simultaneous pulse, all lines fire together */
+          @keyframes work-line {
+            0%, 100% { opacity: 0.25; }
+            50%       { opacity: 1; }
+          }
+          @keyframes work-glow {
+            0%, 100% { opacity: 0.3; r: 6; }
+            50%       { opacity: 0.8; r: 11; }
+          }
+          @keyframes work-core {
+            0%, 100% { opacity: 0.8; transform: scale(1); }
+            50%       { opacity: 1;   transform: scale(1.12); }
+          }
+          @keyframes work-inner {
+            0%, 100% { opacity: 0.9; }
+            50%       { opacity: 1; }
+          }
+
+          .mark-working .line-1,
+          .mark-working .line-2,
+          .mark-working .line-3 {
+            animation: work-line 0.9s ease-in-out infinite;
+          }
+          .mark-working .line-2 { animation-delay: 0.15s; }
+          .mark-working .line-3 { animation-delay: 0.30s; }
+
+          .mark-working .glow-ring   { animation: work-glow 0.9s ease-in-out infinite; }
+          .mark-working .node-tl     { animation: work-core 0.9s ease-in-out infinite; transform-origin: 10px 10px; }
+          .mark-working .node-bl     { animation: work-core 0.9s ease-in-out 0.1s infinite; transform-origin: 10px 34px; }
+          .mark-working .node-r-outer{ animation: work-core 0.9s ease-in-out 0.2s infinite; transform-origin: 34px 22px; }
+          .mark-working .node-r-inner{ animation: work-inner 0.9s ease-in-out infinite; }
         `}
       </style>
-      <g className={idle ? 'mark-anim' : ''}>
+      <g>
         <circle className="glow-ring" cx="34" cy="22" r="5" fill="var(--color-indigo)" opacity="0.2"/>
         <line className="line-1" x1="10" y1="10" x2="10" y2="34" stroke="var(--color-indigo)" strokeWidth="1.8" strokeLinecap="round"/>
         <line className="line-2" x1="10" y1="10" x2="34" y2="22" stroke="var(--color-indigo)" strokeWidth="1.8" strokeLinecap="round"/>
@@ -76,10 +131,20 @@ export function PlexoMark({ className, idle = true }: { className?: string, idle
   )
 }
 
-export function PlexoLogo({ className, showWordmark = true, idle = true }: { className?: string, showWordmark?: boolean, idle?: boolean }) {
+export function PlexoLogo({
+  className,
+  showWordmark = true,
+  idle = true,
+  working = false,
+}: {
+  className?: string
+  showWordmark?: boolean
+  idle?: boolean
+  working?: boolean
+}) {
   return (
     <div className={`flex items-center gap-3 ${className || ''}`}>
-      <PlexoMark className="w-8 h-8 shrink-0" idle={idle} />
+      <PlexoMark className="w-8 h-8 shrink-0" idle={idle} working={working} />
       {showWordmark && (
         <span className="font-display font-bold text-xl tracking-tight text-text-primary leading-none -mt-1 pt-1">plexo</span>
       )}
