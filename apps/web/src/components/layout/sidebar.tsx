@@ -230,7 +230,7 @@ function WorkspaceSwitcher({ className = '' }: { className?: string }) {
             </button>
 
             {open && (
-                <div className="absolute left-2 top-[calc(100%+4px)] z-50 w-[240px] rounded-xl border border-zinc-700/60 bg-surface-1 shadow-2xl shadow-black/40 overflow-hidden">
+                <div className="absolute left-2 top-[calc(100%+4px)] z-50 w-[240px] rounded-xl border border-border bg-surface-1 shadow-2xl shadow-black/20 overflow-hidden">
                     {/* Workspace list */}
                     <div className="max-h-80 overflow-y-auto p-1.5 space-y-0.5">
                         {isLoading && list.length === 0 && (
@@ -246,12 +246,12 @@ function WorkspaceSwitcher({ className = '' }: { className?: string }) {
                                     if (ws.id !== workspaceId) setWorkspace(ws.id, ws.name)
                                     setOpen(false)
                                 }}
-                                className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-zinc-800 transition-colors"
+                                className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-surface-2 transition-colors"
                             >
                                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-azure/20 text-sm font-bold text-azure uppercase pb-[1px]">
                                     {ws.name.slice(0, 1)}
                                 </div>
-                                <span className="flex-1 truncate text-sm font-medium text-zinc-200">{ws.name}</span>
+                                <span className="flex-1 truncate text-sm font-medium text-text-primary">{ws.name}</span>
                                 {ws.id === workspaceId && <Check className="h-4 w-4 text-azure shrink-0" />}
                             </button>
                         ))}
@@ -269,7 +269,7 @@ function WorkspaceSwitcher({ className = '' }: { className?: string }) {
                                         if (e.key === 'Escape') { setCreating(false); setNewName('') }
                                     }}
                                     placeholder="Workspace name"
-                                    className="flex-1 rounded-md border border-zinc-700 bg-canvas px-2 py-1 text-[12px] text-text-primary placeholder:text-zinc-600 focus:border-azure focus:outline-none"
+                                    className="flex-1 rounded-md border border-border bg-canvas px-2 py-1 text-[12px] text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none"
                                 />
                                 <button
                                     onClick={() => void handleCreate()}
@@ -281,7 +281,7 @@ function WorkspaceSwitcher({ className = '' }: { className?: string }) {
                         ) : (
                             <button
                                 onClick={() => setCreating(true)}
-                                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-3 text-sm font-medium text-text-secondary hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
+                                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-3 text-sm font-medium text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-colors"
                             >
                                 <Plus className="h-4 w-4" />
                                 New workspace
@@ -361,11 +361,11 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
                                 className={`flex items-center justify-between px-2 py-1 mb-0.5 ${group.collapsible ? 'cursor-pointer' : ''}`}
                                 onClick={() => group.collapsible && toggleGroup(group.label)}
                             >
-                                <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-600">
+                                <span className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">
                                     {group.label}
                                 </span>
                                 {group.collapsible && (
-                                    <span className="text-zinc-700">
+                                    <span className="text-text-muted">
                                         {isCollapsed
                                             ? <ChevronRight className="h-3 w-3" />
                                             : <ChevronDown className="h-3 w-3" />
@@ -385,14 +385,14 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
                                                 href={href}
                                                 onClick={onNavClick}
                                                 className={`group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors border-l-2 ${active
-                                                    ? 'border-azure bg-zinc-800/80 text-text-primary'
-                                                    : 'border-transparent text-text-muted hover:bg-surface-1 hover:text-zinc-300'
+                                                    ? 'border-azure bg-azure/10 text-text-primary'
+                                                    : 'border-transparent text-text-muted hover:bg-surface-1 hover:text-text-secondary'
                                                     }`}
                                             >
                                                 <Icon
                                                     className={`h-4 w-4 shrink-0 ${active
                                                         ? 'text-azure'
-                                                        : 'text-zinc-600 group-hover:text-text-secondary'
+                                                        : 'text-text-muted group-hover:text-text-secondary'
                                                         }`}
                                                 />
                                                 <span className="flex-1 truncate">{label}</span>
@@ -415,7 +415,7 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
             <div className="relative flex flex-col border-t border-border-subtle p-2">
                 <UserFooter user={user} />
                 <div className="mt-1 flex items-center justify-between px-2.5 pb-1">
-                    <span className="text-[9px] font-medium text-zinc-700">
+                    <span className="text-[9px] font-medium text-text-muted">
                         &copy; 2026 Joeybuilt LLC
                     </span>
                     <ThemeToggle />
@@ -456,7 +456,7 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
                     <Link
                         key={href}
                         href={href}
-                        className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${active ? 'text-azure' : 'text-text-muted hover:text-zinc-300'
+                        className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${active ? 'text-azure' : 'text-text-muted hover:text-text-secondary'
                             }`}
                     >
                         <div className={`flex items-center justify-center rounded-full p-1.5 ${active ? 'bg-azure/10' : 'bg-transparent'}`}>
@@ -493,20 +493,20 @@ function UserFooter({ user }: { user?: SessionUser }) {
                 onClick={() => setOpen((o) => !o)}
                 className="flex w-full items-center gap-2.5 rounded-lg p-2 text-left hover:bg-surface-1/80 transition-colors"
             >
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-zinc-800 text-[11px] font-semibold text-zinc-300 ring-1 ring-inset ring-zinc-700/50">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-surface-2 text-[11px] font-semibold text-text-primary ring-1 ring-inset ring-border">
                     {initials}
                 </div>
                 <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-medium text-zinc-200">{user?.name ?? 'User'}</p>
+                    <p className="truncate text-xs font-medium text-text-primary">{user?.name ?? 'User'}</p>
                     <p className="truncate text-[10px] text-text-muted">{user?.email ?? ''}</p>
                 </div>
             </button>
 
             {open && (
-                <div className="absolute bottom-[calc(100%+4px)] left-0 z-50 w-full rounded-xl border border-zinc-700/60 bg-surface-1 shadow-2xl shadow-black/40 overflow-hidden">
+                <div className="absolute bottom-[calc(100%+4px)] left-0 z-50 w-full rounded-xl border border-border bg-surface-1 shadow-2xl shadow-black/20 overflow-hidden">
                     {/* Identity header */}
                     <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-zinc-800 text-xs font-semibold text-zinc-300 ring-1 ring-inset ring-zinc-700/50">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface-2 text-xs font-semibold text-text-primary ring-1 ring-inset ring-border">
                             {initials}
                         </div>
                         <div className="min-w-0">
@@ -520,7 +520,7 @@ function UserFooter({ user }: { user?: SessionUser }) {
                         <Link
                             href="/settings"
                             onClick={() => setOpen(false)}
-                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] text-text-secondary hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
+                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-colors"
                         >
                             <SettingsIcon className="h-3.5 w-3.5" />
                             Settings
