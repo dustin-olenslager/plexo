@@ -14,7 +14,6 @@ interface Section {
     label: string
     icon: React.ElementType
     nativeOnly?: boolean
-    flagged?: boolean  // only show when NEXT_PUBLIC_THEME_TOGGLE=true
 }
 
 const SECTIONS: Section[] = [
@@ -24,7 +23,7 @@ const SECTIONS: Section[] = [
     { id: 'cli', label: 'CLI', icon: Terminal },
     { id: 'mcp', label: 'MCP', icon: Puzzle },
     { id: 'accountability', label: 'Accountability', icon: ShieldCheck },
-    { id: 'appearance', label: 'Appearance', icon: Activity, flagged: true },
+    { id: 'appearance', label: 'Appearance', icon: Activity },
     { id: 'system', label: 'System', icon: Activity },
     { id: 'app', label: 'App Settings', icon: LogIn, nativeOnly: true },
 ]
@@ -292,8 +291,7 @@ export default function SettingsPage() {
                 <p className="mb-2 text-[10px] uppercase tracking-widest text-text-muted hidden md:block">Settings</p>
                 <div className="flex flex-row md:flex-col gap-1.5 md:gap-0.5 min-w-max md:min-w-0">
                     {SECTIONS.filter(s =>
-                        (!s.nativeOnly || (typeof window !== 'undefined' && getRuntimeContext() !== 'browser')) &&
-                        (!s.flagged || process.env.NEXT_PUBLIC_THEME_TOGGLE === 'true')
+                        !s.nativeOnly || (typeof window !== 'undefined' && getRuntimeContext() !== 'browser')
                     ).map(({ id, label, icon: Icon }) => (
                         <button
                             key={id}
