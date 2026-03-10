@@ -72,6 +72,7 @@ interface SprintDetail {
         wallClockMs: number | null
         plannerIterations: number
         featuresCompleted: string[]
+        metadata: Record<string, unknown>
         createdAt: string
         completedAt: string | null
     }
@@ -733,6 +734,13 @@ export default function ProjectControlRoom() {
                     { icon: Clock, label: 'Elapsed', value: formatMs(isActive ? elapsedMs : sprint.wallClockMs), sub: '', color: 'text-text-secondary' },
                     { icon: DollarSign, label: 'Cost', value: sprint.costUsd != null ? `$${sprint.costUsd.toFixed(3)}` : '—', sub: 'USD', color: 'text-text-secondary' },
                     { icon: TrendingUp, label: 'Velocity', value: throughput ? `${throughput}/m` : '—', sub: 'tasks/min', color: 'text-text-secondary' },
+                    ...(sprint.metadata?.forecastScore != null ? [{
+                        icon: Sparkles,
+                        label: 'Forecast',
+                        value: `${Math.round((sprint.metadata.forecastScore as number) * 100)}%`,
+                        sub: 'quality',
+                        color: (sprint.metadata.forecastScore as number) >= 0.7 ? 'text-emerald' : (sprint.metadata.forecastScore as number) >= 0.4 ? 'text-amber' : 'text-red',
+                    }] : []),
                 ].map(({ icon: Icon, label, value, sub, color }) => (
                     <div key={label} className="rounded-xl border border-border bg-surface-1/40 p-3 flex flex-col gap-1">
                         <div className="flex items-center gap-1.5 text-text-muted">
