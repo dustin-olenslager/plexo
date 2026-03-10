@@ -211,19 +211,9 @@ function inferCapabilities(requestedCapabilities: string[]): string[] {
 async function generateSkillCode(
     research: APIResearch,
     requestedCapabilities: string[],
-    workspaceId: string,
+    _workspaceId: string,
 ): Promise<string> {
-    // Import the LLM resolver lazily to avoid circular deps
-    const { withFallback } = await import('../providers/registry.js')
     const { generateText } = await import('ai')
-    const { db: dbInst } = await import('@plexo/db')
-    const { workspaces: wsTable } = await import('@plexo/db')
-    const { eq: eqFn } = await import('@plexo/db')
-
-    // Load workspace AI settings
-    const [ws] = await dbInst.select({ settings: wsTable.settings }).from(wsTable)
-        .where(eqFn(wsTable.id, workspaceId)).limit(1)
-    const aiSettings = (ws?.settings as Record<string, unknown> | null) ?? {}
 
     const systemPrompt = `You are a Kapsel skill generator for the Plexo AI agent platform.
 Your output is a JavaScript ESM module that will run in a sandboxed worker thread.
@@ -267,7 +257,11 @@ Generate the complete activate(sdk) function with all tools fully implemented.
 Use fetch() to call ${research.baseUrl} for all API calls.
 Auth: get credentials with sdk.connections.getCredentials('${research.registryId}') and use the apiKey field.`
 
-    const model = await withFallback(aiSettings as any, 'codeGeneration', async (m) => m)
+    // Use resolveModelFromEnv for internal synthesizer calls — the workspace aiSettings
+    // is a raw JSONB object, not a WorkspaceAISettings, so withFallback would fail.
+    // resolveModelFromEnv prioritises OPENAI_API_KEY → GEMINI_API_KEY → OPENROUTER → Ollama.
+    const { resolveModelFromEnv } = await import('../providers/registry.js')
+    const model = resolveModelFromEnv()
     const result = await generateText({
         model,
         system: systemPrompt,

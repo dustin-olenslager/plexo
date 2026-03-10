@@ -429,23 +429,28 @@ export async function loadConnectionTools(workspaceId: string): Promise<ToolSet>
                 serviceWebsite: z.string().describe(
                     'Official website or docs URL, e.g. "https://developers.intercom.com"',
                 ),
-                requestedCapabilities: z.array(z.string()).describe(
-                    'List of operations the user wants, e.g. ' +
-                    '["list open conversations", "send a reply", "poll for new messages every hour"]',
+                requestedCapabilities: z.string().describe(
+                    'Comma-separated list of operations the user wants, e.g. ' +
+                    '"list open conversations, send a reply, poll for new messages"',
                 ),
             }),
             execute: async ({ serviceName, serviceWebsite, requestedCapabilities }) => {
                 const { synthesizeSkill } = await import('../plugins/synthesizer.js')
+                const capabilities = requestedCapabilities
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean)
                 const result = await synthesizeSkill({
                     serviceName,
                     serviceWebsite,
-                    requestedCapabilities,
+                    requestedCapabilities: capabilities,
                     workspaceId,
                 })
                 if (!result.ok) return `Synthesis failed: ${result.error}`
                 return result.message
             },
         })
+
 
         return merged
     } catch {

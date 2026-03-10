@@ -262,14 +262,24 @@ export function resolveModelFromEnv(modelId?: string): AnyLanguageModel {
         const openaiId = id.startsWith('claude') ? 'gpt-4o-mini' : id
         return openai(openaiId)
     }
+    const geminiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GEMINI_API_KEY
+    if (geminiKey) {
+        const goog = createGoogleGenerativeAI({ apiKey: geminiKey })
+        return goog('gemini-2.5-flash')
+    }
     if (process.env.OPENROUTER_API_KEY) {
         const or = createOpenRouter({ apiKey: process.env.OPENROUTER_API_KEY })
         return or(id)
+    }
+    if (process.env.GROQ_API_KEY) {
+        const gr = createGroq({ apiKey: process.env.GROQ_API_KEY })
+        return gr('llama-3.3-70b-versatile')
     }
     // Last resort — local Ollama
     const ol = createOpenAICompatible({ name: 'ollama', baseURL: 'http://localhost:11434/v1' })
     return ol('llama3.2')
 }
+
 
 
 /**
