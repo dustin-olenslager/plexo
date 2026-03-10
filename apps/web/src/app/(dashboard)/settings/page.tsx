@@ -4,8 +4,9 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Key, Globe, Save, Check, AlertCircle, Plus, Loader2, LogIn, LogOut, Server, Terminal, Puzzle, Copy, Activity, Trash2 } from 'lucide-react'
+import { Key, Globe, Save, Check, AlertCircle, Plus, Loader2, LogIn, LogOut, Server, Terminal, Puzzle, Copy, Activity, Trash2, ShieldCheck } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
+import { AccountabilityPanel } from './accountability-panel'
 
 interface Section {
     id: string
@@ -20,6 +21,7 @@ const SECTIONS: Section[] = [
     { id: 'api', label: 'REST API', icon: Server },
     { id: 'cli', label: 'CLI', icon: Terminal },
     { id: 'mcp', label: 'MCP', icon: Puzzle },
+    { id: 'accountability', label: 'Accountability', icon: ShieldCheck },
     { id: 'system', label: 'System', icon: Activity },
     { id: 'app', label: 'App Settings', icon: LogIn, nativeOnly: true },
 ]
@@ -695,6 +697,8 @@ GROQ_API_KEY=gsk_…`}
                         </div>
                     </div>
                 )}
+
+                {active === 'accountability' && <AccountabilityPanel />}
 
                 {active === 'system' && (
                     <div className="flex flex-col gap-6">

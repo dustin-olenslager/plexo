@@ -6,6 +6,7 @@ import { runSelfImprovementCycle } from '@plexo/agent/memory/self-improvement'
 import { db, sql } from '@plexo/db'
 import { logger } from './logger.js'
 import { loadWorkspaceAISettings } from './agent-loop.js'
+import { runRSIMonitor } from '@plexo/agent/introspection/rsi-monitor'
 
 /**
  * Executes background cron jobs.
@@ -16,6 +17,8 @@ export async function runCronJobs() {
     logger.info('Starting cron jobs...')
     try {
         await syncModelKnowledge()
+        const inserted = await runRSIMonitor()
+        logger.info({ event: 'rsi_scan_complete', inserted }, 'RSI monitor scan completed')
         logger.info('Cron jobs completed successfully.')
     } catch (err) {
         logger.error({ err }, 'Cron jobs failed.')

@@ -40,6 +40,7 @@ export const TOPICS = {
     WORKSPACE_MEMBER_REMOVED: 'plexo.workspace.member_removed',
     OWD_PENDING: 'plexo.owd.pending',
     OWD_RESOLVED: 'plexo.owd.resolved',
+    RSI_PROPOSAL_CREATED: 'plexo.rsi.proposal_created',
 } as const
 
 export type StandardTopic = typeof TOPICS[keyof typeof TOPICS]

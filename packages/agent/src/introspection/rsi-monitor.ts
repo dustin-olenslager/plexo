@@ -1,6 +1,7 @@
 import { db, workLedger, rsiProposals, workspaces } from '@plexo/db'
 import { eq, gte, and, sql, desc } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
+import { eventBus, TOPICS } from '../plugins/event-bus.js'
 const logger = console
 
 export type AnomalyType = 'quality_degradation' | 'confidence_skew' | 'cost_spikes'
@@ -120,6 +121,7 @@ async function scanWorkspace(workspaceId: string): Promise<number> {
             })
             inserted++
             logger.info({ event: 'rsi_proposal_emitted', workspaceId, type: proposal.type }, 'RSI generated new proposal hypothesis')
+            eventBus.publish(TOPICS.RSI_PROPOSAL_CREATED, { workspaceId, type: proposal.type, hypothesis: proposal.hypothesis })
         }
     }
 
