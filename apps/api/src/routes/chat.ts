@@ -261,7 +261,11 @@ chatRouter.post('/message', async (req, res) => {
         // Resolve the actual active model ID for identity injection
         const resolvedModel = config.model ?? PROVIDER_DEFAULT_MODELS[providerKey] ?? providerKey
         const resolvedProvider = String(providerKey)
-        const identityLine = `Your identity: you are ${agentName}, running on provider "${resolvedProvider}", model "${resolvedModel}". If asked what model, AI, or system you are, answer truthfully using this information. Never claim to be a different model or say you don't know.`
+
+        const { buildIntrospectionSnapshot } = await import('@plexo/agent/introspection')
+        const snapshot = await buildIntrospectionSnapshot(workspaceId, resolvedProvider, resolvedModel)
+
+        const identityLine = `Your identity: you are ${agentName}, running on provider "${resolvedProvider}", model "${resolvedModel}". If asked what model, AI, or system you are, answer truthfully using this information. Never claim to be a different model or say you don't know.\n\nHere is your full state and self-awareness snapshot (tools, agents, skills, memory, integrations, channels, exact model, provider, and workspace):\n${JSON.stringify(snapshot, null, 2)}`
         const personaPrefix = agentPersona ? agentPersona + '\n\n' : ''
         const taglineHint = agentTagline ? ` (${agentTagline})` : ''
 
