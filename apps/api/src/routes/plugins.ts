@@ -151,6 +151,24 @@ pluginsRouter.post('/', async (req, res) => {
             res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Insert returned no data' } })
             return
         }
+        
+        // §5d: Auto-register behavior rules from plugin manifest
+        if (m.behaviorRules && m.behaviorRules.length > 0) {
+            const { behaviorRules: dbBehaviorRules } = await import('@plexo/db')
+            const rulesToInsert = m.behaviorRules.map((rule) => ({
+                workspaceId,
+                projectId: null,
+                type: rule.type,
+                key: rule.key,
+                label: rule.label,
+                description: rule.description,
+                value: rule.defaultValue,
+                locked: rule.locked,
+                source: 'workspace' as const,
+                tags: [`plugin:${inserted.id}`],
+            }))
+            await db.insert(dbBehaviorRules).values(rulesToInsert)
+        }
 
         logger.info({ id: inserted.id, name: m.name, type: m.type, kapsel: m.kapsel }, 'Extension installed (Kapsel)')
         audit(req, {
@@ -253,6 +271,20 @@ pluginsRouter.delete('/:id', async (req, res) => {
         // Terminate persistent worker + delete record
         terminateWorker(existing.name)
         await db.delete(plugins).where(eq(plugins.id, req.params.id))
+        
+        // §5d: Cleanup — soft-delete associated behavior rules
+        const { behaviorRules: dbBehaviorRules } = await import('@plexo/db')
+        const allRules = await db.select().from(dbBehaviorRules).where(eq(dbBehaviorRules.workspaceId, workspaceId))
+        const pluginRules = allRules.filter(r => r.tags.includes(`plugin:${req.params.id}`))
+        if (pluginRules.length > 0) {
+            await Promise.all(pluginRules.map(r => 
+                db.update(dbBehaviorRules)
+                  .set({ deletedAt: new Date() })
+                  .where(eq(dbBehaviorRules.id, r.id))
+            ))
+            logger.info({ id: req.params.id, count: pluginRules.length }, 'Soft-deleted plugin behavior rules')
+        }
+
         logger.info({ id: req.params.id, name: existing.name }, 'Extension uninstalled')
         audit(req, {
             workspaceId: existing.workspaceId,

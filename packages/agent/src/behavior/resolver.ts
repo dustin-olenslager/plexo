@@ -14,6 +14,8 @@ import type { BehaviorRule, ResolvedRule, ResolvedBehavior, RuleSource, RuleValu
 import { PLATFORM_DEFAULT_RULES } from './types.js'
 import { compileBehavior } from './compiler.js'
 
+import { db, eq, isNull, and, behaviorRules, behaviorSnapshots } from '@plexo/db'
+
 // ── Layer fetchers ────────────────────────────────────────────────────────────
 
 async function getPlatformDefaults(workspaceId: string): Promise<BehaviorRule[]> {
@@ -30,8 +32,6 @@ async function getPlatformDefaults(workspaceId: string): Promise<BehaviorRule[]>
 }
 
 async function getWorkspaceRules(workspaceId: string): Promise<BehaviorRule[]> {
-    const { db, eq, isNull, and } = await import('@plexo/db')
-    const { behaviorRules } = await import('@plexo/db')
     const rows = await db.select().from(behaviorRules)
         .where(and(
             eq(behaviorRules.workspaceId, workspaceId),
@@ -45,8 +45,6 @@ async function getWorkspaceRules(workspaceId: string): Promise<BehaviorRule[]> {
 }
 
 async function getProjectRules(workspaceId: string, projectId: string): Promise<BehaviorRule[]> {
-    const { db, eq, and, isNull } = await import('@plexo/db')
-    const { behaviorRules } = await import('@plexo/db')
     const rows = await db.select().from(behaviorRules)
         .where(and(
             eq(behaviorRules.workspaceId, workspaceId),
@@ -98,8 +96,6 @@ async function snapshotBehavior(
     triggerResourceId?: string,
 ): Promise<void> {
     try {
-        const { db } = await import('@plexo/db')
-        const { behaviorSnapshots } = await import('@plexo/db')
         await db.insert(behaviorSnapshots).values({
             workspaceId,
             projectId,

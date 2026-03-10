@@ -62,7 +62,7 @@ describe('plexo_list_tasks', () => {
 
     it('filters by status when provided', async () => {
         const { db } = await import('@plexo/db')
-        vi.mocked(db.execute).mockResolvedValueOnce([])
+        vi.mocked(db.execute).mockResolvedValueOnce(Object.assign([], { columns: [], count: 0, command: '', statement: '', state: '' }) as any)
 
         const { plexoListTasks } = await import('./tasks.js')
         const result = await plexoListTasks({ status: 'running', limit: 5 }, mockCtx) as any
@@ -74,7 +74,7 @@ describe('plexo_list_tasks', () => {
 describe('plexo_create_task', () => {
     it('enqueues a task and returns its id', async () => {
         const { db } = await import('@plexo/db')
-        vi.mocked(db.execute).mockResolvedValueOnce([])
+        vi.mocked(db.execute).mockResolvedValueOnce(Object.assign([], { columns: [], count: 0, command: '', statement: '', state: '' }) as any)
 
         const { plexoCreateTask } = await import('./tasks.js')
         const result = await plexoCreateTask({ request: 'do something', type: 'general' }, mockCtx) as any
@@ -87,7 +87,7 @@ describe('plexo_create_task', () => {
 describe('plexo_get_task', () => {
     it('returns error code NOT_FOUND when task not found', async () => {
         const { db } = await import('@plexo/db')
-        vi.mocked(db.execute).mockResolvedValueOnce([])
+        vi.mocked(db.execute).mockResolvedValueOnce(Object.assign([], { columns: [], count: 0, command: '', statement: '', state: '' }) as any)
 
         const { plexoGetTask } = await import('./tasks.js')
         const result = await plexoGetTask(
@@ -101,7 +101,7 @@ describe('plexo_get_task', () => {
 describe('plexo_cancel_task', () => {
     it('returns error code NOT_CANCELABLE when task does not exist or is terminal', async () => {
         const { db } = await import('@plexo/db')
-        vi.mocked(db.execute).mockResolvedValueOnce([])
+        vi.mocked(db.execute).mockResolvedValueOnce(Object.assign([], { columns: [], count: 0, command: '', statement: '', state: '' }) as any)
 
         const { plexoCancelTask } = await import('./tasks.js')
         const result = await plexoCancelTask(
@@ -130,7 +130,7 @@ describe('plexo_search_memory', () => {
 describe('plexo_remember', () => {
     it('inserts a memory entry and returns ok', async () => {
         const { db } = await import('@plexo/db')
-        vi.mocked(db.execute).mockResolvedValueOnce([])
+        vi.mocked(db.execute).mockResolvedValueOnce(Object.assign([], { columns: [], count: 0, command: '', statement: '', state: '' }) as any)
 
         const { plexoRemember } = await import('./memory.js')
         const result = await plexoRemember({ content: 'always test first', type: 'pattern' }, mockCtx) as any

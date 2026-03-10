@@ -923,7 +923,35 @@ function AgentSettingsContent() {
                                 )}
 
                                 {!behaviorLoading && WS_ID && (
-                                    <SystemPromptPreview workspaceId={WS_ID} refreshTick={refreshTick} />
+                                    <>
+                                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 mt-2 border-t border-zinc-800">
+                                            <SystemPromptPreview workspaceId={WS_ID} refreshTick={refreshTick} />
+                                            <div className="flex gap-2">
+                                                <a href={`${API}/api/v1/behavior/${WS_ID}/rules/export`} download="AGENTS.md" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-xs text-zinc-300 transition-colors whitespace-nowrap">
+                                                    Export AGENTS.md
+                                                </a>
+                                                <button onClick={async () => {
+                                                    const input = document.createElement('input')
+                                                    input.type = 'file'
+                                                    input.accept = '.md'
+                                                    input.onchange = async (e) => {
+                                                        const file = (e.target as HTMLInputElement).files?.[0]
+                                                        if (!file) return
+                                                        const content = await file.text()
+                                                        await fetch(`${API}/api/v1/behavior/${WS_ID}/rules/import`, {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({ content })
+                                                        })
+                                                        fetchBehavior()
+                                                    }
+                                                    input.click()
+                                                }} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-indigo-500/30 bg-indigo-950/20 hover:bg-indigo-950/40 text-xs text-indigo-300 transition-colors whitespace-nowrap">
+                                                    Import AGENTS.md
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </>
                                 )}
                             </div>
                         )}

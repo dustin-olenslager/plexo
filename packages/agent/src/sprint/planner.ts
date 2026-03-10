@@ -75,30 +75,18 @@ export async function planSprint(params: {
 
     const systemPrompt = categoryPlannerPrompt(category)
 
-    // For code sprints: fetch AGENTS.md from the repo to give the planner
-    // monorepo conventions, package boundaries, and known decisions.
+    // Fetch unified behavior rules instead of raw AGENTS.md text
     let agentsMdBlock = ''
-    if (category === 'code' && repo) {
-        const [owner, repoName] = repo.split('/')
-        if (owner && repoName) {
-            try {
-                const { buildGitHubClientForWorkspace } = await import('../github/client.js')
-                const gh = await buildGitHubClientForWorkspace(owner, repoName, workspaceId)
-                const defaultBranch = await gh.getDefaultBranch().catch(() => 'main')
-                // Fetch AGENTS.md (monorepo conventions, decisions, known bugs)
-                const agentsMd = await gh.getFileContent('AGENTS.md', defaultBranch).catch(() => null)
-                if (agentsMd) {
-                    // Trim to 4000 chars to stay within context budget
-                    const trimmed = agentsMd.length > 4000
-                        ? agentsMd.slice(0, 4000) + '\n... [truncated]'
-                        : agentsMd
-                    agentsMdBlock = `\n\nREPO CONVENTIONS (AGENTS.md):\n${trimmed}`
-                    logger.info({ sprintId, repo }, 'AGENTS.md injected into planner prompt')
-                }
-            } catch {
-                // Non-fatal — planner proceeds without it
-            }
+    try {
+        const { resolveBehavior } = await import('../behavior/resolver.js')
+        const { compileBehavior } = await import('../behavior/compiler.js')
+        const projectOrWorkspaceRules = await resolveBehavior(workspaceId)
+        const compiled = compileBehavior(projectOrWorkspaceRules.rules)
+        if (compiled) {
+            agentsMdBlock = `\n\nWORKSPACE & PROJECT CONVENTIONS:\n${compiled}`
         }
+    } catch {
+        // Non-fatal — planner proceeds without it
     }
 
     const userMessage = [

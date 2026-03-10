@@ -27,6 +27,8 @@
     "./behavior/types": "./src/behavior/types.ts",
     "./behavior/resolver": "./src/behavior/resolver.ts",
     "./behavior/compiler": "./src/behavior/compiler.ts",
+    "./behavior/import": "./src/behavior/import.ts",
+    "./behavior/export": "./src/behavior/export.ts",
     "./introspection": "./src/introspection/index.ts"
   },
   "scripts": {

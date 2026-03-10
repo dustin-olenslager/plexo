@@ -476,31 +476,17 @@ export async function executeTask(
         }
     } catch { /* non-fatal */ }
 
-    // Load user-set preferences (from "remember X" instructions + learned patterns)
-    // These gate agent behavior and are injected as high-priority rules.
+    // Load workspace and project behavior rules (Phase 5)
     try {
-        const { getPreferences } = await import('../memory/preferences.js')
-        const prefs = await getPreferences(ctx.workspaceId)
-
-        const rules: string[] = []
-
-        // Collect all user_instruction:* keys (each "remember X" chat message is a separate entry)
-        for (const [key, val] of Object.entries(prefs)) {
-            if ((key === 'user_instruction' || key.startsWith('user_instruction:')) && typeof val === 'string' && val) {
-                rules.push(val)
-            }
-        }
-
-        // Structured preferences derived from task outcomes
-        if (typeof prefs.preferred_language === 'string') {
-            rules.push(`Prefer ${prefs.preferred_language} for all code.`)
-        }
-        if (typeof prefs.preferred_test_framework === 'string') {
-            rules.push(`Use ${prefs.preferred_test_framework} as the test framework.`)
-        }
-
-        if (rules.length > 0) {
-            preferencesBlock = `\n\nWORKSPACE RULES (always follow these):\n${rules.map((r) => `- ${r}`).join('\n')}`
+        const { resolveBehavior } = await import('../behavior/resolver.js')
+        const { compileBehavior } = await import('../behavior/compiler.js')
+        
+        // resolveBehavior handles workspace + optional project inheritance
+        const resolvedRules = await resolveBehavior(ctx.workspaceId)
+        const compiledRules = compileBehavior(resolvedRules.rules)
+        
+        if (compiledRules) {
+            preferencesBlock = `\n\nWORKSPACE RULES (always follow these):\n${compiledRules}`
         }
     } catch { /* non-fatal */ }
 
@@ -539,7 +525,7 @@ SPRINT CODING CONTEXT:
 
 MANDATORY WORKFLOW — follow this exactly:
 1. Read relevant files with read_file or shell("cat <path>") to understand the codebase.
-2. Make changes with write_file. Follow all conventions in AGENTS.md if present.
+2. Make changes with write_file. Follow all WORKSPACE RULES exactly.
 3. Run \`pnpm typecheck\` (or the repo's lint/test command) with shell() to verify correctness.
 4. Configure git identity:
    shell("git config user.email 'agent@plexo.ai' && git config user.name 'Plexo Agent'")

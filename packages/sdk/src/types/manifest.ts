@@ -61,6 +61,21 @@ export interface JSONSchema {
     [key: string]: unknown
 }
 
+export interface BehaviorRuleDefinition {
+    key: string
+    label: string
+    description: string
+    type: 'safety_constraint' | 'operational_rule' | 'communication_style' | 'domain_knowledge' | 'persona_trait' | 'tool_preference' | 'quality_gate'
+    defaultValue: {
+        type: 'boolean' | 'string' | 'number' | 'enum' | 'text_block' | 'json'
+        value: unknown
+        options?: string[]
+        min?: number
+        max?: number
+    }
+    locked: boolean
+}
+
 export interface KapselManifest {
     /** Protocol version this extension targets. Must be valid semver. */
     kapsel: string
@@ -101,4 +116,5 @@ export interface KapselManifest {
     skillConfig?: JSONSchema
     resourceHints?: ResourceHints
     peerExtensions?: string[]
+    behaviorRules?: BehaviorRuleDefinition[]
 }

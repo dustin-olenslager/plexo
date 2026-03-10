@@ -28,6 +28,14 @@ async function getGroups() {
     const { PLATFORM_DEFAULT_GROUPS } = await import('@plexo/agent/behavior/types')
     return PLATFORM_DEFAULT_GROUPS
 }
+async function getImportParser() {
+    const { parseAgentsMd } = await import('@plexo/agent/behavior/import')
+    return parseAgentsMd
+}
+async function getExportGenerator() {
+    const { generateAgentsMd } = await import('@plexo/agent/behavior/export')
+    return generateAgentsMd
+}
 
 export const behaviorRouter: IRouter = Router({ mergeParams: true })
 
@@ -261,6 +269,98 @@ behaviorRouter.delete('/rules/:ruleId', async (req: Request, res: Response) => {
     } catch (err) {
         logger.error({ err }, 'DELETE /behavior/rules/:ruleId failed')
         res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to delete rule' } })
+    }
+})
+
+// ── POST /rules/import ───────────────────────────────────────────────────────
+
+behaviorRouter.post('/rules/import', async (req: Request, res: Response) => {
+    const workspaceId = req.params['workspaceId'] as string
+    if (!UUID_RE.test(workspaceId)) return void badId(res)
+    const projectId = (req.query['projectId'] as string | undefined) ?? null
+    if (projectId && !UUID_RE.test(projectId)) return void badId(res, 'projectId')
+    
+    let rawContent = ''
+    if (typeof req.body === 'string') rawContent = req.body
+    else if (req.body && typeof req.body === 'object' && 'content' in req.body) rawContent = String(req.body.content)
+
+    if (!rawContent) {
+        res.status(400).json({ error: { code: 'MISSING_CONTENT', message: 'No content provided to import' } })
+        return
+    }
+
+    try {
+        const parseAgentsMd = await getImportParser()
+        const parsedRules = parseAgentsMd(rawContent)
+        
+        const inserts = parsedRules.map((r: any) => ({
+            workspaceId,
+            projectId: projectId ?? null,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            type: r.type as any,
+            key: r.key!,
+            label: r.label!,
+            description: r.description ?? '',
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            value: r.value as any,
+            source: projectId ? ('project' as const) : ('workspace' as const),
+            tags: r.tags ?? [],
+        }))
+
+        if (inserts.length === 0) {
+            res.json({ message: 'No rules parsed', rules: [] })
+            return
+        }
+
+        const inserted = await db.insert(behaviorRules).values(inserts).returning()
+        res.status(201).json({ message: `Imported ${inserted.length} rules`, rules: inserted })
+    } catch (err) {
+        logger.error({ err }, 'POST /behavior/rules/import failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to import rules' } })
+    }
+})
+
+// ── GET /rules/export ────────────────────────────────────────────────────────
+
+behaviorRouter.get('/rules/export', async (req: Request, res: Response) => {
+    const workspaceId = req.params['workspaceId'] as string
+    if (!UUID_RE.test(workspaceId)) return void badId(res)
+    const projectId = (req.query['projectId'] as string | undefined) ?? null
+    if (projectId && !UUID_RE.test(projectId)) return void badId(res, 'projectId')
+
+    try {
+        let rows
+        if (projectId) {
+            rows = await db.select().from(behaviorRules).where(
+                and(
+                    eq(behaviorRules.workspaceId, workspaceId),
+                    isNull(behaviorRules.deletedAt),
+                    or(
+                        isNull(behaviorRules.projectId),
+                        eq(behaviorRules.projectId, projectId),
+                    ),
+                )
+            ).orderBy(behaviorRules.createdAt)
+        } else {
+            rows = await db.select().from(behaviorRules).where(
+                and(
+                    eq(behaviorRules.workspaceId, workspaceId),
+                    isNull(behaviorRules.projectId),
+                    isNull(behaviorRules.deletedAt),
+                )
+            ).orderBy(behaviorRules.createdAt)
+        }
+
+        const generateAgentsMd = await getExportGenerator()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const markdown = generateAgentsMd(rows as any[])
+        
+        res.setHeader('Content-Type', 'text/markdown')
+        res.setHeader('Content-Disposition', 'attachment; filename="AGENTS.md"')
+        res.send(markdown)
+    } catch (err) {
+        logger.error({ err }, 'GET /behavior/rules/export failed')
+        res.status(500).json({ error: { code: 'INTERNAL_ERROR', message: 'Failed to export rules' } })
     }
 })
 
