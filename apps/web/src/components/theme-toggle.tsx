@@ -7,62 +7,37 @@ import { useTheme } from 'next-themes'
 import { Sun, Moon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
-/**
- * ThemeToggle — sun/moon icon button.
- *
- * Gated behind NEXT_PUBLIC_THEME_TOGGLE=true.
- * Renders nothing when the flag is unset, so existing dark-only UX is
- * completely unchanged until design signs off on the light palette.
- */
 export function ThemeToggle({ className = '' }: { className?: string }) {
     const [mounted, setMounted] = useState(false)
-    const { theme, setTheme, resolvedTheme } = useTheme()
+    const { setTheme, resolvedTheme } = useTheme()
 
-    // Must be mounted before reading theme to avoid SSR mismatch
     useEffect(() => { setMounted(true) }, [])
 
-    // Feature-flag gate — remove this check when light mode is approved
-    if (process.env.NEXT_PUBLIC_THEME_TOGGLE !== 'true') return null
-
     if (!mounted) {
-        // Placeholder preserves layout space while hydrating
         return <div className={`h-7 w-7 ${className}`} aria-hidden />
     }
 
     const isDark = resolvedTheme === 'dark'
 
-    function toggle() {
-        setTheme(isDark ? 'light' : 'dark')
-    }
-
     return (
         <button
             id="theme-toggle"
-            onClick={toggle}
+            onClick={() => setTheme(isDark ? 'light' : 'dark')}
             aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
             aria-pressed={!isDark}
             title={isDark ? 'Light mode' : 'Dark mode'}
             className={`flex items-center justify-center rounded-lg p-1.5 text-text-muted transition-colors hover:bg-surface-1 hover:text-text-primary ${className}`}
         >
-            {isDark
-                ? <Sun className="h-4 w-4" />
-                : <Moon className="h-4 w-4" />
-            }
+            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
     )
 }
 
-/**
- * AppearanceSection — full control row for the Settings page.
- * Shows current/system theme with a segmented control.
- */
 export function AppearanceSection() {
     const [mounted, setMounted] = useState(false)
     const { theme, setTheme, resolvedTheme } = useTheme()
 
     useEffect(() => { setMounted(true) }, [])
-
-    if (process.env.NEXT_PUBLIC_THEME_TOGGLE !== 'true') return null
 
     const options: { value: string; label: string }[] = [
         { value: 'system', label: 'System' },
@@ -107,13 +82,6 @@ export function AppearanceSection() {
                             Currently showing: <span className="text-text-secondary font-medium capitalize">{resolvedTheme}</span>
                         </p>
                     )}
-                </div>
-
-                <div className="rounded-lg border border-amber-800/40 bg-amber-950/20 px-3 py-2.5">
-                    <p className="text-xs text-amber-400 font-medium">Light mode preview</p>
-                    <p className="mt-0.5 text-[11px] text-amber-400/70">
-                        Light mode is under review. Some surfaces may not render optimally until the palette is finalised.
-                    </p>
                 </div>
             </div>
         </div>
