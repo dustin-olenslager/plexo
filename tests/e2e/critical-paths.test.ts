@@ -48,7 +48,7 @@ test.describe('Task Cancel', () => {
   test('task cancel round-trip: create queued task then cancel it', async ({ request }) => {
     // Get a real workspace to submit against
     const wsRes = await request.get(`${API_URL}/api/workspaces`)
-    if (!wsRes.ok) return
+    if (!wsRes.ok()) return
     const wsData = await wsRes.json() as { items: { id: string }[] }
     if (!wsData.items?.length) return
     const wsId = wsData.items[0]!.id
@@ -79,7 +79,7 @@ test.describe('Task Cancel', () => {
 test.describe('Memory - remember intent', () => {
   test('POST /api/memory/entries creates entry directly', async ({ request }) => {
     const wsRes = await request.get(`${API_URL}/api/workspaces`)
-    if (!wsRes.ok) return
+    if (!wsRes.ok()) return
     const wsData = await wsRes.json() as { items: { id: string }[] }
     if (!wsData.items?.length) return
     const wsId = wsData.items[0]!.id
@@ -118,7 +118,7 @@ test.describe('Task Assets API', () => {
 
   test('GET /api/tasks/:id/assets returns items array shape', async ({ request }) => {
     const wsRes = await request.get(`${API_URL}/api/workspaces`)
-    if (!wsRes.ok) return
+    if (!wsRes.ok()) return
     const wsData = await wsRes.json() as { items: { id: string }[] }
     if (!wsData.items?.length) return
     const wsId = wsData.items[0]!.id
@@ -440,7 +440,7 @@ test.describe('Members API', () => {
   test('GET /api/workspaces/:id/members returns items array', async ({ request }) => {
     // Use the first real workspace if available
     const wsRes = await request.get(`${API_URL}/api/workspaces`)
-    if (!wsRes.ok) return // skip if no workspaces
+    if (!wsRes.ok()) return // skip if no workspaces
     const wsData = await wsRes.json() as { items: { id: string }[] }
     if (!wsData.items?.length) return
     const wsId = wsData.items[0].id
@@ -513,7 +513,7 @@ test.describe('Audit API', () => {
 
   test('GET /api/audit returns items array for real workspace', async ({ request }) => {
     const wsRes = await request.get(`${API_URL}/api/workspaces`)
-    if (!wsRes.ok) return
+    if (!wsRes.ok()) return
     const wsData = await wsRes.json() as { items: { id: string }[] }
     if (!wsData.items?.length) return
     const wsId = wsData.items[0].id
@@ -548,7 +548,7 @@ test.describe('Sprint creation (T1)', () => {
   test('sprint creation round-trip: create → fetch → assert valid status', async ({ request }) => {
     // Get the first real workspace
     const wsRes = await request.get(`${API_URL}/api/workspaces`)
-    if (!wsRes.ok) return
+    if (!wsRes.ok()) return
     const wsData = await wsRes.json() as { items: { id: string }[] }
     if (!wsData.items?.length) return
     const wsId = wsData.items[0].id
