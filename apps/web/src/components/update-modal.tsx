@@ -9,13 +9,13 @@ import {
     ArrowUpCircle,
     CheckCircle2,
     XCircle,
-    Loader2,
     Terminal,
     ExternalLink,
     ClipboardCopy,
     Clock,
     X,
 } from 'lucide-react'
+import { PlexoMark } from '@web/components/plexo-logo'
 
 interface VersionInfo {
     current: string
@@ -187,7 +187,7 @@ export function UpdateModal() {
                 aria-labelledby="update-modal-title"
                 className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 px-4"
             >
-                <div className="relative rounded-xl bg-surface-1 border border-border shadow-2xl p-6 space-y-5">
+                <div className="relative rounded-xl bg-surface-1 border border-border shadow-2xl shadow-black/40 p-6 space-y-5">
 
                     {/* Close button */}
                     {!updating && (
@@ -202,17 +202,23 @@ export function UpdateModal() {
 
                     {/* Header */}
                     <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
-                            <ArrowUpCircle className="h-5 w-5 text-violet-400" />
+                        <div className="h-11 w-11 rounded-xl bg-indigo/10 ring-1 ring-inset ring-indigo/20 flex items-center justify-center shrink-0">
+                            <PlexoMark
+                                className="h-7 w-7"
+                                idle={!updating}
+                                working={updating}
+                            />
                         </div>
                         <div>
                             <h2 id="update-modal-title" className="text-base font-semibold text-text-primary">
-                                Update Available
+                                {updating ? 'Updating Plexo…' : 'Update Available'}
                             </h2>
                             <p className="text-xs text-text-secondary mt-0.5">
-                                {versionInfo.updateType === 'commit'
-                                    ? 'Unreleased changes are ready to install.'
-                                    : 'A new version of Plexo is ready to install.'}
+                                {updating
+                                    ? 'Do not close this window.'
+                                    : versionInfo.updateType === 'commit'
+                                        ? 'Unreleased changes are ready to install.'
+                                        : 'A new version of Plexo is ready to install.'}
                             </p>
                         </div>
                     </div>
@@ -227,13 +233,13 @@ export function UpdateModal() {
                         <div className="flex-1">
                             <p className="text-xs text-text-muted mb-1">Latest</p>
                             <div className="flex items-center gap-2">
-                                <code className="text-sm font-mono text-violet-400">v{versionInfo.latest}</code>
+                                <code className="text-sm font-mono text-indigo">v{versionInfo.latest}</code>
                                 {versionInfo.updateType === 'commit' ? (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-dim text-amber border border-amber-500/20 font-medium">
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-dim text-amber border border-amber/20 font-medium">
                                         PATCH
                                     </span>
                                 ) : (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400 border border-violet-500/20 font-medium">
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo/10 text-indigo border border-indigo/20 font-medium">
                                         NEW
                                     </span>
                                 )}
@@ -269,7 +275,7 @@ export function UpdateModal() {
                                 {logs.map((log, i) => (
                                     <div key={i} className={cn('text-xs font-mono flex items-start gap-2', {
                                         'text-text-secondary': log.type === 'status' || log.type === 'progress',
-                                        'text-green-400': log.type === 'done',
+                                        'text-emerald': log.type === 'done',
                                         'text-red': log.type === 'error',
                                     })}>
                                         <span className="text-text-muted shrink-0 mt-px">
@@ -280,7 +286,7 @@ export function UpdateModal() {
                                 ))}
                                 {updating && (
                                     <div className="flex items-center gap-2 text-xs text-text-muted mt-1">
-                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                        <PlexoMark className="h-3.5 w-3.5" idle={false} working />
                                         Working…
                                     </div>
                                 )}
@@ -291,7 +297,7 @@ export function UpdateModal() {
 
                     {/* Manual update fallback */}
                     {!versionInfo.dockerEnabled && !versionInfo.isGitSource && !done && (
-                        <div className="rounded-lg bg-amber/5 border border-amber-500/20 p-3">
+                        <div className="rounded-lg bg-amber/5 border border-amber/20 p-3">
                             <p className="text-xs text-amber font-medium mb-1.5">Manual update required</p>
                             <p className="text-xs text-text-secondary mb-3">
                                 One-click update is not enabled. Run these on your server:
@@ -306,7 +312,7 @@ export function UpdateModal() {
                                     aria-label="Copy commands"
                                 >
                                     {copied
-                                        ? <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />
+                                        ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald" />
                                         : <ClipboardCopy className="h-3.5 w-3.5" />
                                     }
                                 </button>
@@ -316,15 +322,15 @@ export function UpdateModal() {
 
                     {/* Result states */}
                     {done && (
-                        <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/5 border border-green-500/20">
-                            <CheckCircle2 className="h-4 w-4 text-green-400 shrink-0" />
-                            <p className="text-sm text-green-400">
+                        <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald/5 border border-emerald/20">
+                            <CheckCircle2 className="h-4 w-4 text-emerald shrink-0" />
+                            <p className="text-sm text-emerald">
                                 {versionInfo.dockerEnabled ? 'Update complete — reload the page to use the new version.' : 'Update pulled. Server may restart automatically.'}
                             </p>
                         </div>
                     )}
                     {failed && !done && (
-                        <div className="flex items-center gap-2 p-3 rounded-lg bg-red/5 border border-red-500/20">
+                        <div className="flex items-center gap-2 p-3 rounded-lg bg-red/5 border border-red/20">
                             <XCircle className="h-4 w-4 text-red shrink-0" />
                             <p className="text-sm text-red">Update failed. Check the log or update manually.</p>
                         </div>
@@ -347,7 +353,7 @@ export function UpdateModal() {
                             {done ? (
                                 <button
                                     onClick={() => window.location.reload()}
-                                    className="h-8 px-3 text-xs rounded-lg bg-green-600 hover:bg-green-500 text-text-primary font-medium transition-colors"
+                                    className="h-8 px-3 text-xs rounded-lg bg-emerald hover:bg-emerald/90 text-white font-medium transition-colors"
                                 >
                                     Reload Page
                                 </button>
@@ -364,10 +370,10 @@ export function UpdateModal() {
                                         <button
                                             onClick={() => void handleUpdate()}
                                             disabled={updating}
-                                            className="h-8 px-3 text-xs rounded-lg bg-violet-600 hover:bg-violet-500 text-text-primary font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60"
+                                            className="h-8 px-3 text-xs rounded-lg bg-indigo hover:bg-indigo/90 text-white font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60"
                                         >
                                             {updating ? (
-                                                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Updating…</>
+                                                <><PlexoMark className="h-3.5 w-3.5" idle={false} working /> Updating…</>
                                             ) : (
                                                 <><ArrowUpCircle className="h-3.5 w-3.5" /> Update Now</>
                                             )}
