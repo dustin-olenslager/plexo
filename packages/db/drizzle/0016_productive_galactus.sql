@@ -1,9 +1,10 @@
-DO $$ BEGIN CREATE TYPE "public"."member_role" AS ENUM('owner', 'admin', 'member', 'viewer'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
-CREATE TYPE "public"."rule_source" AS ENUM('platform', 'workspace', 'project', 'task');--> statement-breakpoint
-CREATE TYPE "public"."rule_type" AS ENUM('safety_constraint', 'operational_rule', 'communication_style', 'domain_knowledge', 'persona_trait', 'tool_preference', 'quality_gate');--> statement-breakpoint
-ALTER TYPE "public"."task_source" ADD VALUE 'extension';--> statement-breakpoint
-ALTER TYPE "public"."task_source" ADD VALUE 'sentry';--> statement-breakpoint
-CREATE TABLE "agent_improvement_log" (
+DO $$ BEGIN DO $$ BEGIN CREATE TYPE "public"."member_role" AS ENUM('owner', 'admin', 'member', 'viewer'); EXCEPTION WHEN duplicate_object THEN NULL; END $$; EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."rule_source" AS ENUM('platform', 'workspace', 'project', 'task'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."rule_type" AS ENUM('safety_constraint', 'operational_rule', 'communication_style', 'domain_knowledge', 'persona_trait', 'tool_preference', 'quality_gate'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
+ALTER TYPE "public"."task_source" ADD VALUE IF NOT EXISTS 'extension';--> statement-breakpoint
+ALTER TYPE "public"."task_source" ADD VALUE IF NOT EXISTS 'sentry';--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS "agent_improvement_log" (
+
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"pattern_type" text NOT NULL,
@@ -14,7 +15,8 @@ CREATE TABLE "agent_improvement_log" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "audit_log" (
+CREATE TABLE IF NOT EXISTS "audit_log" (
+
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"user_id" uuid,
@@ -26,7 +28,8 @@ CREATE TABLE "audit_log" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "behavior_groups" (
+CREATE TABLE IF NOT EXISTS "behavior_groups" (
+
 	"id" text PRIMARY KEY NOT NULL,
 	"label" text NOT NULL,
 	"description" text DEFAULT '' NOT NULL,
@@ -37,7 +40,8 @@ CREATE TABLE "behavior_groups" (
 	"display_order" integer DEFAULT 0 NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "behavior_rules" (
+CREATE TABLE IF NOT EXISTS "behavior_rules" (
+
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"project_id" uuid,
@@ -55,7 +59,8 @@ CREATE TABLE "behavior_rules" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "behavior_snapshots" (
+CREATE TABLE IF NOT EXISTS "behavior_snapshots" (
+
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"project_id" uuid,
@@ -66,7 +71,8 @@ CREATE TABLE "behavior_snapshots" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "conversations" (
+CREATE TABLE IF NOT EXISTS "conversations" (
+
 	"id" text PRIMARY KEY NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"session_id" text,
@@ -81,7 +87,8 @@ CREATE TABLE "conversations" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "kapsel_registry" (
+CREATE TABLE IF NOT EXISTS "kapsel_registry" (
+
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"name" text NOT NULL,
 	"display_name" text NOT NULL,
@@ -100,7 +107,8 @@ CREATE TABLE "kapsel_registry" (
 	CONSTRAINT "kapsel_registry_name_unique" UNIQUE("name")
 );
 --> statement-breakpoint
-CREATE TABLE "mcp_tokens" (
+CREATE TABLE IF NOT EXISTS "mcp_tokens" (
+
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"workspace_id" uuid NOT NULL,
 	"name" text NOT NULL,
@@ -114,7 +122,8 @@ CREATE TABLE "mcp_tokens" (
 	"created_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "models_knowledge" (
+CREATE TABLE IF NOT EXISTS "models_knowledge" (
+
 	"id" text PRIMARY KEY NOT NULL,
 	"provider" text NOT NULL,
 	"model_id" text NOT NULL,
@@ -126,7 +135,8 @@ CREATE TABLE "models_knowledge" (
 	"last_synced_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "sprint_logs" (
+CREATE TABLE IF NOT EXISTS "sprint_logs" (
+
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"sprint_id" text NOT NULL,
 	"level" text DEFAULT 'info' NOT NULL,
@@ -150,7 +160,8 @@ CREATE TABLE IF NOT EXISTS "workspace_invites" (
 	CONSTRAINT "workspace_invites_token_unique" UNIQUE("token")
 );
 --> statement-breakpoint
-CREATE TABLE "workspace_key_shares" (
+CREATE TABLE IF NOT EXISTS "workspace_key_shares" (
+
 	"id" text PRIMARY KEY NOT NULL,
 	"source_ws_id" uuid NOT NULL,
 	"target_ws_id" uuid NOT NULL,
@@ -168,7 +179,8 @@ CREATE TABLE IF NOT EXISTS "workspace_members" (
 	"joined_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "workspace_preferences" (
+CREATE TABLE IF NOT EXISTS "workspace_preferences" (
+
 	"workspace_id" uuid NOT NULL,
 	"key" text NOT NULL,
 	"value" jsonb NOT NULL,
@@ -190,62 +202,62 @@ ALTER TABLE "sprints" ADD COLUMN "cost_ceiling_usd" real;--> statement-breakpoin
 ALTER TABLE "tasks" ADD COLUMN "project_id" text;--> statement-breakpoint
 ALTER TABLE "tasks" ADD COLUMN "cost_ceiling_usd" real;--> statement-breakpoint
 ALTER TABLE "tasks" ADD COLUMN "token_budget" integer;--> statement-breakpoint
-ALTER TABLE "agent_improvement_log" ADD CONSTRAINT "agent_improvement_log_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "behavior_rules" ADD CONSTRAINT "behavior_rules_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "behavior_snapshots" ADD CONSTRAINT "behavior_snapshots_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "conversations" ADD CONSTRAINT "conversations_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "conversations" ADD CONSTRAINT "conversations_task_id_tasks_id_fk" FOREIGN KEY ("task_id") REFERENCES "public"."tasks"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "mcp_tokens" ADD CONSTRAINT "mcp_tokens_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "sprint_logs" ADD CONSTRAINT "sprint_logs_sprint_id_sprints_id_fk" FOREIGN KEY ("sprint_id") REFERENCES "public"."sprints"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "workspace_invites" ADD CONSTRAINT "workspace_invites_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "workspace_invites" ADD CONSTRAINT "workspace_invites_invited_by_user_id_users_id_fk" FOREIGN KEY ("invited_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "workspace_invites" ADD CONSTRAINT "workspace_invites_used_by_user_id_users_id_fk" FOREIGN KEY ("used_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "workspace_key_shares" ADD CONSTRAINT "workspace_key_shares_source_ws_id_workspaces_id_fk" FOREIGN KEY ("source_ws_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "workspace_key_shares" ADD CONSTRAINT "workspace_key_shares_target_ws_id_workspaces_id_fk" FOREIGN KEY ("target_ws_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "workspace_key_shares" ADD CONSTRAINT "workspace_key_shares_granted_by_users_id_fk" FOREIGN KEY ("granted_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "workspace_members" ADD CONSTRAINT "workspace_members_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "workspace_members" ADD CONSTRAINT "workspace_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "workspace_members" ADD CONSTRAINT "workspace_members_invited_by_user_id_users_id_fk" FOREIGN KEY ("invited_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "workspace_preferences" ADD CONSTRAINT "workspace_preferences_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "agent_improvement_log_workspace_idx" ON "agent_improvement_log" USING btree ("workspace_id");--> statement-breakpoint
-CREATE INDEX "audit_log_workspace_idx" ON "audit_log" USING btree ("workspace_id");--> statement-breakpoint
-CREATE INDEX "audit_log_action_idx" ON "audit_log" USING btree ("action");--> statement-breakpoint
-CREATE INDEX "audit_log_created_idx" ON "audit_log" USING btree ("created_at");--> statement-breakpoint
-CREATE INDEX "behavior_rules_workspace_idx" ON "behavior_rules" USING btree ("workspace_id");--> statement-breakpoint
-CREATE INDEX "behavior_rules_project_idx" ON "behavior_rules" USING btree ("project_id");--> statement-breakpoint
-CREATE INDEX "behavior_rules_type_idx" ON "behavior_rules" USING btree ("type");--> statement-breakpoint
-CREATE INDEX "behavior_rules_deleted_idx" ON "behavior_rules" USING btree ("deleted_at");--> statement-breakpoint
-CREATE INDEX "behavior_snapshots_workspace_idx" ON "behavior_snapshots" USING btree ("workspace_id");--> statement-breakpoint
-CREATE INDEX "behavior_snapshots_created_idx" ON "behavior_snapshots" USING btree ("created_at");--> statement-breakpoint
-CREATE INDEX "conversations_workspace_idx" ON "conversations" USING btree ("workspace_id");--> statement-breakpoint
-CREATE INDEX "conversations_workspace_created_idx" ON "conversations" USING btree ("workspace_id","created_at");--> statement-breakpoint
-CREATE INDEX "conversations_session_idx" ON "conversations" USING btree ("session_id");--> statement-breakpoint
-CREATE INDEX "kapsel_registry_name_idx" ON "kapsel_registry" USING btree ("name");--> statement-breakpoint
-CREATE INDEX "kapsel_registry_publisher_idx" ON "kapsel_registry" USING btree ("publisher");--> statement-breakpoint
-CREATE INDEX "kapsel_registry_deprecated_idx" ON "kapsel_registry" USING btree ("deprecated");--> statement-breakpoint
-CREATE INDEX "mcp_tokens_workspace_idx" ON "mcp_tokens" USING btree ("workspace_id");--> statement-breakpoint
-CREATE INDEX "mcp_tokens_hash_idx" ON "mcp_tokens" USING btree ("token_hash");--> statement-breakpoint
-CREATE INDEX "models_knowledge_provider_idx" ON "models_knowledge" USING btree ("provider");--> statement-breakpoint
-CREATE INDEX "models_knowledge_model_idx" ON "models_knowledge" USING btree ("model_id");--> statement-breakpoint
-CREATE INDEX "sprint_logs_sprint_idx" ON "sprint_logs" USING btree ("sprint_id","created_at");--> statement-breakpoint
-CREATE INDEX "sprint_logs_sprint_level_idx" ON "sprint_logs" USING btree ("sprint_id","level");--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "agent_improvement_log" ADD CONSTRAINT "agent_improvement_log_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "audit_log" ADD CONSTRAINT "audit_log_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "behavior_rules" ADD CONSTRAINT "behavior_rules_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "behavior_snapshots" ADD CONSTRAINT "behavior_snapshots_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "conversations" ADD CONSTRAINT "conversations_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "conversations" ADD CONSTRAINT "conversations_task_id_tasks_id_fk" FOREIGN KEY ("task_id") REFERENCES "public"."tasks"("id") ON DELETE set null ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "mcp_tokens" ADD CONSTRAINT "mcp_tokens_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "sprint_logs" ADD CONSTRAINT "sprint_logs_sprint_id_sprints_id_fk" FOREIGN KEY ("sprint_id") REFERENCES "public"."sprints"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "workspace_invites" ADD CONSTRAINT "workspace_invites_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "workspace_invites" ADD CONSTRAINT "workspace_invites_invited_by_user_id_users_id_fk" FOREIGN KEY ("invited_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "workspace_invites" ADD CONSTRAINT "workspace_invites_used_by_user_id_users_id_fk" FOREIGN KEY ("used_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "workspace_key_shares" ADD CONSTRAINT "workspace_key_shares_source_ws_id_workspaces_id_fk" FOREIGN KEY ("source_ws_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "workspace_key_shares" ADD CONSTRAINT "workspace_key_shares_target_ws_id_workspaces_id_fk" FOREIGN KEY ("target_ws_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "workspace_key_shares" ADD CONSTRAINT "workspace_key_shares_granted_by_users_id_fk" FOREIGN KEY ("granted_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "workspace_members" ADD CONSTRAINT "workspace_members_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "workspace_members" ADD CONSTRAINT "workspace_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "workspace_members" ADD CONSTRAINT "workspace_members_invited_by_user_id_users_id_fk" FOREIGN KEY ("invited_by_user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "workspace_preferences" ADD CONSTRAINT "workspace_preferences_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "agent_improvement_log_workspace_idx" ON "agent_improvement_log" USING btree ("workspace_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "audit_log_workspace_idx" ON "audit_log" USING btree ("workspace_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "audit_log_action_idx" ON "audit_log" USING btree ("action");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "audit_log_created_idx" ON "audit_log" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "behavior_rules_workspace_idx" ON "behavior_rules" USING btree ("workspace_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "behavior_rules_project_idx" ON "behavior_rules" USING btree ("project_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "behavior_rules_type_idx" ON "behavior_rules" USING btree ("type");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "behavior_rules_deleted_idx" ON "behavior_rules" USING btree ("deleted_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "behavior_snapshots_workspace_idx" ON "behavior_snapshots" USING btree ("workspace_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "behavior_snapshots_created_idx" ON "behavior_snapshots" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "conversations_workspace_idx" ON "conversations" USING btree ("workspace_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "conversations_workspace_created_idx" ON "conversations" USING btree ("workspace_id","created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "conversations_session_idx" ON "conversations" USING btree ("session_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "kapsel_registry_name_idx" ON "kapsel_registry" USING btree ("name");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "kapsel_registry_publisher_idx" ON "kapsel_registry" USING btree ("publisher");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "kapsel_registry_deprecated_idx" ON "kapsel_registry" USING btree ("deprecated");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "mcp_tokens_workspace_idx" ON "mcp_tokens" USING btree ("workspace_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "mcp_tokens_hash_idx" ON "mcp_tokens" USING btree ("token_hash");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "models_knowledge_provider_idx" ON "models_knowledge" USING btree ("provider");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "models_knowledge_model_idx" ON "models_knowledge" USING btree ("model_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "sprint_logs_sprint_idx" ON "sprint_logs" USING btree ("sprint_id","created_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "sprint_logs_sprint_level_idx" ON "sprint_logs" USING btree ("sprint_id","level");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "workspace_invites_token_idx" ON "workspace_invites" USING btree ("token");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "workspace_invites_workspace_idx" ON "workspace_invites" USING btree ("workspace_id");--> statement-breakpoint
-CREATE INDEX "key_shares_source_idx" ON "workspace_key_shares" USING btree ("source_ws_id");--> statement-breakpoint
-CREATE INDEX "key_shares_target_idx" ON "workspace_key_shares" USING btree ("target_ws_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "key_shares_unique_idx" ON "workspace_key_shares" USING btree ("source_ws_id","target_ws_id","provider_key");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "key_shares_source_idx" ON "workspace_key_shares" USING btree ("source_ws_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "key_shares_target_idx" ON "workspace_key_shares" USING btree ("target_ws_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "key_shares_unique_idx" ON "workspace_key_shares" USING btree ("source_ws_id","target_ws_id","provider_key");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "workspace_members_workspace_user_idx" ON "workspace_members" USING btree ("workspace_id","user_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "workspace_members_workspace_idx" ON "workspace_members" USING btree ("workspace_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "workspace_members_user_idx" ON "workspace_members" USING btree ("user_id");--> statement-breakpoint
-CREATE INDEX "workspace_preferences_workspace_idx" ON "workspace_preferences" USING btree ("workspace_id");--> statement-breakpoint
-ALTER TABLE "tasks" ADD CONSTRAINT "tasks_project_id_sprints_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."sprints"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-CREATE UNIQUE INDEX "installed_connections_workspace_registry_uq" ON "installed_connections" USING btree ("workspace_id","registry_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "plugins_workspace_name_uq" ON "plugins" USING btree ("workspace_id","name");--> statement-breakpoint
-CREATE INDEX "tasks_project_id_idx" ON "tasks" USING btree ("project_id");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "workspace_preferences_workspace_idx" ON "workspace_preferences" USING btree ("workspace_id");--> statement-breakpoint
+DO $$ BEGIN ALTER TABLE "tasks" ADD CONSTRAINT "tasks_project_id_sprints_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."sprints"("id") ON DELETE set null ON UPDATE no action; EXCEPTION WHEN duplicate_object THEN NULL; WHEN duplicate_table THEN NULL; WHEN others THEN IF SQLSTATE = '42710' THEN NULL; ELSE RAISE; END IF; END $$;--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "installed_connections_workspace_registry_uq" ON "installed_connections" USING btree ("workspace_id","registry_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "plugins_workspace_name_uq" ON "plugins" USING btree ("workspace_id","name");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "tasks_project_id_idx" ON "tasks" USING btree ("project_id");--> statement-breakpoint
 ALTER TABLE "plugins" DROP COLUMN "manifest";--> statement-breakpoint
 ALTER TABLE "public"."plugins" ALTER COLUMN "type" SET DATA TYPE text;--> statement-breakpoint
 DROP TYPE "public"."plugin_type";--> statement-breakpoint
-CREATE TYPE "public"."plugin_type" AS ENUM('agent', 'skill', 'channel', 'tool', 'mcp-server');--> statement-breakpoint
+DO $$ BEGIN CREATE TYPE "public"."plugin_type" AS ENUM('agent', 'skill', 'channel', 'tool', 'mcp-server'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;--> statement-breakpoint
 ALTER TABLE "public"."plugins" ALTER COLUMN "type" SET DATA TYPE "public"."plugin_type" USING "type"::"public"."plugin_type";
