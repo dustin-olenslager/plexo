@@ -10,7 +10,6 @@ import { useSearchParams } from 'next/navigation'
 import {
     Send,
     RefreshCw,
-    Bot,
     User,
     Clock,
     CheckCircle2,
@@ -195,7 +194,7 @@ function MessageBubble({
                 }`}>
                 {msg.role === 'user'
                     ? <User className="h-4 w-4 text-text-secondary" />
-                    : <Bot className="h-4 w-4 text-text-primary" />
+                    : <PlexoMark className="h-6 w-6" idle={msg.status !== 'queued' && msg.status !== 'running'} working={msg.status === 'queued' || msg.status === 'running'} />
                 }
             </div>
 
