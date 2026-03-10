@@ -19,6 +19,7 @@ import {
     Loader2,
     Radio,
     Volume2,
+    Wallet,
 } from 'lucide-react'
 
 const API_BASE = typeof window !== 'undefined'
@@ -43,6 +44,12 @@ function StatusDot({ status }: { status: TestStatus }) {
     return <Circle className="h-4 w-4 text-text-muted" />
 }
 
+interface UsageData {
+    amount: number
+    units: string
+    projectId: string
+}
+
 export default function VoiceSettingsPage() {
     const { workspaceId } = useWorkspace()
     const [settings, setSettings] = useState<VoiceSettings | null>(null)
@@ -59,6 +66,10 @@ export default function VoiceSettingsPage() {
     const [testMessage, setTestMessage] = useState('')
     const inputRef = useRef<HTMLInputElement>(null)
 
+    // Balance / usage
+    const [usageData, setUsageData] = useState<UsageData | null>(null)
+    const [usageLoading, setUsageLoading] = useState(false)
+
     // ── Load settings ─────────────────────────────────────────────────────────
 
     useEffect(() => {
@@ -68,10 +79,20 @@ export default function VoiceSettingsPage() {
             .then(r => r.ok ? r.json() as Promise<VoiceSettings> : null)
             .then(data => {
                 if (data) setSettings(data)
+                if (data?.configured) fetchUsage(workspaceId)
             })
             .catch(() => null)
             .finally(() => setLoading(false))
     }, [workspaceId])
+
+    function fetchUsage(wsId: string) {
+        setUsageLoading(true)
+        fetch(`${API_BASE}/api/v1/voice/usage?workspaceId=${wsId}`)
+            .then(r => r.ok ? r.json() as Promise<UsageData> : null)
+            .then(data => { if (data) setUsageData(data) })
+            .catch(() => null)
+            .finally(() => setUsageLoading(false))
+    }
 
     // ── Actions ───────────────────────────────────────────────────────────────
 
@@ -132,6 +153,7 @@ export default function VoiceSettingsPage() {
                 setKeyInput('')
                 setShowKey(false)
                 setSettings(s => s ? { ...s, configured: true } : s)
+                if (workspaceId) fetchUsage(workspaceId)
             }
         } catch (err) {
             setTestStatus('error')
@@ -318,6 +340,37 @@ export default function VoiceSettingsPage() {
                             </div>
                         )}
                     </div>
+
+                    {/* Balance strip — visible once configured */}
+                    {settings?.configured && (
+                        <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-surface-2/30 px-4 py-3">
+                            <div className="flex items-center gap-2.5">
+                                <Wallet className="h-4 w-4 text-azure shrink-0" />
+                                <span className="text-sm font-medium text-text-secondary">Balance</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {usageLoading ? (
+                                    <Loader2 className="h-4 w-4 animate-spin text-text-muted" />
+                                ) : usageData ? (
+                                    <span className="text-sm font-semibold text-text-primary tabular-nums">
+                                        ${usageData.amount.toFixed(2)}
+                                        <span className="ml-1.5 text-xs font-normal text-text-muted uppercase">{usageData.units}</span>
+                                    </span>
+                                ) : (
+                                    <span className="text-xs text-text-muted">unavailable</span>
+                                )}
+                                {usageData && (
+                                    <button
+                                        onClick={() => workspaceId && fetchUsage(workspaceId)}
+                                        title="Refresh balance"
+                                        className="ml-1 text-text-muted hover:text-azure transition-colors"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Test result */}
                     {testMessage && (
