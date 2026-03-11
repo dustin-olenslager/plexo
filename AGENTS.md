@@ -442,6 +442,18 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 
 ---
 
+### 2026-03 — GitHub Branch Selection & Creation
+
+- **Problem**: Users were forced to manually type the target branch name in the repository setup dialog, increasing friction and the risk of typos for existing branches.
+- **Fixes**:
+    - **Branch Introspection**: Added `/api/v1/connections/github/branches` endpoint to fetch real-time branch lists for connected repositories.
+    - **Interactive Selector**: Replaced the "Target Branch" text input with a searchable combobox populated with existing branches.
+    - **Creation Toggle**: Integrated a "Create new branch" workflow within the dropdown, allowing users to switch between selecting existing branches and defining new ones.
+    - **Smart Defaults**: The selector automatically fetches and selects the repository's default branch (`main`, `master`, etc.) upon repository selection.
+- **Lesson**: UI completeness matters during "First Mile" configuration. Providing discoverable options (like existing branches) prevents user anxiety about "guessing" correctly.
+
+---
+
 ### 2026-03 — Security: Repository Hardening & Path Sanitization
 
 - **Problem**: A security audit identified hardcoded development passwords, absolute local paths (`/home/dustin/...`), and tracked visual assets that contained sensitive UI states from a private instance.

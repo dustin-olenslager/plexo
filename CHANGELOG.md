@@ -8,6 +8,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ### Changed
 - **Integrated Canvas Chat UI** — Redesigned the chat interface for a more fluid workspace. Removed restrictive "box in a box" borders in favor of a side-by-side flex layout for artifacts.
 - **Modern Chat Bubble Aesthetics** — Message bubbles now use subtle transparency, lifted hover states, and smooth slide-in entrance animations.
+- **Enhanced Repository Setup** — Added a searchable branch selection dropdown to the Workspace Configuration dialog. Users can now pick existing branches from their connected GitHub repositories or specify a new branch to create, with automatic defaulting to the repository's primary branch.
 - **Translucent Artifact Panel** — The artifact panel now utilizes glassmorphism (`backdrop-blur-xl`) and a canvas-integrated background when docked, creating a cohesive "Integrated Canvas" feel.
 
 ### Fixed
