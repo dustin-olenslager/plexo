@@ -248,11 +248,17 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 - **`memory_entries` (PostgreSQL + pgvector)**: Stores semantic memories with 1536-dim embeddings (OpenAI `text-embedding-3-small`). Falls back to ILIKE text search when no OpenAI key.
 - **`workspace_preferences`**: Key/value store with confidence scores. Used for learned patterns (language, test framework) and user-set behavioral rules.
 - **Redis cache**: `plexo:memory:<workspaceId>:search:*` (5m TTL), `plexo:memory:<workspaceId>:prefs` (10m TTL). Invalidated on every write.
-- **MEMORY intent in chat**: When a user says "remember X", "always do Y", "never Z" — detected by classifier, written directly to `memory_entries` (type=pattern) + `workspace_preferences` (key=user_instruction). No task queued.
-- **Executor injection**: At task start, `getPreferences()` is called (Redis-backed). Non-empty rules are injected as `WORKSPACE RULES (always follow these)` block in the system prompt.
+- **MEMORY intent in chat**: When a user says "remember X", "always do Y", it goes to memory. It does not queue a task.
+- **Rules application**: Every task plan context fetches high-confidence preferences from `workspace_preferences` and includes them in the system prompt.
 - **Consolidation cron**: Runs every 6h via `scheduleMemoryConsolidation()` called at startup. Visible in the Cron UI as 'Memory consolidation' (seeded per workspace on startup). Also manually triggerable via `/api/v1/memory/improvements/run`.
 
 ---
+
+### 2026-03 — Empty Conversations Table / Missing Chat History
+
+- **Root cause**: `GET /api/v1/conversations?groupBySession=true` executes raw SQL via `db.execute()`. This raw query returned columns in `snake_case` (e.g., `created_at`, `workspace_id`), but the frontend's `ConversationItem` strictly expected `camelCase` properties (`createdAt`, `workspaceId`). This caused `createdAt` to be `undefined`, producing an "Invalid Date" grouping in the UI, crashing or rendering an empty conversation history. The conversations *were* successfully saved, but the UI couldn't display them.
+- **Fix**: Mapped the `rawRows` array objects from `snake_case` to `camelCase` in `apps/api/src/routes/conversations.ts` before returning them as JSON.
+- **Lesson**: `db.execute(sql...)` returns raw DB column names based on the Postgres mapping, bypassing Drizzle's camelCase keys. When migrating from `db.select()` to `db.execute()`, field properties must always be explicitly mapped to avoid breaking the frontend contract.
 
 ## Bug Post-Mortems
 

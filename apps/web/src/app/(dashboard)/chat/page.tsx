@@ -41,6 +41,7 @@ import {
     FileText,
     Plus,
     ArrowRight,
+    Monitor,
 } from 'lucide-react'
 import { CodeModeShell, type CodeModeContext } from './_code-mode/code-mode-shell'
 import Link from 'next/link'
@@ -110,7 +111,7 @@ const PROJECT_CATS = [
 
 // ── AssetCard — renders a write_asset file inline in the chat ────────────────
 
-function AssetCard({ asset }: { asset: TaskAsset }) {
+function AssetCard({ asset, onPreview }: { asset: TaskAsset; onPreview?: (filename: string) => void }) {
     const [copied, setCopied] = useState(false)
     const sizeLabel = asset.bytes < 1024 ? `${asset.bytes}B` : asset.bytes < 1024 * 1024 ? `${(asset.bytes / 1024).toFixed(1)}KB` : `${(asset.bytes / (1024 * 1024)).toFixed(1)}MB`
 
@@ -133,14 +134,26 @@ function AssetCard({ asset }: { asset: TaskAsset }) {
             </summary>
             {asset.isText && asset.content && (
                 <div className="relative border-t border-zinc-700/60">
-                    <button
-                        onClick={copyContent}
-                        className="absolute top-2 right-2 rounded-md bg-zinc-700 border border-zinc-600 p-1 text-text-secondary hover:text-text-primary hover:bg-surface-3 transition-colors z-10"
-                        title="Copy content"
-                    >
-                        {copied ? <Check className="h-3 w-3 text-azure" /> : <Copy className="h-3 w-3" />}
-                    </button>
-                    <pre className="text-[11px] font-mono text-text-secondary leading-relaxed p-3 pr-10 overflow-x-auto max-h-64 whitespace-pre-wrap break-words">{asset.content}</pre>
+                    <div className="flex items-center gap-2 absolute top-2 right-2 z-10">
+                        {asset.filename.endsWith('.html') && onPreview && (
+                            <button
+                                onClick={() => onPreview(asset.filename)}
+                                className="rounded-md bg-azure/10 border border-azure/30 px-2 py-1 text-xs font-medium text-azure hover:bg-azure/20 transition-colors flex items-center gap-1"
+                                title="Open in Preview"
+                            >
+                                <Monitor className="h-3 w-3" />
+                                Preview
+                            </button>
+                        )}
+                        <button
+                            onClick={copyContent}
+                            className="rounded-md bg-zinc-700 border border-zinc-600 p-1 text-text-secondary hover:text-text-primary hover:bg-surface-3 transition-colors"
+                            title="Copy content"
+                        >
+                            {copied ? <Check className="h-3 w-3 text-azure" /> : <Copy className="h-3 w-3" />}
+                        </button>
+                    </div>
+                    <pre className="text-[11px] font-mono text-text-secondary leading-relaxed p-3 pr-24 overflow-x-auto max-h-64 whitespace-pre-wrap break-words">{asset.content}</pre>
                 </div>
             )}
             {!asset.isText && (
@@ -157,12 +170,14 @@ function MessageBubble({
     onExecute,
     onCancel,
     onSelectCategory,
+    onPreviewAsset,
     userInitial,
 }: {
     msg: Message
     onExecute: (id: string, intent: 'TASK' | 'PROJECT' | 'CONVERSATION', desc: string, cat?: string) => void
     onCancel: (id: string) => void
     onSelectCategory: (id: string, cat: string) => void
+    onPreviewAsset: (taskId: string, filename: string) => void
     userInitial: string
 }) {
     const [copied, setCopied] = useState(false)
@@ -335,7 +350,11 @@ function MessageBubble({
                             {msg.assets && msg.assets.length > 0 && (
                                 <div className="flex flex-col gap-1.5 mt-1">
                                     {msg.assets.map((asset) => (
-                                        <AssetCard key={asset.filename} asset={asset} />
+                                        <AssetCard 
+                                            key={asset.filename} 
+                                            asset={asset} 
+                                            onPreview={() => msg.taskId && onPreviewAsset(msg.taskId, asset.filename)}
+                                        />
                                     ))}
                                 </div>
                             )}
@@ -490,6 +509,9 @@ function ChatContent() {
     // ── Code Mode state ───────────────────────────────────────────────────────
     const [codeMode, setCodeMode] = useState(false)
     const [codeModeContext, setCodeModeContext] = useState<CodeModeContext>({})
+    const [previewPath, setPreviewPath] = useState('index.html')
+    const [bottomTab, setBottomTab] = useState<'terminal' | 'tests' | 'diff' | 'preview'>('terminal')
+    const [showBottom, setShowBottom] = useState(true)
     // Track last running task's taskId for Code Mode streaming
     const lastRunningTaskId = messages.find((m) => m.status === 'running')?.taskId
 
@@ -1162,7 +1184,7 @@ function ChatContent() {
 
     const chatPanel = (
         <div
-            className="flex h-full flex-col relative"
+            className="flex h-full flex-col relative bg-transparent"
             onDragEnter={handleDragEnter}
             onDragLeave={handleDragLeave}
             onDragOver={(e) => e.preventDefault()}
@@ -1180,7 +1202,7 @@ function ChatContent() {
             )}
             {/* Header */}
 
-            <div className="flex items-center justify-between pb-4 border-b border-border shrink-0">
+            <div className="flex items-center justify-between px-8 py-4 border-b border-border shrink-0 bg-surface-1/20">
                 <div>
                     <div className="flex items-center gap-3">
                         <h1 className="text-xl font-bold text-zinc-50">Chat</h1>
@@ -1249,9 +1271,9 @@ function ChatContent() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto py-4 flex flex-col gap-4 min-h-0">
+            <div className="flex-1 overflow-y-auto px-8 py-8 flex flex-col gap-8 min-h-0">
                 {messages.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-full gap-2 mx-auto w-full max-w-2xl px-4 animate-in fade-in duration-700">
+                    <div className="flex flex-col items-center justify-center py-10 gap-2 mx-auto w-full max-w-2xl animate-in fade-in duration-700">
                         {/* Brand mark — idle breathe at rest, working pulse while listening */}
                         <div className={`relative flex items-center justify-center transition-all duration-500 mb-2 ${
                             isListening
@@ -1356,6 +1378,12 @@ function ChatContent() {
                         userInitial={userInitial}
                         onExecute={executeConfirmedAction}
                         onCancel={cancelAction}
+                        onPreviewAsset={(taskId, path) => {
+                            setPreviewPath(path)
+                            setBottomTab('preview')
+                            setShowBottom(true)
+                            setCodeMode(true)
+                        }}
                         onSelectCategory={(id, cat) => setMessages((prev) => prev.map((m) =>
                             m.id === id ? { ...m, selectedCategory: cat } : m
                         ))}
@@ -1443,7 +1471,7 @@ function ChatContent() {
             )}
 
             {/* Input area */}
-            <div className="shrink-0 flex flex-col gap-2 pt-3 border-t border-border">
+            <div className="shrink-0 flex flex-col gap-3 px-8 pt-5 pb-6 border-t border-border bg-surface-1/30">
                 {/* Pasted file previews (images, SVG, PDF) */}
                 {pastedImages.length > 0 && (
                     <div className="flex flex-wrap gap-2 px-1">
@@ -1596,28 +1624,39 @@ function ChatContent() {
         </div>
     )
 
-    if (codeMode) {
-        return (
-            <CodeModeShell
-                workspaceId={WS_ID}
-                taskId={lastRunningTaskId}
-                isTaskRunning={!!lastRunningTaskId}
-                context={codeModeContext}
-                onRepoSelect={(sel) => {
-                    setCodeModeContext({ repo: sel.repo, branch: sel.branch, isNew: sel.isNew })
-                }}
-                onRerunTest={(testNames) => {
-                    const text = testNames.length === 1
-                        ? `Re-run the failing test: ${testNames[0]}`
-                        : `Re-run these failing tests: ${testNames.join(', ')}`
-                    void sendMessageWith(text)
-                }}
-                onClose={() => setCodeMode(false)}
-            >
-                {chatPanel}
-            </CodeModeShell>
-        )
-    }
-
-    return chatPanel
+    return (
+        <div className="flex flex-col h-full max-w-7xl mx-auto w-full overflow-hidden p-4 md:p-6 lg:p-8">
+            <div className="flex-1 overflow-hidden flex flex-col bg-surface-1 backdrop-blur-md border border-border/80 rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-azure/5 via-transparent to-transparent pointer-events-none" />
+                {codeMode ? (
+                    <CodeModeShell
+                        workspaceId={WS_ID}
+                        taskId={lastRunningTaskId}
+                        isTaskRunning={!!lastRunningTaskId}
+                        context={codeModeContext}
+                        onRepoSelect={(sel) => {
+                            setCodeModeContext({ repo: sel.repo, branch: sel.branch, isNew: sel.isNew })
+                        }}
+                        onRerunTest={(testNames) => {
+                            const text = testNames.length === 1
+                                ? `Re-run the failing test: ${testNames[0]}`
+                                : `Re-run these failing tests: ${testNames.join(', ')}`
+                            void sendMessageWith(text)
+                        }}
+                        onClose={() => setCodeMode(false)}
+                        bottomTab={bottomTab}
+                        setBottomTab={setBottomTab}
+                        showBottom={showBottom}
+                        setShowBottom={setShowBottom}
+                        previewPath={previewPath}
+                        setPreviewPath={setPreviewPath}
+                    >
+                        {chatPanel}
+                    </CodeModeShell>
+                ) : (
+                    chatPanel
+                )}
+            </div>
+        </div>
+    )
 }

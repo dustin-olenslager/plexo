@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
     Terminal, GitBranch, TestTube, FileText, Settings2,
-    Activity, X, ChevronLeft, ChevronRight, Layers, Split, Code2
+    Activity, X, ChevronLeft, ChevronRight, Layers, Split, Code2, Monitor
 } from 'lucide-react'
 import { useCodeStream, type StepShellLineEvent, type StepFileWriteEvent, type StepTestResultEvent } from './use-code-stream'
 import { TerminalPanel } from './terminal-panel'
@@ -14,6 +14,7 @@ import { TestResultsPanel } from './test-results-panel'
 import { FileTree } from './file-tree'
 import { DiffViewer } from './diff-viewer'
 import { RepoPicker, type RepoSelection } from './repo-picker'
+import { PreviewPanel } from './preview-panel'
 
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -41,13 +42,19 @@ interface CodeModeShellProps {
     onRepoSelect: (sel: RepoSelection) => void
     onRerunTest: (testNames: string[]) => void
     onClose: () => void
+    bottomTab?: 'terminal' | 'tests' | 'diff' | 'preview'
+    setBottomTab?: (tab: 'terminal' | 'tests' | 'diff' | 'preview') => void
+    showBottom?: boolean
+    setShowBottom?: (show: boolean) => void
+    previewPath?: string
+    setPreviewPath?: (path: string) => void
     /** Pass-through of the main chat panel */
     children: React.ReactNode
 }
 
 // ── Bottom tab types ──────────────────────────────────────────────────────────
 
-type BottomTab = 'terminal' | 'tests' | 'diff'
+type BottomTab = 'terminal' | 'tests' | 'diff' | 'preview'
 
 // ── Fetch helpers ─────────────────────────────────────────────────────────────
 
@@ -141,6 +148,12 @@ export function CodeModeShell({
     onRepoSelect,
     onRerunTest,
     onClose,
+    bottomTab: externalBottomTab,
+    setBottomTab: setExternalBottomTab,
+    showBottom: externalShowBottom,
+    setShowBottom: setExternalShowBottom,
+    previewPath: externalPreviewPath,
+    setPreviewPath: setExternalPreviewPath,
     children,
 }: CodeModeShellProps) {
     // ── Stream state ──────────────────────────────────────────────────────────
@@ -205,11 +218,21 @@ export function CodeModeShell({
     }, [fileWrites.length])
 
     // ── Layout ────────────────────────────────────────────────────────────────
-    const [bottomTab, setBottomTab] = useState<BottomTab>('terminal')
+    const [localBottomTab, setLocalBottomTab] = useState<BottomTab>('terminal')
     const [sidebarWidth, setSidebarWidth] = useState(220)
-    const [bottomHeight, setBottomHeight] = useState(220)
+    const [localBottomHeight, setLocalBottomHeight] = useState(220)
     const [showSidebar, setShowSidebar] = useState(true)
-    const [showBottom, setShowBottom] = useState(true)
+    const [localShowBottom, setLocalShowBottom] = useState(true)
+    const [localPreviewPath, setLocalPreviewPath] = useState('index.html')
+
+    const bottomTab = externalBottomTab ?? localBottomTab
+    const setBottomTab = setExternalBottomTab ?? setLocalBottomTab
+    const bottomHeight = localBottomHeight
+    const setBottomHeight = setLocalBottomHeight
+    const showBottom = externalShowBottom ?? localShowBottom
+    const setShowBottom = setExternalShowBottom ?? setLocalShowBottom
+    const previewPath = externalPreviewPath ?? localPreviewPath
+    const setPreviewPath = setExternalPreviewPath ?? setLocalPreviewPath
 
     // ── Clear state when task changes ─────────────────────────────────────────
     const prevTaskId = useRef(taskId)
@@ -234,9 +257,9 @@ export function CodeModeShell({
     }
 
     return (
-        <div className="flex flex-col h-full bg-surface-1 text-text-primary overflow-hidden relative">
+        <div className="flex flex-col h-full bg-transparent text-text-primary overflow-hidden relative">
             {/* ── Toolbar ─────────────────────────────────────────────────── */}
-            <div className="flex items-center gap-1 px-2 h-9 bg-surface-1 border-b border-border flex-shrink-0">
+            <div className="flex items-center gap-1 px-2 h-9 bg-surface-1/40 border-b border-border flex-shrink-0">
                 {/* Sidebar toggle — only relevant once a repo is connected */}
                 {hasRepo && (
                 <button
@@ -272,18 +295,20 @@ export function CodeModeShell({
                 <div className="flex-1" />
 
                 {/* Bottom panel toggle buttons */}
-                {(['terminal', 'tests', 'diff'] as BottomTab[]).map((tab) => {
+                {(['terminal', 'tests', 'diff', 'preview'] as BottomTab[]).map((tab) => {
                     const icons = {
                         terminal: Terminal,
                         tests: TestTube,
                         diff: FileText,
+                        preview: Monitor,
                     }
                     const Icon = icons[tab]
-                    const labels = { terminal: 'Terminal', tests: 'Tests', diff: 'Changes' }
+                    const labels = { terminal: 'Terminal', tests: 'Tests', diff: 'Changes', preview: 'Preview' }
                     const counts = {
                         terminal: shellLines.length || undefined,
                         tests: testResults.length || undefined,
                         diff: fileWrites.length || undefined,
+                        preview: undefined,
                     }
                     return (
                         <button
@@ -410,6 +435,14 @@ export function CodeModeShell({
                     )}
                     {bottomTab === 'diff' && (
                         <DiffViewer events={fileWrites} className="flex-1" />
+                    )}
+                    {bottomTab === 'preview' && (
+                        <PreviewPanel
+                            workspaceId={workspaceId}
+                            taskId={taskId}
+                            path={previewPath}
+                            className="flex-1"
+                        />
                     )}
                 </div>
             )}

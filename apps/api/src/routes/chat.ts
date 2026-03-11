@@ -259,7 +259,7 @@ chatRouter.post('/message', async (req, res) => {
                 if (typeof s.agentPersona === 'string' && s.agentPersona) agentPersona = s.agentPersona
                 if (typeof s.agentTagline === 'string' && s.agentTagline) agentTagline = s.agentTagline
             }
-        } catch { /* non-fatal */ }
+        } catch (err) { logger.error({ err }, "Failed to record conversation") }
 
         // Resolve the actual active model ID for identity injection
         const resolvedModel = config.model ?? PROVIDER_DEFAULT_MODELS[providerKey] ?? providerKey
@@ -393,7 +393,7 @@ chatRouter.post('/message', async (req, res) => {
 
                 try {
                     await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply, status: 'complete', intent })
-                } catch { /* non-fatal */ }
+                } catch (err) { logger.error({ err }, "Failed to record conversation") }
 
                 res.json({ status: 'complete', reply })
             } catch (err) {
@@ -445,7 +445,7 @@ Critical rules — follow without exception:
                     const classified = classifyAIError(new Error('Empty response from model — the model returned no text.'))
                     try {
                         await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent })
-                    } catch { /* non-fatal */ }
+                    } catch (err) { logger.error({ err }, "Failed to record conversation") }
                     res.json({ status: 'error', reply: classified.message, fixUrl: classified.fixUrl, fixLabel: classified.fixLabel, technicalDetail: classified.technical })
                     return
                 }
@@ -453,7 +453,7 @@ Critical rules — follow without exception:
                 // Record the conversation turn
                 try {
                     await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, reply: replyText, status: 'complete', intent })
-                } catch { /* non-fatal */ }
+                } catch (err) { logger.error({ err }, "Failed to record conversation") }
 
                 // Relay reply back to the originating channel (e.g. Telegram)
                 if (externalChannelRef) {
@@ -479,7 +479,7 @@ Critical rules — follow without exception:
                 logger.error({ err, workspaceId, errorType: classified.type }, 'Webchat conversational reply failed')
                 try {
                     await recordConversation({ workspaceId, sessionId, source: conversationSource, message: trimmedMsg, errorMsg: classified.message, status: 'failed', intent })
-                } catch { /* non-fatal */ }
+                } catch (err) { logger.error({ err }, "Failed to record conversation") }
                 res.json({ status: 'error', reply: classified.message, fixUrl: classified.fixUrl, fixLabel: classified.fixLabel, technicalDetail: classified.technical })
             }
             return
@@ -524,7 +524,7 @@ Critical rules — follow without exception:
             const confirmReply = `On it.${recommendedSwitch}`
             try {
                 await recordConversation({ workspaceId, sessionId, source: 'dashboard', message: trimmedMsg, reply: confirmReply, status: 'complete', intent })
-            } catch { /* non-fatal */ }
+            } catch (err) { logger.error({ err }, "Failed to record conversation") }
 
             res.json({ status: 'task_queued', taskId, reply: confirmReply })
             return
