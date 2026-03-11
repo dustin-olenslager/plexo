@@ -69,7 +69,9 @@ plugins/core/*     → packages/sdk only (never packages/db or packages/agent)
 ## Deploy sequence (non-negotiable)
 1. Commit locally
 2. `git push origin main`
-3. Single SSH command: `export SOURCE_COMMIT=$(git rev-parse HEAD) && docker compose -f docker/compose.yml -f docker/compose.override.yml build <service> && docker compose -f docker/compose.yml -f docker/compose.override.yml up -d <service>`
+3. **STOP**: Ask for explicit user permission before deploying to the VPS.
+4. Single SSH command: `export SOURCE_COMMIT=$(git rev-parse HEAD) && docker compose -f docker/compose.yml -f docker/compose.override.yml build <service> && docker compose -f docker/compose.yml -f docker/compose.override.yml up -d <service>`
+
 
 Rules:
 - `git pull` and `docker compose build/up` MUST be in the same SSH invocation, chained with `&&`.
