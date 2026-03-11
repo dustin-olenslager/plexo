@@ -356,7 +356,6 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
         NAV_GROUPS.forEach((g) => { init[g.label] = !g.defaultOpen })
         return init
     })
-    const [pendingApprovals, setPendingApprovals] = useState(0)
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
     useEffect(() => {
@@ -374,10 +373,13 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
         })
     }
 
-    // Polling for pending approvals count
+    const [pendingApprovals, setPendingApprovals] = useState(0)
+    const [systemWarning, setSystemWarning] = useState(false)
+    const [capabilityWarning, setCapabilityWarning] = useState(false)
+
     const fetchPending = useCallback(async () => {
         const wsId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE
-        const api = (typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001'))
+        const api = typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001')
         if (!wsId) return
         try {
             const res = await fetch(`${api}/api/v1/approvals?workspaceId=${wsId}`, { cache: 'no-store' })
@@ -387,11 +389,40 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
         } catch { /* ignore */ }
     }, [])
 
+    const fetchHealth = useCallback(async () => {
+        const wsId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE
+        const api = typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001')
+        try {
+            // Check System Health (AI Provider, DB, etc.)
+            const res = await fetch(`${api}/api/v1/health`, { cache: 'no-store' })
+            if (res.ok) {
+                const data = await res.json() as { status: string; services: { ai: { ok: boolean | null } } }
+                const aiFailed = data.services.ai.ok === false
+                setSystemWarning(data.status === 'degraded' || aiFailed)
+            }
+
+            // Check Capabilities Health (Installed Connections)
+            if (wsId) {
+                const connRes = await fetch(`${api}/api/v1/connections/installed?workspaceId=${wsId}`, { cache: 'no-store' })
+                if (connRes.ok) {
+                    const connData = await connRes.json() as { items: { status: string }[] }
+                    const hasDisconnected = connData.items.some(it => it.status === 'disconnected')
+                    setCapabilityWarning(hasDisconnected)
+                }
+            }
+        } catch { /* ignore */ }
+    }, [])
+
     useEffect(() => {
         void fetchPending()
-        const iv = setInterval(() => void fetchPending(), 10_000)
-        return () => clearInterval(iv)
-    }, [fetchPending])
+        void fetchHealth()
+        const ivApprovals = setInterval(() => void fetchPending(), 10_000)
+        const ivHealth = setInterval(() => void fetchHealth(), 30_000)
+        return () => {
+            clearInterval(ivApprovals)
+            clearInterval(ivHealth)
+        }
+    }, [fetchPending, fetchHealth])
 
     // Load persisted collapse state after mount
     useEffect(() => {
@@ -421,10 +452,15 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
         })
     }
 
+    function getGroupStatus(groupLabel: string) {
+        if (groupLabel === 'Work') return pendingApprovals > 0 ? 'warning' : null
+        if (groupLabel === 'Capabilities') return capabilityWarning ? 'warning' : null
+        if (groupLabel === 'System') return systemWarning ? 'warning' : null
+        return null
+    }
+
     function isActive(href: string, exact?: boolean): boolean {
         if (href === '/' || exact) return pathname === href
-        // Segment-boundary match: /tasks matches /tasks/abc but NOT /taskssomething
-        // Also avoids /settings matching /settings/agent
         return pathname === href || pathname.startsWith(href + '/')
     }
 
@@ -491,6 +527,11 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
                         const isCollapsed = collapsed[group.label] ?? !group.defaultOpen
                         return (
                             <div key={group.label} className={sidebarCollapsed ? "mb-4 border-b border-border/20 pb-4 last:border-0 last:mb-0 last:pb-0" : "mb-0.5"}>
+                                {sidebarCollapsed && getGroupStatus(group.label) && (
+                                    <div className="flex justify-center mb-1">
+                                        <div className="h-1.5 w-1.5 rounded-full bg-red animate-pulse" />
+                                    </div>
+                                )}
                                 {/* Group header */}
                                 {!sidebarCollapsed && (
                                     <div
@@ -501,6 +542,9 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
                                             <span className="text-[11px] font-semibold text-text-muted group-hover:text-text-secondary uppercase tracking-tight">
                                                 {group.label}
                                             </span>
+                                            {getGroupStatus(group.label) && (
+                                                <div className="h-1 w-1 rounded-full bg-red animate-pulse" />
+                                            )}
                                         </div>
                                         {group.collapsible && (
                                             <span className="text-text-muted/60">
@@ -536,6 +580,7 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
                                                             }`}
                                                     />
                                                     {!sidebarCollapsed && <span className="flex-1 truncate">{label}</span>}
+                                                    {/* Approvals Badge */}
                                                     {href === '/approvals' && pendingApprovals > 0 && !sidebarCollapsed && (
                                                         <span className="shrink-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
                                                             {pendingApprovals}
@@ -543,6 +588,16 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
                                                     )}
                                                     {href === '/approvals' && pendingApprovals > 0 && sidebarCollapsed && (
                                                         <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-red-500" />
+                                                    )}
+
+                                                    {/* Integrations Warning */}
+                                                    {href === '/settings/connections' && capabilityWarning && (
+                                                        <span className={`h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse ${sidebarCollapsed ? 'absolute top-1.5 right-1.5' : 'ml-1'}`} />
+                                                    )}
+
+                                                    {/* AI Providers Warning */}
+                                                    {href === '/settings/ai-providers' && systemWarning && (
+                                                        <span className={`h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse ${sidebarCollapsed ? 'absolute top-1.5 right-1.5' : 'ml-1'}`} />
                                                     )}
                                                 </Link>
                                             )

@@ -111,6 +111,7 @@ app.use('/health', healthRouter)
 // Build a v1 sub-router so we can mount once at both prefixes
 const v1 = express.Router()
 
+v1.use('/health', healthRouter)
 v1.use('/sse', sseRouter)
 v1.use('/auth', authLimiter, authRouter)
 v1.use('/oauth', oauthRouter)
