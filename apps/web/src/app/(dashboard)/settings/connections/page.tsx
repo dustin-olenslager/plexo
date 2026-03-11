@@ -5,7 +5,7 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
     Link2,
     Link2Off,
@@ -174,6 +174,8 @@ export default function IntegrationsPage() {
     const [selected, setSelected] = useState<RegistryItem | null>(null)
     const [loading, setLoading] = useState(true)
     const [channels, setChannels] = useState<ChannelSummary[]>([])
+    // Track whether an initial selection has been made so re-fetches don't override user clicks
+    const initialSelectionMade = useRef(false)
 
     const lf = useListFilter(FILTER_KEYS, 'default')
     const { search, filterValues, clearAll } = lf
@@ -195,7 +197,17 @@ export default function IntegrationsPage() {
             if (regRes.ok) {
                 const d = await regRes.json() as { items: RegistryItem[] }
                 setRegistry(d.items)
-                if (!selected && d.items.length > 0) setSelected(d.items[0])
+                if (!initialSelectionMade.current && d.items.length > 0) {
+                    // Honour ?highlight=<registryId> deep-link, fall back to first item
+                    const highlightId = typeof window !== 'undefined'
+                        ? new URLSearchParams(window.location.search).get('highlight')
+                        : null
+                    const target = highlightId
+                        ? (d.items.find((i) => i.id === highlightId) ?? d.items[0])
+                        : d.items[0]
+                    setSelected(target)
+                    initialSelectionMade.current = true
+                }
             }
             if (instRes?.ok) {
                 const d = await instRes.json() as { items: InstalledConnection[] }
@@ -210,7 +222,7 @@ export default function IntegrationsPage() {
         } finally {
             setLoading(false)
         }
-    }, [selected])
+    }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => { void fetchData() }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 

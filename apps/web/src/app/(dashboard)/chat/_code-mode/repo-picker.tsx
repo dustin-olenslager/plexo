@@ -82,7 +82,7 @@ function GitHubNotConnected() {
                     </div>
 
                     <Link
-                        href="/settings/connections"
+                        href="/settings/connections?highlight=github"
                         className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold bg-azure hover:bg-azure/90 text-white transition-all group"
                     >
                         <Github className="w-4 h-4" />
