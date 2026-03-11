@@ -135,6 +135,8 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
     const workspaceMismatch = !!ctxWorkspaceId && ctxWorkspaceId !== propWorkspaceId
     const [items, setItems] = useState<ConversationItem[]>(workspaceMismatch ? [] : initialItems)
     const [loading, setLoading] = useState(workspaceMismatch)
+    const [loadingMore, setLoadingMore] = useState(false)
+    const [nextCursor, setNextCursor] = useState<string | null>(null)
     const esRef = useRef<EventSource | null>(null)
 
     // ── Filter state ─────────────────────────────────────────────────────────
@@ -142,19 +144,28 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
     const { search, filterValues, hasFilters, clearAll } = lf
 
     // ── Data fetching — grouped sessions mode ─────────────────────────────────
-    const fetchConversations = useCallback(async () => {
+    const fetchConversations = useCallback(async (cursor?: string) => {
         try {
-            const res = await fetch(
-                `${API_BASE}/api/v1/conversations?workspaceId=${encodeURIComponent(workspaceId)}&limit=100&groupBySession=true`,
-                { cache: 'no-store' },
-            )
+            if (cursor) setLoadingMore(true)
+            const url = cursor
+                ? `${API_BASE}/api/v1/conversations?workspaceId=${encodeURIComponent(workspaceId)}&limit=100&groupBySession=true&cursor=${cursor}`
+                : `${API_BASE}/api/v1/conversations?workspaceId=${encodeURIComponent(workspaceId)}&limit=100&groupBySession=true`
+            
+            const res = await fetch(url, { cache: 'no-store' })
             if (!res.ok) return
-            const data = (await res.json()) as { items: ConversationItem[] }
-            setItems(data.items ?? [])
+            
+            const data = (await res.json()) as { items: ConversationItem[], nextCursor: string | null }
+            if (cursor) {
+                setItems(prev => [...prev, ...(data.items ?? [])])
+            } else {
+                setItems(data.items ?? [])
+            }
+            setNextCursor(data.nextCursor ?? null)
         } catch {
             // silent — keep stale data
         } finally {
             setLoading(false)
+            setLoadingMore(false)
         }
     }, [workspaceId])
 
@@ -385,6 +396,25 @@ export function ConversationsList({ workspaceId: propWorkspaceId, initialItems }
                         </div>
                     </div>
                 ))
+            )}
+
+            {nextCursor && !loading && search.trim() === '' && (
+                <div className="flex justify-center mt-6 mb-10">
+                    <button
+                        onClick={() => void fetchConversations(nextCursor)}
+                        disabled={loadingMore}
+                        className="flex items-center gap-2 rounded-xl border border-border bg-surface-1/40 px-6 py-2.5 text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-surface-2 hover:border-border/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {loadingMore ? (
+                            <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Loading...
+                            </>
+                        ) : (
+                            'Load older conversations'
+                        )}
+                    </button>
+                </div>
             )}
         </div>
     )
