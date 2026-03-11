@@ -417,15 +417,13 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 
 ---
 
-### 2026-03 — Plexo Image Handling & Visual Capabilities (Spec/Plan)
+### 2026-03 — Plexo Image Handling & Visual Capabilities
 
-- **Status**: Planning stage. Spec created in `specs/plexo_image_handling.md`.
-- **Core Goal**: Bridge the visual gap for text-only models/channels. Enable the agent to find and capture images (screenshot/search) and deliver them via `attachments` in the conversation log.
-- **Architectural Changes**:
-    - `conversations` table: New `attachments` (JSONB) column for media metadata.
-    - `RecordConversationParams`: Added `attachments` support.
-    - `replyToChannel`: Updated to handle `attachments` (e.g., `sendPhoto` for Telegram).
-    - New Tools: `web_screenshot` (Playwright) and `image_search` (DuckDuckGo).
-    - Manifest: `BUILTIN_TOOLS` expanded to include visual retrieval capabilities.
-- **Verification**: TBD after implementation.
+- **Status**: Implemented.
+- **Features**:
+    - **Incoming Media**: Telegram adapter now parses incoming photos, extracts URLs/captions, and persists them to the `conversations` table via a new `attachments` JSONB column.
+    - **Outgoing Media**: `task_complete` events now include a list of generated assets. The Telegram adapter automatically fetches these assets and sends them back as photos with captions.
+    - **Web Agent Visuals**: Added `web_screenshot` (using Google Chrome) and `image_search` (Google-based scraping) tools to the agent's builtin toolkit.
+    - **Chat UI Enhancements**: `MessageBubble` and `AssetCard` now render image previews and thumbnails for both user and agent messages. Conversation history correctly restores images from the database.
+- **Lesson**: Image handling in a text-driven agent requires a clear "attachment" contract between the executor, the log, and the delivery adapter. Never assume the model will mention the image in text; always poll the asset directory on completion.
 
