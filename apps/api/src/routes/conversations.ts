@@ -82,8 +82,23 @@ conversationsRouter.get('/', async (req, res) => {
                 ORDER BY created_at DESC
                 LIMIT ${lim}
             `)
-            const items = rawRows as Array<Record<string, unknown>>
-            const nextCursor = items.length === lim ? (items[items.length - 1]?.['id'] as string ?? null) : null
+            // Raw execute returns snake_case columns. Map them to camelCase to match the frontend ConversationItem type.
+            const items = (rawRows as Array<Record<string, unknown>>).map((row) => ({
+                id: row.id,
+                workspaceId: row.workspace_id,
+                sessionId: row.session_id,
+                source: row.source,
+                message: row.message,
+                reply: row.reply,
+                errorMsg: row.error_msg,
+                status: row.status,
+                intent: row.intent,
+                taskId: row.task_id,
+                channelRef: row.channel_ref,
+                createdAt: row.created_at,
+                turn_count: row.turn_count,
+            }))
+            const nextCursor = items.length === lim ? (items[items.length - 1]?.id as string ?? null) : null
             res.json({ items, nextCursor })
             return
         }
