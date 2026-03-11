@@ -308,7 +308,8 @@ function RecentChats({ collapsed, onNavClick }: { collapsed: boolean; onNavClick
         const api = typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001')
         fetch(`${api}/api/v1/conversations?workspaceId=${encodeURIComponent(workspaceId)}&limit=5&groupBySession=true`, { cache: 'no-store' })
             .then(res => res.ok ? res.json() : { items: [] })
-            .then((data: any) => setChats(Array.isArray(data.items) ? data.items.slice(0, 5) : []))
+            .then((data: { items?: { id: string; message: string; sessionId: string | null }[] }) =>
+                setChats(Array.isArray(data.items) ? data.items.slice(0, 5) : []))
             .catch(() => {})
     }, [workspaceId])
 
@@ -666,6 +667,14 @@ function UserFooter({ user, collapsed }: { user?: SessionUser; collapsed?: boole
                             <SettingsIcon className="h-3.5 w-3.5" />
                             Settings
                         </Link>
+                        <div className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-[13px] text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-colors">
+                            <div className="flex items-center gap-2">
+                                <Palette className="h-3.5 w-3.5" />
+                                Theme
+                            </div>
+                            <ThemeToggle />
+                        </div>
+                        <div className="my-1 border-t border-border" />
                         <button
                             onClick={() => void signOut({ callbackUrl: '/login' })}
                             className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-[13px] text-red-400 hover:bg-red-950/40 hover:text-red-300 transition-colors"
