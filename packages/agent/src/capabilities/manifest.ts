@@ -114,6 +114,8 @@ const BUILTIN_TOOLS = [
     'task_complete',
     'write_asset',
     'synthesize_kapsel_skill',
+    'web_search',
+    'web_fetch',
 ]
 
 

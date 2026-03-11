@@ -86,6 +86,7 @@ RULES:
 - When returning clarification: provide 1–4 concrete alternatives you CAN deliver with the available tools. Always include a written/text alternative.
 - When returning a plan: prefer reversible actions, flag irreversible ones as one-way doors.
 - Break work into atomic steps that can be verified independently.
+- Research: Use web_search and web_fetch to gather information, read documentation, or verify facts. These are your "eyes" on the live web.
 - Be conservative with confidence scores — only give 0.9+ if the path is fully clear.
 - Steps should reference only tools listed in the capability manifest.`
 }
@@ -114,11 +115,11 @@ export async function planTask(
 
     // Build capability manifest (Phase D)
     const manifest = await buildCapabilityManifest(ctx.workspaceId).catch(() => ({
-        tools: ['read_file', 'write_file', 'shell', 'task_complete', 'write_asset', 'synthesize_kapsel_skill'],
+        tools: ['read_file', 'write_file', 'shell', 'task_complete', 'write_asset', 'synthesize_kapsel_skill', 'web_search', 'web_fetch'],
         connections: [],
         models: [{ provider: 'anthropic', model: 'claude', supports: ['text', 'code'], missing: ['image_generation', 'video_generation'] }],
         skills: [],
-        allCapabilities: new Set(['read_file', 'write_file', 'shell', 'text', 'code', 'synthesize_kapsel_skill']),
+        allCapabilities: new Set(['read_file', 'write_file', 'shell', 'text', 'code', 'synthesize_kapsel_skill', 'web_search', 'web_fetch']),
     }))
 
     const capabilityBlock = manifestToPromptBlock(manifest)

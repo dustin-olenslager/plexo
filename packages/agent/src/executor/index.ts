@@ -775,6 +775,13 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
     // Build systemPrompt here so identity line reflects the actual resolved model
     const identityLine = `Identity: running on ${resolvedMeta.provider} / ${resolvedMeta.id}. If asked what model, provider, or system you are, call self_reflect({focus:"identity"}) to get the accurate, live answer rather than guessing.`
 
+    const browsingBlock = `
+WEB BROWSING CAPABILITY:
+You can search and read the public web.
+- Call web_search for factual lookups, identifying current events, or finding documentation URLs.
+- Call web_fetch to read the content of a specific URL (documentation, blog posts, news, APIs).
+- Use these tools whenever your internal knowledge is insufficient or potentially outdated.`
+
     const selfExtensionBlock = `
 
 SELF-EXTENSION CAPABILITY:
@@ -811,7 +818,7 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
 - If you write copy, scripts, or plans, save them as appropriately-named files via write_asset.
 - Only call task_complete AFTER you have called write_asset at least once with the actual deliverable.`
         : ''
-}${capabilityBlock}${selfExtensionBlock}${preferencesBlock}${memoryBlock}${systemPromptExtra}${variantExtra}`
+}${capabilityBlock}${browsingBlock}${selfExtensionBlock}${preferencesBlock}${memoryBlock}${systemPromptExtra}${variantExtra}`
 
     const genResult = await (async () => {
         let messages: any[] = [{ role: 'user', content: userMessage }]
