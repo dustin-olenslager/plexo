@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Joeybuilt LLC
 
-import { db, eq, and, sql, asc, inArray } from '@plexo/db'
-import { tasks } from '@plexo/db'
+import { db, eq, and, sql, asc, inArray, tasks, type TaskType } from '@plexo/db'
 import { ulid } from 'ulid'
 
 // ── Types ────────────────────────────────────────────────────
 
 export interface PushParams {
     workspaceId: string
-    type: 'coding' | 'deployment' | 'research' | 'ops' | 'opportunity' | 'monitoring' | 'report' | 'online' | 'automation'
+    type: TaskType
     source: 'telegram' | 'slack' | 'discord' | 'scanner' | 'github' | 'cron' | 'dashboard' | 'api' | 'extension' | 'sentry'
     context: Record<string, unknown>
     priority?: number

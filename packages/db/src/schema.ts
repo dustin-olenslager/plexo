@@ -51,6 +51,8 @@ export const taskTypeEnum = pgEnum('task_type', [
     'marketing',
 ])
 
+export type TaskType = (typeof taskTypeEnum.enumValues)[number]
+
 export const taskStatusEnum = pgEnum('task_status', [
     'queued',
     'claimed',

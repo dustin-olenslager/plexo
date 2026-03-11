@@ -49,4 +49,26 @@ export const QUALITY_RUBRICS = {
         { dimension: 'state_confirmed', weight: 0.40 },
         { dimension: 'side_effects_logged', weight: 0.20 },
     ],
+    writing: [
+        { dimension: 'grammatically_correct', weight: 0.20 },
+        { dimension: 'tone_appropriate', weight: 0.30 },
+        { dimension: 'brief_followed', weight: 0.30 },
+        { dimension: 'originality', weight: 0.20 },
+    ],
+    general: [
+        { dimension: 'goal_met', weight: 0.60 },
+        { dimension: 'conciseness', weight: 0.20 },
+        { dimension: 'helpful_tone', weight: 0.20 },
+    ],
+    marketing: [
+        { dimension: 'brand_alignment', weight: 0.30 },
+        { dimension: 'cta_clarity', weight: 0.30 },
+        { dimension: 'channel_optimization', weight: 0.20 },
+        { dimension: 'strategic_intent', weight: 0.20 },
+    ],
+    data: [
+        { dimension: 'accuracy', weight: 0.40 },
+        { dimension: 'completeness', weight: 0.30 },
+        { dimension: 'insightfulness', weight: 0.30 },
+    ],
 } as const

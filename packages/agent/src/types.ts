@@ -3,16 +3,8 @@
 
 // ── Task Types ────────────────────────────────────────────────
 
-export type TaskType =
-    | 'coding'
-    | 'deployment'
-    | 'research'
-    | 'ops'
-    | 'opportunity'
-    | 'monitoring'
-    | 'report'
-    | 'online'
-    | 'automation'
+import type { TaskType } from '@plexo/db'
+export type { TaskType }
 
 export type TaskStatus = 'queued' | 'claimed' | 'running' | 'complete' | 'blocked' | 'cancelled'
 export type TaskSource = 'telegram' | 'scanner' | 'github' | 'cron' | 'dashboard' | 'api'

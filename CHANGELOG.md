@@ -10,8 +10,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - **Modern Chat Bubble Aesthetics** — Message bubbles now use subtle transparency, lifted hover states, and smooth slide-in entrance animations.
 - **Enhanced Repository Setup** — Added a searchable branch selection dropdown to the Workspace Configuration dialog. Users can now pick existing branches from their connected GitHub repositories or specify a new branch to create, with automatic defaulting to the repository's primary branch.
 - **Translucent Artifact Panel** — The artifact panel now utilizes glassmorphism (`backdrop-blur-xl`) and a canvas-integrated background when docked, creating a cohesive "Integrated Canvas" feel.
+- **Synchronous Chat Replies** — The chat API now generates immediate, synchronous responses for `CONVERSATION` intents instead of requiring a task confirmation button, significantly improving perceived latency for simple inquiries.
+- **Shared TaskType Definition** — Centralized the `TaskType` union in `packages/db` and exported it to `packages/queue` and `packages/agent`, eliminating type duplication and ensuring cross-package consistency.
 
 ### Fixed
+- **P0: OpenAI Responses API rejection** — Fixed a critical issue where OpenAI would reject `anyOf` / `discriminatedUnion` schemas in the planning phase. Replaced `generateObject` with `generateText` + explicit JSON prompting across all providers for universal compatibility.
+- **P0: API Crash on Model Consultation** — Resolved a Drizzle SQL conflict where the `?` operator was incorrectly interpreted as a bind parameter placeholder. Replaced with the `@>` JSONB containment operator.
+- **P0: Memory System Failure** — Fixed a silent crash in the self-improvement cycle caused by empty LLM proposals. Implemented robust Zod defaults and forced pattern recognition in the consolidation prompt.
+- **Prompt Optimization Intent mismatch** — Corrected intent classification for "Optimize this prompt" requests. These are now routed as `CONVERSATION` to allow for interactive interviews rather than being queued as low-context background tasks.
+- **Task Type Validation** — Added missing `writing`, `marketing`, `data`, and `general` categories to the database enum, agent union, and quality rubrics, preventing runtime validation errors when these intents are classified.
+- **Double-Counting in Cost Ledger** — Eliminated a 2x cost duplication bug where both the executor and agent-loop were writing to the `work_ledger` and `api_cost_tracking` tables. The executor is now the single source of truth for task accounting.
+- **Shadow Update Loop** — Fixed an infinite rebuild loop on the VPS caused by clock skew and Docker build-arg interpolation failures. The system now uses explicit SHA-based source verification via a baked-in `.source-commit` file.
 - **Security: Hardcoded Credentials** — Removed hardcoded development database passwords from one-off scripts. Scripts migrated to `scripts/internal/` and updated to use `DATABASE_URL`.
 - **Security: Sensitive Asset Exposure** — Moved screenshots and visual assets to `images/internal/` (ignored) to prevent accidental exposure of private workspace states.
 - **Security: Local Path Sanitization** — Sanitized `fix.sh` and other utility scripts to remove absolute `/home/dustin/` path references.

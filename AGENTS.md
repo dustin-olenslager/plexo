@@ -479,3 +479,16 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
     - **Inclusion logic**: `.gitignore` updated to strictly exclude `.claude/`, `.cache/`, `tmp/`, and build artifacts like `.gradle/`.
 - **Lesson**: Development scripts and visual assets are common leak points for sensitive context. Always assume one-off files will be accidentally committed and protect them with directory-level `.gitignore` rules. Root-level `.env` is the only source of truth for credentials.
 
+---
+
+### 2026-03 — P0/P1: Chat Crash + Prompt Optimization Failure (Drizzle SQL & Intent Resolution)
+
+- **Root cause 1 (SQL Crash)**: `chat.ts` used the `?` operator in a Drizzle `sql` template for a JSONB containment check (`strengths ? 'reasoning'`). Drizzle (Postgres driver) interpreted `?` as a bind parameter placeholder. Since no parameter was provided for it, the query crashed the entire request with a 500 error.
+- **Fix 1**: Replaced `?` with the `@>` JSONB operator: `sql`${modelsKnowledge.strengths} @> '["reasoning"]'::jsonb``. This avoids the character-level ambiguity in the SQL template.
+- **Root cause 2 (Intent Mismatch)**: "Optimize this prompt" was being classified as a `TASK`. This auto-queued it as a background worker job. However, the specialized "First Principles Prompt Optimizer" logic resides in the `CONVERSATION` system prompt (allowing for an interactive interview). Background workers cannot talk back to the user to conduct an interview; they just produce a single outcome summary.
+- **Fix 2**: Forced "Optimize this prompt" to `CONVERSATION` intent in the `CLASSIFY_SYSTEM` rules. Added explicit examples to the classifier.
+- **Root cause 3 (Missing Task Types)**: Intent classification categories like `writing`, `marketing`, `data`, and `general` were being used but were missing from BOTH the database `task_type` enum and the agent's `TaskType` union. This would cause runtime validation errors if those intents were ever queued as tasks.
+- **Fix 3**: Added `writing`, `marketing`, `data`, and `general` to `packages/db/src/schema.ts` and `packages/agent/src/types.ts`. Updated `QUALITY_RUBRICS` in `packages/agent/src/constants.ts` with appropriate dimensions for each new type.
+- **Root cause 4 (Broken Conversation Loop)**: The `message` handler was missing the logic to return a synchronous reply for `CONVERSATION` intents, instead defaulting to a "Confirm to continue" response.
+- **Fix 4**: Implemented the synchronous `withFallback -> generateText` flow for `CONVERSATION` intents within the `POST /api/chat/message` handler.
+- **Lesson**: `sql` templates with `?` are a landmine in Drizzle. Always use `@>` or escape `??` if the driver supports it. Secondly, interactive specialized behaviors (like prompt optimization) MUST be conversations, not tasks, to allow for the feedback loop.
