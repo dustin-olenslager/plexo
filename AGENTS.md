@@ -385,3 +385,14 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 - **Fix**: Updated the planner's `RULES` to limit the strict denial *only* to required digital media capabilities (e.g., video_generation, voice_synthesis). For abstract, physical, or real-world tasks, the planner is now instructed to leverage its text and research capabilities to deliver a strategy/schedule document, and optionally prescribe integrations rather than blocking the task.
 - **Lesson**: Do not let strict capability constraints inadvertently gate real-world text-planning workflows. When providing an LLM a list of explicit limitations, clearly distinguish between "cannot do this digital action" versus "cannot do this physical action".
 
+---
+
+### 2026-03 — Chat Experience: Vague Campaign Auto-Queueing (Plexo Improvement)
+
+- **Root cause**: The intent classifier was over-eager, categorizing vague noun phrases (e.g., "Wayfinders S2 Campaign") as `TASK` or `PROJECT`. This triggered immediate, low-context queueing or "Project created" confirmations before the user had provided any strategic direction.
+- **Fix 1 (Classifier)**: Updated `CLASSIFY_SYSTEM` in `apps/api/src/routes/chat.ts` to explicitly route vague campaign/project names to `CONVERSATION`. It now only classifies as `TASK` or `PROJECT` if there is an unambiguous verb-driven request for a multi-step deliverable.
+- **Fix 2 (Prompt)**: Updated the conversational system prompt to recognize when a large initiative is mentioned. It now proactively asks for: (1) Strategy/Approach, (2) Timeline, (3) Goals/Priorities, and (4) Channels.
+- **Fix 3 (Flow)**: The agent is instructed to gather these details first and *then* ask the user if they'd like to initiate a formal project.
+- **Lesson**: Vague noun phrases are invitations for a strategy session, not a trigger for execution. The agent must bridge the gap between "I have an idea" and "Do this work" by first asking for the 'Why' and 'When'.
+
+

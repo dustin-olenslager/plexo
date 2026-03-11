@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+### Fixed
+- **Chat classifier: vague campaign auto-queueing** — Updated the `CLASSIFY_SYSTEM` and conversational prompts to prevent vague noun phrases (e.g., "Wayfinders S2 Campaign") from being auto-queued as tasks or projects. The agent now treats these as `CONVERSATION` and explicitly asks for strategy, timeline, goals, and channels before proceeding.
+
+
 ### Added
 - **Agent Behavior Configuration System (Phase 5)** — Structured, layered agent behavior rules replace the flat AGENTS.md file:
   - **Schema** — `behavior_rules`, `behavior_groups`, `behavior_snapshots` tables (migration `0011_behavior_rules.sql`); `rule_type` and `rule_source` enums; self-referential `overrides_rule_id` for inheritance tracking
