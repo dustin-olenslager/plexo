@@ -24,10 +24,12 @@ export const chattyCathy: Persona = {
         ]
 
         for (const msg of messages) {
+            // Wait for textarea to be ready (not disabled from prior reply)
+            await page.waitForSelector('textarea:not([disabled])', { timeout: 45000 })
             await page.fill('textarea', msg)
             await page.click('#send-btn')
             await session.logEvent('sent_chat_message', { content: msg })
-            // Wait for agent to finish — textarea becomes enabled
+            // Wait for agent to finish — textarea becomes enabled again
             await page.waitForSelector('textarea:not([disabled])', { timeout: 45000 })
             await page.waitForTimeout(1000) // Small pause for realism
         }
@@ -50,6 +52,7 @@ export const taskMachine: Persona = {
         ]
 
         for (const msg of prompts) {
+            await page.waitForSelector('textarea:not([disabled])', { timeout: 30000 })
             await page.fill('textarea', msg)
             await page.click('#send-btn')
             await session.logEvent('sent_task_creation_prompt', { content: msg })
