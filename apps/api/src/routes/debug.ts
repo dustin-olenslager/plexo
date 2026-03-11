@@ -14,6 +14,27 @@ import { logger } from '../logger.js'
 
 export const debugRouter: RouterType = Router()
 
+/**
+ * SECURITY: Protect debug routes
+ * In production, require an x-debug-token header.
+ * In development, allow if DEBUG_TOKEN is not set.
+ */
+debugRouter.use((req, res, next) => {
+    const token = process.env.DEBUG_TOKEN
+    const isProd = process.env.NODE_ENV === 'production'
+    
+    if (isProd || token) {
+        const header = req.headers['x-debug-token']
+        if (!token) {
+            return res.status(403).json({ error: 'DEBUG_TOKEN not set on server' })
+        }
+        if (header !== token) {
+            return res.status(401).json({ error: 'Invalid or missing x-debug-token' })
+        }
+    }
+    next()
+})
+
 // ── GET /api/debug/snapshot ───────────────────────────────────────────────────
 
 debugRouter.get('/snapshot', async (_req, res) => {

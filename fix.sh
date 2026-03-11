@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-FILE='/home/dustin/dev/plexo/apps/web/src/app/(dashboard)/chat/page.tsx'
+FILE="./apps/web/src/app/(dashboard)/chat/page.tsx"
 
 # Step 1: Remove lines 343-368 (code mode block misplaced in VoiceWaveform)
 awk 'NR>=343 && NR<=368 { next } { print }' "$FILE" > /tmp/chat_step1.tsx

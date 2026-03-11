@@ -42,3 +42,12 @@ test-*.js
 playwright-report/
 test-results/
 caddy.json
+
+# Tool-specific artifacts
+.claude/
+.cache/
+tmp/
+*.log
+scripts/internal/
+images/internal/
+.gradle/

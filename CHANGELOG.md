@@ -11,6 +11,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - **Translucent Artifact Panel** — The artifact panel now utilizes glassmorphism (`backdrop-blur-xl`) and a canvas-integrated background when docked, creating a cohesive "Integrated Canvas" feel.
 
 ### Fixed
+- **Security: Hardcoded Credentials** — Removed hardcoded development database passwords from one-off scripts. Scripts migrated to `scripts/internal/` and updated to use `DATABASE_URL`.
+- **Security: Sensitive Asset Exposure** — Moved screenshots and visual assets to `images/internal/` (ignored) to prevent accidental exposure of private workspace states.
+- **Security: Local Path Sanitization** — Sanitized `fix.sh` and other utility scripts to remove absolute `/home/dustin/` path references.
+- **Security: Debug Endpoint Protection** — Added `DEBUG_TOKEN` authentication to all `/api/debug/*` routes to prevent unauthorized access to internal agent state and RPC calls in production.
 - **Voice Settings UI** — Improved configuration status detection, real-time Deepgram balance fetching, and better error feedback during API key testing.
 - **Chat classifier: vague campaign auto-queueing** — Updated the `CLASSIFY_SYSTEM` and conversational prompts to prevent vague noun phrases (e.g., "Wayfinders S2 Campaign") from being auto-queued as tasks or projects. The agent now treats these as `CONVERSATION` and explicitly asks for strategy, timeline, goals, and channels before proceeding.
 - **Artifact System interface** — Updated `TaskAsset` interface in chat page to support artifact versioning and ID tracking.

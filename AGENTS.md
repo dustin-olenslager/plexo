@@ -440,3 +440,16 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
     - **Metadata Visibility**: Displays repository descriptions and "Private" badges in the selection list.
 - **Lesson**: Reducing friction in the tool-setup phase directly improves the "time-to-first-task" metric. Always prefer authenticated lookups over manual entry for connected services.
 
+---
+
+### 2026-03 — Security: Repository Hardening & Path Sanitization
+
+- **Problem**: A security audit identified hardcoded development passwords, absolute local paths (`/home/dustin/...`), and tracked visual assets that contained sensitive UI states from a private instance.
+- **Fixes**:
+    - **De-coupling credentials**: One-off scripts moved to `scripts/internal/` (ignored) and updated to use `process.env.DATABASE_URL`.
+    - **Asset isolation**: Screenshots moved to `images/internal/` (ignored).
+    - **Path sanitization**: `fix.sh` and other shell utilities updated to use relative paths.
+    - **Debug protection**: Enforced `DEBUG_TOKEN` check on all `/api/debug/*` routes via new middleware.
+    - **Inclusion logic**: `.gitignore` updated to strictly exclude `.claude/`, `.cache/`, `tmp/`, and build artifacts like `.gradle/`.
+- **Lesson**: Development scripts and visual assets are common leak points for sensitive context. Always assume one-off files will be accidentally committed and protect them with directory-level `.gitignore` rules. Root-level `.env` is the only source of truth for credentials.
+
