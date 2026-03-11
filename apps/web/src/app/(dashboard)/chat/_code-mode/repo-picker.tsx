@@ -55,13 +55,24 @@ async function checkGitHubConnection(workspaceId: string): Promise<CheckState> {
 
 // ── Not-connected wall ────────────────────────────────────────────────────────
 
-function GitHubNotConnected() {
+function GitHubNotConnected({ onClose }: { onClose?: () => void }) {
     return (
-        <div className="flex items-center justify-center h-full w-full">
-            <div className="max-w-md w-full mx-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="flex items-center justify-center h-full w-full" onClick={onClose}>
+            <div className="max-w-md w-full mx-4 animate-in fade-in slide-in-from-bottom-4 duration-500" onClick={(e) => e.stopPropagation()}>
                 <div className="bg-surface-2/60 backdrop-blur-xl border border-border/60 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
                     {/* Top glow */}
                     <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-24 bg-amber/10 blur-[50px] pointer-events-none rounded-full" />
+
+                    {/* Close button */}
+                    {onClose && (
+                        <button
+                            onClick={onClose}
+                            aria-label="Close"
+                            className="absolute top-4 right-4 z-10 p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-3 transition-colors"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    )}
 
                     <div className="text-center mb-6 relative">
                         <div className="w-12 h-12 rounded-xl bg-surface-3 border border-amber/30 flex items-center justify-center mx-auto mb-4 shadow-sm">
@@ -168,7 +179,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
 
     // ── GitHub not connected (and not bypassing to local) ────────────────────
     if (checkState === 'missing' && !forceLocal) {
-        return <GitHubNotConnected />
+        return <GitHubNotConnected onClose={onClose} />
     }
 
     // ── Full picker ───────────────────────────────────────────────────────────

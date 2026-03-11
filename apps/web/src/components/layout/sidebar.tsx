@@ -39,6 +39,10 @@ import {
     RefreshCw,
     Sparkles as _Sparkles, // kept for potential future use
     Home,
+    MessageCircle,
+    PanelLeftClose,
+    PanelLeftOpen,
+    Palette
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
 
@@ -63,51 +67,41 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
     {
-        label: 'Chat',
-        collapsible: false,
-        defaultOpen: true,
-        items: [
-            { label: 'Chat', href: '/chat', icon: MessagesSquare },
-            { label: 'Conversations', href: '/conversations', icon: MessageSquare },
-        ],
-    },
-    {
-        label: 'Control',
+        label: 'Work',
         collapsible: true,
         defaultOpen: true,
         items: [
-            { label: 'Home', href: '/', icon: Home, exact: true },
             { label: 'Overview', href: '/overview', icon: LayoutDashboard },
             { label: 'Tasks', href: '/tasks', icon: CheckSquare },
             { label: 'Projects', href: '/projects', icon: FolderOpen },
-            { label: 'Cron Jobs', href: '/cron', icon: Clock },
             { label: 'Approvals', href: '/approvals', icon: ShieldAlert },
         ],
     },
     {
-        label: 'Agent',
+        label: 'Capabilities',
         collapsible: true,
         defaultOpen: false,
         items: [
-            { label: 'Integrations', href: '/settings/connections', icon: Plug },
-            { label: 'Marketplace', href: '/marketplace', icon: Store },
-            { label: 'Channels', href: '/settings/channels', icon: Radio },
             { label: 'Skills', href: '/skills', icon: Zap },
             { label: 'Tools', href: '/tools', icon: Wrench },
             { label: 'Memory', href: '/insights', icon: Brain },
+            { label: 'Cron Jobs', href: '/cron', icon: Clock },
+            { label: 'Integrations', href: '/settings/connections', icon: Plug },
+            { label: 'Channels', href: '/settings/channels', icon: Radio },
+            { label: 'Marketplace', href: '/marketplace', icon: Store },
         ],
     },
     {
-        label: 'Settings',
+        label: 'System',
         collapsible: true,
         defaultOpen: false,
         items: [
+            { label: 'Workspace', href: '/settings', icon: SettingsIcon, exact: true },
+            { label: 'Users', href: '/settings/users', icon: Users },
             { label: 'AI Providers', href: '/settings/ai-providers', icon: Cpu },
             { label: 'Intelligence', href: '/settings/intelligence', icon: BrainCircuit },
             { label: 'Voice', href: '/settings/voice', icon: Mic },
             { label: 'Agent', href: '/settings/agent', icon: Bot },
-            { label: 'Workspace', href: '/settings', icon: SettingsIcon, exact: true },
-            { label: 'Users', href: '/settings/users', icon: Users },
             { label: 'Privacy', href: '/settings/privacy', icon: ShieldCheck },
             { label: 'Logs', href: '/logs', icon: FileText },
             { label: 'Debug', href: '/debug', icon: Terminal },
@@ -116,6 +110,8 @@ const NAV_GROUPS: NavGroup[] = [
 ]
 
 const STORAGE_KEY = 'plexo:sidebar:collapse'
+const SIDEBAR_STATE_KEY = 'plexo:sidebar:global-collapse'
+
 
 function loadCollapsedState(groups: NavGroup[]): Record<string, boolean> {
     const initial: Record<string, boolean> = {}
@@ -150,7 +146,7 @@ const SHORT_SHA = process.env.NEXT_PUBLIC_SOURCE_COMMIT
     ? process.env.NEXT_PUBLIC_SOURCE_COMMIT.slice(0, 7)
     : null
 
-function WorkspaceSwitcher({ className = '' }: { className?: string }) {
+function WorkspaceSwitcher({ className = '', collapsed = false }: { className?: string; collapsed?: boolean }) {
     const { workspaceId, workspaceName, setWorkspace } = useWorkspace()
     const [open, setOpen] = useState(false)
     const [list, setList] = useState<WorkspaceSummary[]>([])
@@ -209,28 +205,32 @@ function WorkspaceSwitcher({ className = '' }: { className?: string }) {
             <button
                 id="workspace-switcher"
                 onClick={() => setOpen((o) => !o)}
-                className={`flex h-16 w-full items-center gap-3 px-3 hover:bg-surface-1/60 transition-colors ${className}`}
+                className={`flex h-16 w-full items-center ${collapsed ? "justify-center" : "gap-3 px-3"} hover:bg-surface-1/60 transition-colors ${className}`}
             >
                 {/* App icon */}
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-azure/10 ring-1 ring-inset ring-azure/20">
                     <PlexoMark className="w-7 h-7 text-azure" />
                 </div>
-                <div className="flex min-w-0 flex-col text-left">
-                    <span className="text-[15px] font-semibold leading-tight tracking-tight text-text-primary truncate">{displayName}</span>
-                    <button
-                        type="button"
-                        title="Check for updates"
-                        onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('plexo:check-update')) }}
-                        className="group/ver flex items-center gap-1 w-fit"
-                    >
-                        <span className="text-[11px] text-text-muted leading-tight mt-0.5 group-hover/ver:text-azure transition-colors">{VERSION}</span>
-                        <RefreshCw className="h-2.5 w-2.5 text-text-muted/0 group-hover/ver:text-azure/60 transition-colors mt-0.5" />
-                    </button>
-                    {SHORT_SHA && (
-                        <span className="text-[10px] text-text-muted/60 font-mono leading-tight">{SHORT_SHA}</span>
-                    )}
-                </div>
-                <ChevronsUpDown className="ml-auto h-3.5 w-3.5 shrink-0 text-text-muted" />
+                {!collapsed && (
+                    <>
+                        <div className="flex min-w-0 flex-col text-left">
+                            <span className="text-[15px] font-semibold leading-tight tracking-tight text-text-primary truncate">{displayName}</span>
+                            <button
+                                type="button"
+                                title="Check for updates"
+                                onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('plexo:check-update')) }}
+                                className="group/ver flex items-center gap-1 w-fit"
+                            >
+                                <span className="text-[11px] text-text-muted leading-tight mt-0.5 group-hover/ver:text-azure transition-colors">{VERSION}</span>
+                                <RefreshCw className="h-2.5 w-2.5 text-text-muted/0 group-hover/ver:text-azure/60 transition-colors mt-0.5" />
+                            </button>
+                            {SHORT_SHA && (
+                                <span className="text-[10px] text-text-muted/60 font-mono leading-tight">{SHORT_SHA}</span>
+                            )}
+                        </div>
+                        <ChevronsUpDown className="ml-auto h-3.5 w-3.5 shrink-0 text-text-muted" />
+                    </>
+                )}
             </button>
 
             {open && (
@@ -298,6 +298,55 @@ function WorkspaceSwitcher({ className = '' }: { className?: string }) {
     )
 }
 
+
+function RecentChats({ collapsed, onNavClick }: { collapsed: boolean; onNavClick?: () => void }) {
+    const { workspaceId } = useWorkspace()
+    const [chats, setChats] = useState<{ id: string; message: string; sessionId: string | null }[]>([])
+
+    useEffect(() => {
+        if (!workspaceId) return
+        const api = typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001')
+        fetch(`${api}/api/v1/conversations?workspaceId=${encodeURIComponent(workspaceId)}&limit=5&groupBySession=true`, { cache: 'no-store' })
+            .then(res => res.ok ? res.json() : { items: [] })
+            .then((data: any) => setChats(Array.isArray(data.items) ? data.items.slice(0, 5) : []))
+            .catch(() => {})
+    }, [workspaceId])
+
+    if (chats.length === 0) return null
+
+    return (
+        <div className="mb-4">
+            {!collapsed && (
+                <div className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-[0.15em] text-text-muted/60">
+                    Recent
+                </div>
+            )}
+            <div className="space-y-0.5 px-1 md:px-0">
+                {chats.map(chat => {
+                    const href = chat.sessionId 
+                        ? `/conversations/thread?sessionId=${encodeURIComponent(chat.sessionId)}`
+                        : `/conversations/${encodeURIComponent(chat.id)}`
+                    return (
+                        <Link
+                            key={chat.id}
+                            href={href}
+                            onClick={onNavClick}
+                            className={`group flex items-center justify-center md:justify-start gap-2.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-colors border-transparent text-text-muted hover:bg-surface-1 hover:text-text-secondary`}
+                            title={collapsed ? chat.message : undefined}
+                        >
+                            <MessageCircle className="h-4 w-4 shrink-0 text-text-muted group-hover:text-text-secondary" />
+                            {!collapsed && (
+                                <span className="flex-1 truncate leading-tight font-normal">{chat.message}</span>
+                            )}
+                        </Link>
+                    )
+                })}
+            </div>
+        </div>
+    )
+}
+
+
 export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUser; onNavClick?: () => void; className?: string }) {
     const pathname = usePathname()
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
@@ -307,6 +356,22 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
         return init
     })
     const [pendingApprovals, setPendingApprovals] = useState(0)
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(SIDEBAR_STATE_KEY)
+            if (raw === 'true') setSidebarCollapsed(true)
+        } catch {}
+    }, [])
+
+    function toggleSidebar() {
+        setSidebarCollapsed(prev => {
+            const next = !prev
+            try { localStorage.setItem(SIDEBAR_STATE_KEY, JSON.stringify(next)) } catch {}
+            return next
+        })
+    }
 
     // Polling for pending approvals count
     const fetchPending = useCallback(async () => {
@@ -340,9 +405,9 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
             let next = { ...prev }
 
             // If we are opening a management group, close all other management groups
-            if (isOpening && label !== 'Chat') {
+            if (isOpening) {
                 NAV_GROUPS.forEach((g) => {
-                    if (g.label !== 'Chat' && g.label !== label) {
+                    if (g.label !== label) {
                         next[g.label] = true // True means collapsed
                     }
                 })
@@ -364,81 +429,92 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
 
     return (
         <>
-        <aside className="hidden md:flex h-screen w-[220px] shrink-0 flex-col border-r border-border-subtle bg-canvas">
-            {/* Workspace switcher */}
-            <WorkspaceSwitcher className="border-b border-border-subtle" />
+        <aside className={`hidden md:flex h-screen shrink-0 flex-col border-r border-border-subtle bg-canvas transition-all duration-300 ${sidebarCollapsed ? 'w-[68px]' : 'w-[220px]'}`}>
+            <div className={`relative group/collapse ${sidebarCollapsed ? 'border-b border-border-subtle' : ''}`}>
+                <WorkspaceSwitcher collapsed={sidebarCollapsed} className={!sidebarCollapsed ? 'border-b border-border-subtle' : ''} />
+                {!sidebarCollapsed && (
+                    <button onClick={toggleSidebar} className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 p-1.5 bg-surface-1 rounded-md text-text-muted hover:text-text-primary z-10 hidden md:flex items-center justify-center group-hover/collapse:opacity-100 transition-opacity ring-1 ring-inset ring-border/50 shadow-sm" title="Collapse Sidebar">
+                        <PanelLeftClose className="h-4 w-4" />
+                    </button>
+                )}
+            </div>
 
-            {/* Navigation */}
-            <nav className="flex-1 flex flex-col min-h-0 py-2 overflow-y-auto scrollbar-none">
-                {/* Primary Groups (Chat) */}
-                <div className="px-3 space-y-0.5">
-                    {NAV_GROUPS.filter(g => g.label === 'Chat').map((group) => {
+            <nav className="flex-1 flex flex-col min-h-0 py-2 overflow-y-auto scrollbar-none relative">
+                {sidebarCollapsed && (
+                    <button onClick={toggleSidebar} className="mx-auto my-1.5 p-1.5 text-text-muted hover:text-text-primary hover:bg-surface-2 rounded-md transition-colors" title="Expand Sidebar">
+                        <PanelLeftOpen className="h-4 w-4" />
+                    </button>
+                )}
+                
+                {/* Primary Groups (Home, Chat, Conversations) */}
+                <div className={`px-2 md:px-3 space-y-0.5 mb-6 ${sidebarCollapsed ? 'mt-2' : ''}`}>
+                    {[
+                        { label: 'Home', href: '/', icon: Home, exact: true },
+                        { label: 'New Chat', href: '/chat', icon: MessageSquare },
+                        { label: 'Conversations', href: '/conversations', icon: MessagesSquare },
+                    ].map(({ label, href, icon: Icon, exact }) => {
+                        const active = isActive(href, exact)
                         return (
-                            <div key={group.label} className="mb-4">
-                                <div className="space-y-0.5">
-                                    {group.items.map(({ label, href, icon: Icon, exact }) => {
-                                        const active = isActive(href, exact)
-                                        return (
-                                            <Link
-                                                key={href}
-                                                href={href}
-                                                onClick={onNavClick}
-                                                className={`group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors border-l-2 ${active
-                                                    ? 'border-azure bg-azure/10 text-text-primary'
-                                                    : 'border-transparent text-text-muted hover:bg-surface-1 hover:text-text-secondary'
-                                                    }`}
-                                            >
-                                                <Icon
-                                                    className={`h-4 w-4 shrink-0 ${active
-                                                        ? 'text-azure'
-                                                        : 'text-text-muted group-hover:text-text-secondary'
-                                                        }`}
-                                                />
-                                                <span className="flex-1 truncate">{label}</span>
-                                            </Link>
-                                        )
-                                    })}
-                                </div>
-                            </div>
+                            <Link
+                                key={href}
+                                href={href}
+                                onClick={onNavClick}
+                                title={sidebarCollapsed ? label : undefined}
+                                className={`group flex items-center justify-center md:justify-start gap-2.5 rounded-lg text-[13px] font-medium transition-colors border-l-2 ${sidebarCollapsed ? 'p-2 my-0.5 border-none' : 'px-2.5 py-2'} ${active
+                                    ? (sidebarCollapsed ? 'bg-azure/10 text-azure' : 'border-azure bg-azure/10 text-text-primary')
+                                    : 'border-transparent text-text-muted hover:bg-surface-1 hover:text-text-secondary'
+                                    }`}
+                            >
+                                <Icon
+                                    className={`h-4 w-4 shrink-0 ${active
+                                        ? 'text-azure'
+                                        : 'text-text-muted group-hover:text-text-secondary'
+                                        }`}
+                                />
+                                {!sidebarCollapsed && <span className="flex-1 truncate">{label}</span>}
+                            </Link>
                         )
                     })}
+                </div>
+
+                <div className="px-2 md:px-3 mb-2">
+                    <RecentChats collapsed={sidebarCollapsed} onNavClick={onNavClick} />
                 </div>
 
                 {/* Spacer */}
                 <div className="flex-1" />
 
                 {/* Management / System Section (Bottom) */}
-                <div className="px-3 pb-2 pt-4 border-t border-border-subtle/50 bg-surface-1/10">
-                    <div className="mb-2 px-2 text-[10px] font-bold uppercase tracking-[0.15em] text-text-muted/60">
-                        Management
-                    </div>
-                    {NAV_GROUPS.filter(g => g.label !== 'Chat').map((group) => {
+                <div className={`px-2 md:px-3 pb-2 pt-4 ${sidebarCollapsed ? '' : 'border-t border-border-subtle/50'} bg-surface-1/10`}>
+                    {NAV_GROUPS.map((group) => {
                         const isCollapsed = collapsed[group.label] ?? !group.defaultOpen
                         return (
-                            <div key={group.label} className="mb-0.5">
+                            <div key={group.label} className={sidebarCollapsed ? "mb-4 border-b border-border/20 pb-4 last:border-0 last:mb-0 last:pb-0" : "mb-0.5"}>
                                 {/* Group header */}
-                                <div
-                                    className={`flex items-center justify-between rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-2 ${group.collapsible ? 'cursor-pointer' : ''}`}
-                                    onClick={() => group.collapsible && toggleGroup(group.label)}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[11px] font-semibold text-text-muted group-hover:text-text-secondary uppercase tracking-tight">
-                                            {group.label}
-                                        </span>
+                                {!sidebarCollapsed && (
+                                    <div
+                                        className={`flex items-center justify-between rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-2 ${group.collapsible ? 'cursor-pointer' : ''}`}
+                                        onClick={() => group.collapsible && toggleGroup(group.label)}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[11px] font-semibold text-text-muted group-hover:text-text-secondary uppercase tracking-tight">
+                                                {group.label}
+                                            </span>
+                                        </div>
+                                        {group.collapsible && (
+                                            <span className="text-text-muted/60">
+                                                {isCollapsed
+                                                    ? <ChevronRight className="h-3 w-3" />
+                                                    : <ChevronDown className="h-3 w-3" />
+                                                }
+                                            </span>
+                                        )}
                                     </div>
-                                    {group.collapsible && (
-                                        <span className="text-text-muted/60">
-                                            {isCollapsed
-                                                ? <ChevronRight className="h-3 w-3" />
-                                                : <ChevronDown className="h-3 w-3" />
-                                            }
-                                        </span>
-                                    )}
-                                </div>
+                                )}
 
                                 {/* Group items */}
-                                {!isCollapsed && (
-                                    <div className="mt-0.5 ml-2 space-y-0.5 border-l border-border/40 pl-2">
+                                {(!isCollapsed || sidebarCollapsed) && (
+                                    <div className={sidebarCollapsed ? "space-y-1 mt-1" : "mt-0.5 ml-2 space-y-0.5 border-l border-border/40 pl-2"}>
                                         {group.items.map(({ label, href, icon: Icon, exact }) => {
                                             const active = isActive(href, exact)
                                             return (
@@ -446,22 +522,26 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
                                                     key={href}
                                                     href={href}
                                                     onClick={onNavClick}
-                                                    className={`group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[12px] font-medium transition-colors ${active
+                                                    title={sidebarCollapsed ? label : undefined}
+                                                    className={`group flex relative items-center justify-center md:justify-start gap-2.5 rounded-lg text-[12px] font-medium transition-colors ${sidebarCollapsed ? 'p-2' : 'px-2.5 py-1.5'} ${active
                                                         ? 'bg-azure/10 text-azure'
                                                         : 'text-text-muted hover:bg-surface-1 hover:text-text-secondary'
                                                         }`}
                                                 >
                                                     <Icon
-                                                        className={`h-3.5 w-3.5 shrink-0 ${active
+                                                        className={`h-[15px] w-[15px] shrink-0 ${active
                                                             ? 'text-azure'
                                                             : 'text-text-muted group-hover:text-text-secondary'
                                                             }`}
                                                     />
-                                                    <span className="flex-1 truncate">{label}</span>
-                                                    {href === '/approvals' && pendingApprovals > 0 && (
+                                                    {!sidebarCollapsed && <span className="flex-1 truncate">{label}</span>}
+                                                    {href === '/approvals' && pendingApprovals > 0 && !sidebarCollapsed && (
                                                         <span className="shrink-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
                                                             {pendingApprovals}
                                                         </span>
+                                                    )}
+                                                    {href === '/approvals' && pendingApprovals > 0 && sidebarCollapsed && (
+                                                        <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-red-500" />
                                                     )}
                                                 </Link>
                                             )
@@ -475,14 +555,8 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
             </nav>
 
             {/* Footer */}
-            <div className="relative flex flex-col border-t border-border-subtle p-2">
-                <UserFooter user={user} />
-                <div className="mt-1 flex items-center justify-between px-2.5 pb-1">
-                    <span className="text-[9px] font-medium text-text-muted">
-                        &copy; 2026 Joeybuilt LLC
-                    </span>
-                    <ThemeToggle />
-                </div>
+            <div className={`relative flex flex-col border-t border-border-subtle ${sidebarCollapsed ? 'p-2' : 'p-3'}`}>
+                <UserFooter user={user} collapsed={sidebarCollapsed} />
             </div>
         </aside>
 
@@ -535,7 +609,7 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
     )
 }
 
-function UserFooter({ user }: { user?: SessionUser }) {
+function UserFooter({ user, collapsed }: { user?: SessionUser; collapsed?: boolean }) {
     const [open, setOpen] = useState(false)
     const ref = useRef<HTMLDivElement>(null)
 
@@ -552,22 +626,25 @@ function UserFooter({ user }: { user?: SessionUser }) {
     const initials = (user?.name ?? user?.email ?? 'U').slice(0, 1).toUpperCase()
 
     return (
-        <div ref={ref} className="relative">
+        <div ref={ref} className="relative w-full">
             <button
                 onClick={() => setOpen((o) => !o)}
-                className="flex w-full items-center gap-2.5 rounded-lg p-2 text-left hover:bg-surface-1/80 transition-colors"
+                className={`flex w-full items-center ${collapsed ? 'justify-center p-1' : 'gap-2.5 p-2'} rounded-lg text-left hover:bg-surface-1/80 transition-colors`}
+                title={collapsed ? (user?.name ?? 'User') : undefined}
             >
                 <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-surface-2 text-[11px] font-semibold text-text-primary ring-1 ring-inset ring-border">
                     {initials}
                 </div>
-                <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-medium text-text-primary">{user?.name ?? 'User'}</p>
-                    <p className="truncate text-[10px] text-text-muted">{user?.email ?? ''}</p>
-                </div>
+                {!collapsed && (
+                    <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-medium text-text-primary">{user?.name ?? 'User'}</p>
+                        <p className="truncate text-[10px] text-text-muted">{user?.email ?? ''}</p>
+                    </div>
+                )}
             </button>
 
             {open && (
-                <div className="absolute bottom-[calc(100%+4px)] left-0 z-50 w-full rounded-xl border border-border bg-surface-1 shadow-2xl shadow-black/20 overflow-hidden">
+                <div className={`absolute bottom-[calc(100%+8px)] z-50 rounded-xl border border-border bg-surface-1 shadow-2xl shadow-black/20 overflow-hidden ${collapsed ? 'left-2 min-w-[220px]' : 'left-0 w-full'}`}>
                     {/* Identity header */}
                     <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-border">
                         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface-2 text-xs font-semibold text-text-primary ring-1 ring-inset ring-border">
