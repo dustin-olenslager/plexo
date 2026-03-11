@@ -10,6 +10,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - **Chat classifier: vague campaign auto-queueing** — Updated the `CLASSIFY_SYSTEM` and conversational prompts to prevent vague noun phrases (e.g., "Wayfinders S2 Campaign") from being auto-queued as tasks or projects. The agent now treats these as `CONVERSATION` and explicitly asks for strategy, timeline, goals, and channels before proceeding.
 
 ### Added
+- **Enhanced Agent Context Awareness** — Sub-agents now receive a comprehensive `CapabilityManifest` at task intake, covering active connections, model modalities, and available tools. `self_reflect` tool enables agents to introspect their own identity, setup, and memory status in real-time.
+- **Solution-Oriented Planning** — Planner system upgraded to encourage creative problem-solving; agents now prescribe necessary integrations or Kapsel skills to bridge digital gaps for the user.
 - **Multi-channel Voice support** — Added Deepgram-powered speech-to-text pipeline for Telegram, Slack, and Discord. One global API key in Settings → Voice covers all channels. Includes `detect_language=true` for robust global transcription support.
 - **Enhanced Dashboard QuickSend** — Expanded capability chips to include Marketing and General. Added a "More Options" link to the project creation page for complex multi-step requests.
 - **Chat Deliverables rendering** — The chat UI now renders `TaskAsset` objects (from `write_asset`) inline with copy-to-clipboard functionality, allowing immediate access to agent-generated files without leaving the thread.
