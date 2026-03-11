@@ -5,6 +5,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useWorkspace } from '@web/context/workspace'
 import { 
     Code2, Search, Server, BarChart2, Send, RefreshCw, PenLine, Plus, 
@@ -18,6 +19,7 @@ import { checkAttachmentPrompt, recommendModelForInput } from '@web/lib/models'
 
 export function QuickSend() {
     const { workspaceId: ctxWorkspaceId } = useWorkspace()
+    const router = useRouter()
     const [text, setText] = useState('')
     const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
     const [taskId, setTaskId] = useState<string | null>(null)
@@ -122,13 +124,11 @@ export function QuickSend() {
 
             if (!res.ok) throw new Error('API error')
             const data = await res.json() as { id: string }
-            setTaskId(data.id)
-            setStatus('sent')
-            setText('')
-            setPastedImages([])
-            setPastedDocs([])
-            setSelectedCategory(null)
-            setTimeout(() => setStatus('idle'), 4000)
+
+            // Navigate to chat — code mode if the user selected Code chip
+            const params = new URLSearchParams({ taskId: data.id })
+            if (selectedCategory === 'code') params.set('codeMode', '1')
+            router.push(`/chat?${params.toString()}`)
         } catch {
             setStatus('error')
             setTimeout(() => setStatus('idle'), 3000)

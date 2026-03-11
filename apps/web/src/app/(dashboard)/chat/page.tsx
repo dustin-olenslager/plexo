@@ -485,6 +485,7 @@ function ChatContent() {
     /** Counter tracks nested dragenter/dragleave so child elements don't flicker the overlay */
     const dragCounterRef = useRef(0)
     const searchParams = useSearchParams()
+    const taskIdAttached = useRef(false)
 
     // ── Code Mode state ───────────────────────────────────────────────────────
     const [codeMode, setCodeMode] = useState(false)
@@ -682,6 +683,30 @@ function ChatContent() {
             }
         })
     }, [tts])
+
+    // ── ?taskId param: navigate-in from QuickSend ─────────────────────────────
+    // When arriving from the dashboard after a task was queued, immediately
+    // show a running bubble and start streaming the task — no extra click needed.
+    const taskIdParam = searchParams.get('taskId')
+    const codeModeParam = searchParams.get('codeMode')
+    useEffect(() => {
+        if (!taskIdParam || taskIdAttached.current) return
+        taskIdAttached.current = true
+
+        if (codeModeParam === '1') setCodeMode(true)
+
+        const msgId = `a-${Date.now()}`
+        setMessages([{
+            id: msgId,
+            role: 'agent',
+            content: '',
+            status: 'running',
+            taskId: taskIdParam,
+            at: Date.now(),
+        }])
+        setSending(true)
+        void pollReply(taskIdParam, msgId)
+    }, [taskIdParam, codeModeParam, pollReply])
 
 
     async function executeConfirmedAction(msgId: string, intent: 'TASK' | 'PROJECT' | 'CONVERSATION', description: string, category?: string) {
