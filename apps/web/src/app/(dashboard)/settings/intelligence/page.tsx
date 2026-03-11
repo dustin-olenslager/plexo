@@ -319,6 +319,7 @@ export default function IntelligencePage() {
                                 .map((p) => (
                                     <div
                                         key={p.key}
+                                        id={`provider-stat-${p.key}`}
                                         className={`rounded-lg border px-3 py-2 ${p.key === snapshot.activeProvider ? 'border-azure/30 bg-azure/20' : 'border-border/60 bg-surface-1/30'}`}
                                     >
                                         <div className="flex items-center gap-2">

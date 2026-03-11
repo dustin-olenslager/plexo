@@ -147,6 +147,7 @@ export async function DashboardCards() {
                 return (
                     <div
                         key={card.title}
+                        id={`dashboard-card-${card.title.toLowerCase().replace(/\s+/g, '-')}`}
                         className="card-glow group rounded-xl border border-border bg-surface-1/50 backdrop-blur-sm transition-all hover:border-border"
                     >
                         {/* Card Header */}

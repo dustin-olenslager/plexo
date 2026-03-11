@@ -34,6 +34,7 @@ export const authLimiter = rateLimit({
     standardHeaders: 'draft-8',
     legacyHeaders: false,
     message: { error: { code: 'AUTH_RATE_LIMITED', message: 'Too many auth attempts — try again in 15 minutes' } },
+    skip: (req) => isLoopback(req.ip),
 })
 
 export const taskCreationLimiter = rateLimit({
@@ -42,4 +43,5 @@ export const taskCreationLimiter = rateLimit({
     standardHeaders: 'draft-8',
     legacyHeaders: false,
     message: { error: { code: 'TASK_RATE_LIMITED', message: 'Task creation limit reached — try again later' } },
+    skip: (req) => isLoopback(req.ip),
 })

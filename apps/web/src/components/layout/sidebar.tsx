@@ -36,6 +36,7 @@ import {
     Wrench,
     LogOut,
     Mic,
+    RefreshCw,
     Sparkles as _Sparkles, // kept for potential future use
 } from 'lucide-react'
 import { useWorkspace } from '@web/context/workspace'
@@ -106,13 +107,6 @@ const NAV_GROUPS: NavGroup[] = [
             { label: 'Workspace', href: '/settings', icon: SettingsIcon, exact: true },
             { label: 'Users', href: '/settings/users', icon: Users },
             { label: 'Privacy', href: '/settings/privacy', icon: ShieldCheck },
-        ],
-    },
-    {
-        label: 'System',
-        collapsible: true,
-        defaultOpen: false,
-        items: [
             { label: 'Logs', href: '/logs', icon: FileText },
             { label: 'Debug', href: '/debug', icon: Terminal },
         ],
@@ -221,7 +215,15 @@ function WorkspaceSwitcher({ className = '' }: { className?: string }) {
                 </div>
                 <div className="flex min-w-0 flex-col text-left">
                     <span className="text-[15px] font-semibold leading-tight tracking-tight text-text-primary truncate">{displayName}</span>
-                    <span className="text-[11px] text-text-muted leading-tight mt-0.5">{VERSION}</span>
+                    <button
+                        type="button"
+                        title="Check for updates"
+                        onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('plexo:check-update')) }}
+                        className="group/ver flex items-center gap-1 w-fit"
+                    >
+                        <span className="text-[11px] text-text-muted leading-tight mt-0.5 group-hover/ver:text-azure transition-colors">{VERSION}</span>
+                        <RefreshCw className="h-2.5 w-2.5 text-text-muted/0 group-hover/ver:text-azure/60 transition-colors mt-0.5" />
+                    </button>
                     {SHORT_SHA && (
                         <span className="text-[10px] text-text-muted/60 font-mono leading-tight">{SHORT_SHA}</span>
                     )}

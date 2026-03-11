@@ -24,7 +24,7 @@ const SECTIONS: Section[] = [
     { id: 'mcp', label: 'MCP', icon: Puzzle },
     { id: 'accountability', label: 'Accountability', icon: ShieldCheck },
     { id: 'appearance', label: 'Appearance', icon: Activity },
-    { id: 'system', label: 'System', icon: Activity },
+    { id: 'about', label: 'About', icon: Activity },
     { id: 'app', label: 'App Settings', icon: LogIn, nativeOnly: true },
 ]
 import { getRuntimeContext } from '@plexo/ui/lib/runtime'
@@ -151,7 +151,7 @@ export default function SettingsPage() {
     // Health state
     const [health, setHealth] = useState<{ version?: string; uptime?: number; status?: string } | null>(null)
     useEffect(() => {
-        if (active !== 'system') return
+        if (active !== 'about') return
         fetch(`${API_BASE}/health`)
             .then(res => res.json())
             .then(data => setHealth(data))
@@ -702,11 +702,11 @@ GROQ_API_KEY=gsk_…`}
 
                 {active === 'appearance' && <AppearanceSection />}
 
-                {active === 'system' && (
+                {active === 'about' && (
                     <div className="flex flex-col gap-6">
                         <div>
-                            <h2 className="text-lg font-bold text-zinc-50">System</h2>
-                            <p className="mt-0.5 text-sm text-text-muted">Monitor your Plexo instance health and operational status.</p>
+                            <h2 className="text-lg font-bold text-zinc-50">About</h2>
+                            <p className="mt-0.5 text-sm text-text-muted">Instance health, version, and update status.</p>
                         </div>
 
                         {/* Instance Health */}

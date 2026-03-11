@@ -7,7 +7,7 @@ import localPkg from "./package.json";
 const nextConfig: NextConfig = {
   output: "standalone",
   devIndicators: false,
-  transpilePackages: ["@plexo/ui"],
+  transpilePackages: ["@plexo/ui", "@plexo/logger", "@plexo/db"],
   turbopack: {
     root: "../../",
   },

@@ -6,6 +6,7 @@ import './globals.css'
 import { ThemeProvider } from '@web/components/theme-provider'
 import { PostHogProvider } from '@web/components/posthog-provider'
 import { auth } from '@web/auth'
+import { SessionErrorBoundary } from '@web/components/session-error-boundary'
 
 export const metadata: Metadata = {
   title: 'Plexo',
@@ -50,7 +51,9 @@ export default async function RootLayout({
             userEmail={session?.user?.email}
             userName={session?.user?.name}
           >
-            {children}
+            <SessionErrorBoundary sessionId={session?.user?.id}>
+              {children}
+            </SessionErrorBoundary>
           </PostHogProvider>
         </ThemeProvider>
       </body>

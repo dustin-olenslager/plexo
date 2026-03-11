@@ -218,6 +218,7 @@ export default function LogsPage() {
                         return (
                             <Link
                                 key={log.id}
+                                id={`log-row-${log.id}`}
                                 href={`/logs/${log.id}`}
                                 className="group flex items-center gap-4 rounded-xl border border-border bg-surface-1/40 px-4 py-3.5 transition-colors hover:border-border hover:bg-surface-1/80"
                             >

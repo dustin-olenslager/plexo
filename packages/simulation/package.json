@@ -1,0 +1,22 @@
+{
+  "name": "@plexo/simulation",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w",
+    "simulate": "tsx src/scripts/simulate.ts"
+  },
+  "dependencies": {
+    "@plexo/db": "workspace:*",
+    "@plexo/logger": "workspace:*",
+    "commander": "^12.1.0",
+    "playwright": "^1.58.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -66,6 +66,7 @@ import { parallelRouter } from './routes/parallel.js'
 import { traceMiddleware } from './middleware/trace.js'
 import { generalLimiter, authLimiter, taskCreationLimiter } from './middleware/rate-limit.js'
 import { workspaceRateLimit } from './middleware/workspace-rate-limit.js'
+import { sessionLogMiddleware } from './middleware/session-log.middleware.js'
 import { startAgentLoop, stopAgentLoop } from './agent-loop.js'
 import { db, eq, sql } from '@plexo/db'
 import { sprints } from '@plexo/db'
@@ -97,6 +98,7 @@ app.use(cors({
 }))
 app.use(express.json({ limit: '1mb' }))
 app.use(traceMiddleware)
+app.use(sessionLogMiddleware)
 app.use(generalLimiter) // default: 300/15min
 
 // ── Routes (/api/v1/ canonical + /api/ aliases) ──────────────

@@ -6,6 +6,14 @@ import { SimulationSession } from '../session.js'
 import { Persona } from './index.js'
 import { loginIfNeeded } from '../utils/login.js'
 
+// Sidebar nav items live inside <aside> on desktop. Using direct URL navigation
+// is more reliable than clicking sidebar links (which are hidden on mobile and
+// can cause strict-mode violations when the mobile bottom-nav is also in DOM).
+async function navTo(page: Page, href: string) {
+    await page.goto(href)
+    await page.waitForTimeout(500)
+}
+
 export const powerUser: Persona = {
     id: 'power-user',
     name: 'Power User (Multi-Tasker)',
@@ -14,35 +22,24 @@ export const powerUser: Persona = {
         await page.goto('/')
         await loginIfNeeded(page, session)
         await page.waitForTimeout(1000)
-        
-        await session.logEvent('expanding_control_section', {})
-        // Check if Control is visible, if not expand it. Header is uppercase "CONTROL"
-        const controlVisible = await page.locator('nav a:has-text("Tasks")').isVisible()
-        if (!controlVisible) {
-            await page.click('div:has-text("CONTROL")')
-        }
-        
+
         await session.logEvent('navigating_to_tasks', {})
-        await page.click('nav a:has-text("Tasks")')
+        await navTo(page, '/tasks')
         await page.waitForSelector('[id^="task-row-"]', { timeout: 10000 }).catch(() => {})
         await session.logEvent('viewed_tasks_list', {})
-        
+
         await session.logEvent('navigating_to_projects', {})
-        const projectsVisible = await page.locator('nav a:has-text("Projects")').isVisible()
-        if (!projectsVisible) {
-            await page.click('div:has-text("CONTROL")')
-        }
-        await page.click('nav a:has-text("Projects")')
+        await navTo(page, '/projects')
         await page.waitForSelector('[id^="project-card-"]', { timeout: 10000 }).catch(() => {})
         await session.logEvent('viewed_projects_list', {})
-        
-        // Go back to chat to trigger a coordinated action
-        await page.click('nav a:has-text("Chat")')
+
+        // Trigger a coordinated action from chat
+        await navTo(page, '/chat')
         await page.waitForSelector('textarea')
         await page.fill('textarea', 'Let us plan a new marketing campaign for Discord launch.')
         await page.click('#send-btn')
         await session.logEvent('sent_complex_prompt', { content: 'Let us plan a new marketing campaign for Discord launch.' })
-        
+
         // Wait for confirmation button OR automatic execution (textarea becomes enabled again)
         await page.waitForSelector('button:has-text("Create Project"), textarea:not([disabled])', { timeout: 45000 })
         const btn = await page.locator('button:has-text("Create Project")').isVisible()

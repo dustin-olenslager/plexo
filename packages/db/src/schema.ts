@@ -15,6 +15,7 @@ import {
     index,
     uniqueIndex,
     primaryKey,
+    varchar,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
@@ -921,3 +922,26 @@ export const rsiTestResults = pgTable('rsi_test_results', {
 }, (table) => [
     index('rsi_test_results_proposal_idx').on(table.proposalId),
 ])
+
+// ── Phase 1 ─ Session Logs ────────────────────────────────────────────────────────
+export const sessionLogs = pgTable('session_logs', {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sessionId: uuid('session_id').notNull(),
+    userId: uuid('user_id').references(() => users.id),
+    personaId: varchar('persona_id', { length: 64 }),
+    eventType: varchar('event_type', { length: 64 }).notNull(),
+    route: varchar('route', { length: 512 }),
+    action: varchar('action', { length: 256 }),
+    payload: jsonb('payload'),
+    responseCode: integer('response_code'),
+    responseBody: jsonb('response_body'),
+    errorMessage: text('error_message'),
+    errorStack: text('error_stack'),
+    durationMs: integer('duration_ms'),
+    llmModel: varchar('llm_model', { length: 128 }),
+    llmPromptTokens: integer('llm_prompt_tokens'),
+    llmCompletionTokens: integer('llm_completion_tokens'),
+    outputType: varchar('output_type', { length: 64 }),
+    outputSummary: text('output_summary'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+})

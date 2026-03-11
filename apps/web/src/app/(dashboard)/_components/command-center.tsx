@@ -121,6 +121,7 @@ function HeroStat({ label, value, accent, icon: Icon, href, pulse }: {
 }) {
     return (
         <Link
+            id={`dashboard-card-${label.toLowerCase().replace(/\s+/g, '-')}`}
             href={href}
             className="group flex flex-col items-center gap-2 rounded-xl border border-border/60 bg-surface-1/40 backdrop-blur-sm px-4 py-4 transition-all hover:border-border hover:bg-surface-1/60 min-w-0 flex-1"
         >

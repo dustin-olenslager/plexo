@@ -14,6 +14,7 @@ import {
     ClipboardCopy,
     Clock,
     X,
+    RefreshCw,
 } from 'lucide-react'
 import { PlexoMark } from '@web/components/plexo-logo'
 
@@ -40,6 +41,8 @@ const API_URL = (typeof window !== 'undefined' ? '/api' : (process.env.INTERNAL_
 
 export function UpdateModal() {
     const [open, setOpen] = useState(false)
+    const [checking, setChecking] = useState(false)
+    const [upToDate, setUpToDate] = useState(false)
     const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null)
     const [updating, setUpdating] = useState(false)
     const [done, setDone] = useState(false)
@@ -60,7 +63,8 @@ export function UpdateModal() {
         localStorage.setItem('plexo:update:last_seen', sha)
     }, [])
 
-    const checkVersion = useCallback(async () => {
+    const checkVersion = useCallback(async (manual = false) => {
+        if (manual) setChecking(true)
         try {
             const res = await fetch(`${API_URL}/v1/system/version`)
             if (!res.ok) return
@@ -69,9 +73,16 @@ export function UpdateModal() {
                 markSeen(data.latest!)
                 setVersionInfo(data)
                 setOpen(true)
+            } else if (manual) {
+                // User explicitly checked — show up-to-date feedback
+                setVersionInfo(data)
+                setUpToDate(true)
+                setTimeout(() => setUpToDate(false), 3000)
             }
         } catch {
             // Non-fatal — silent
+        } finally {
+            if (manual) setChecking(false)
         }
     }, [markSeen])
 
@@ -79,6 +90,13 @@ export function UpdateModal() {
         void checkVersion()
         const interval = setInterval(() => void checkVersion(), 3 * 60 * 1000)
         return () => clearInterval(interval)
+    }, [checkVersion])
+
+    // Listen for manual trigger from sidebar version button
+    useEffect(() => {
+        const handler = () => void checkVersion(true)
+        window.addEventListener('plexo:check-update', handler)
+        return () => window.removeEventListener('plexo:check-update', handler)
     }, [checkVersion])
 
 
@@ -169,7 +187,17 @@ export function UpdateModal() {
         setTimeout(() => setCopied(false), 2000)
     }
 
-    if (!open || !versionInfo) return null
+    // Inline status toast for manual checks (no modal needed)
+    const statusToast = (checking || upToDate) && !open ? (
+        <div className="fixed bottom-4 left-4 z-50 flex items-center gap-2 rounded-lg border border-border bg-surface-1 px-3 py-2 text-xs text-text-secondary shadow-lg shadow-black/20">
+            {checking
+                ? <><RefreshCw className="h-3.5 w-3.5 animate-spin text-text-muted" /> Checking for updates…</>
+                : <><CheckCircle2 className="h-3.5 w-3.5 text-azure" /> <span className="text-azure">Up to date</span></>
+            }
+        </div>
+    ) : null
+
+    if (!open || !versionInfo) return statusToast
 
     return (
         <>
