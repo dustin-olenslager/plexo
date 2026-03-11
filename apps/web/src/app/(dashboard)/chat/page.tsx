@@ -1516,6 +1516,29 @@ function ChatContent() {
                         onChange={handleFileInput}
                     />
 
+                    {/* Prompt optimizer trigger */}
+                    <button
+                        id="optimize-prompt-btn"
+                        onClick={() => {
+                            if (input.trim()) {
+                                // Send the current draft through the optimizer flow
+                                const draft = input.trim()
+                                setInput('')
+                                void sendMessageWith(`Optimize this prompt for me: ${draft}`)
+                            } else {
+                                // Seed the textarea so the user knows what to type
+                                setInput('Optimize this prompt for me: ')
+                                setTimeout(() => inputRef.current?.focus(), 10)
+                            }
+                        }}
+                        disabled={sending || isListening}
+                        title={input.trim() ? 'Optimize this prompt' : 'Start prompt optimizer'}
+                        className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 border border-border text-text-muted hover:text-azure hover:border-azure/40 hover:bg-azure/5 bg-surface-1 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+                        aria-label="Optimize prompt"
+                    >
+                        <Sparkles className="h-4 w-4" />
+                    </button>
+
                     <textarea
                         ref={inputRef}
                         value={input}

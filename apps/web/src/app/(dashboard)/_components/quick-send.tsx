@@ -277,6 +277,25 @@ export function QuickSend() {
                             className="hidden"
                             onChange={handleFileInput}
                         />
+                        {/* Prompt optimizer button */}
+                        <button
+                            id="qs-optimize-prompt-btn"
+                            onClick={() => {
+                                const draft = text.trim()
+                                if (draft) {
+                                    setText(`Optimize this prompt for me: ${draft}`)
+                                } else {
+                                    setText('Optimize this prompt for me: ')
+                                }
+                                setTimeout(() => inputRef.current?.focus(), 10)
+                            }}
+                            disabled={status === 'sending' || isListening}
+                            title={text.trim() ? 'Optimize this prompt' : 'Start prompt optimizer'}
+                            className="flex shrink-0 items-center justify-center h-9 w-9 rounded-xl text-text-muted hover:text-azure hover:bg-azure/10 transition-all"
+                            aria-label="Optimize prompt"
+                        >
+                            <Sparkles className="h-4 w-4" />
+                        </button>
                     </div>
 
                     <div className="flex items-center gap-2">
