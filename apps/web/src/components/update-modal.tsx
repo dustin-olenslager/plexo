@@ -244,7 +244,7 @@ export function UpdateModal() {
 
     // Inline status toast for manual checks (no modal needed)
     const statusToast = (checking || upToDate) && !open ? (
-        <div className="fixed bottom-4 left-4 z-50 flex items-center gap-2 rounded-lg border border-border bg-surface-1 px-3 py-2 text-xs text-text-secondary shadow-lg shadow-black/20">
+        <div className="fixed top-[68px] left-2 z-50 flex items-center gap-2 rounded-lg border border-border bg-surface-1 px-3 py-2 text-xs text-text-secondary shadow-lg shadow-black/20">
             {checking
                 ? <><RefreshCw className="h-3.5 w-3.5 animate-spin text-text-muted" /> Checking for updates…</>
                 : <><CheckCircle2 className="h-3.5 w-3.5 text-azure" /> <span className="text-azure">Up to date</span></>
