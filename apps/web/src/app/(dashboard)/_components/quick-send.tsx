@@ -60,7 +60,7 @@ export function QuickSend() {
     return (
         <div className="w-full mx-auto flex flex-col gap-6 animate-in fade-in duration-700 delay-150 fill-mode-both">
             {/* Main Input Box */}
-            <div className="relative flex flex-col gap-2 p-1.5 rounded-[24px] border border-border bg-surface-1/50 backdrop-blur-sm shadow-[0_2px_24px_-12px_rgba(0,0,0,0.5)] transition-all focus-within:ring-2 focus-within:ring-azure/20 focus-within:border-azure/50">
+            <div className="relative flex flex-col gap-2 p-1.5 rounded-[24px] border border-border bg-surface-1/50 backdrop-blur-sm shadow-[0_2px_24px_-12px_rgba(0,0,0,0.5)] transition-all">
                 <textarea
                     ref={inputRef}
                     value={text}
