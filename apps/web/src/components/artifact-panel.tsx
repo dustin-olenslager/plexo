@@ -137,11 +137,13 @@ function ArtifactRenderer({ asset, viewMode }: { asset: TaskAsset, viewMode: 'pr
 export function ArtifactPanel({
     asset,
     taskId,
-    onClose
+    onClose,
+    mode = 'overlay'
 }: {
     asset: TaskAsset | null
     taskId?: string | null
     onClose: () => void
+    mode?: 'overlay' | 'docked'
 }) {
     const [copied, setCopied] = useState(false)
     const [open, setOpen] = useState(false)
@@ -265,17 +267,26 @@ export function ArtifactPanel({
 
     return (
         <>
-            {/* Backdrop */}
+            {/* Backdrop - only in overlay mode */}
+            {mode === 'overlay' && (
+                <div 
+                    className={`absolute inset-0 z-40 bg-background/40 backdrop-blur-sm transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                    onClick={() => {
+                        setOpen(false)
+                        setTimeout(onClose, 300)
+                    }}
+                />
+            )}
+            {/* Panel */}
             <div 
-                className={`absolute inset-0 z-40 bg-background/40 backdrop-blur-sm transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-                onClick={() => {
-                    setOpen(false)
-                    setTimeout(onClose, 300)
-                }}
-            />
-            {/* Slide-in Panel */}
-            <div 
-                className={`absolute z-50 top-4 bottom-4 right-4 w-full max-w-lg md:max-w-[45vw] bg-surface-1 border border-border/80 rounded-[24px] shadow-2xl flex flex-col overflow-hidden transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${open ? 'translate-x-0' : 'translate-x-[110%]'}`}
+                className={`
+                    ${mode === 'overlay' 
+                        ? 'absolute z-50 top-4 bottom-4 right-4 w-full max-w-lg md:max-w-[45vw] rounded-[24px] shadow-2xl transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] bg-surface-1' 
+                        : 'relative flex-1 h-full rounded-none border-l border-border/40 bg-canvas/40 backdrop-blur-xl'
+                    } 
+                    flex flex-col overflow-hidden 
+                    ${mode === 'overlay' ? (open ? 'translate-x-0' : 'translate-x-[110%]') : ''}
+                `}
             >
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b border-border/60 bg-surface-2/30">
@@ -404,7 +415,7 @@ export function ArtifactPanel({
                 </div>
 
                 {/* Content Area */}
-                <div className={`flex-1 overflow-auto relative ${currentAsset?.isText && viewMode === 'code' ? 'bg-[#0d0d0d]' : 'bg-surface-1'}`}>
+                <div className={`flex-1 overflow-auto relative ${currentAsset?.isText && viewMode === 'code' ? 'bg-[#0d0d0d]' : ''}`}>
                     {fetchingVersion && (
                         <div className="absolute inset-0 z-10 bg-surface-1/50 backdrop-blur-[2px] flex items-center justify-center">
                             <Loader2 className="h-8 w-8 animate-spin text-azure" />

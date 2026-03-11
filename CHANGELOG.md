@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+### Changed
+- **Integrated Canvas Chat UI** — Redesigned the chat interface for a more fluid workspace. Removed restrictive "box in a box" borders in favor of a side-by-side flex layout for artifacts.
+- **Modern Chat Bubble Aesthetics** — Message bubbles now use subtle transparency, lifted hover states, and smooth slide-in entrance animations.
+- **Translucent Artifact Panel** — The artifact panel now utilizes glassmorphism (`backdrop-blur-xl`) and a canvas-integrated background when docked, creating a cohesive "Integrated Canvas" feel.
+
 ### Fixed
 - **Voice Settings UI** — Improved configuration status detection, real-time Deepgram balance fetching, and better error feedback during API key testing.
 - **Chat classifier: vague campaign auto-queueing** — Updated the `CLASSIFY_SYSTEM` and conversational prompts to prevent vague noun phrases (e.g., "Wayfinders S2 Campaign") from being auto-queued as tasks or projects. The agent now treats these as `CONVERSATION` and explicitly asks for strategy, timeline, goals, and channels before proceeding.

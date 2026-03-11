@@ -223,14 +223,14 @@ function MessageBubble({
             </div>
 
             {/* Bubble */}
-            <div className={`relative flex flex-col gap-1 max-w-[85%] md:max-w-[75%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+            <div className={`relative flex flex-col gap-1 max-w-[85%] md:max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
                 {imageStrip}
                 {docStrip}
-                <div className={`relative w-full overflow-x-auto rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.role === 'user'
-                    ? 'bg-azure text-text-primary rounded-tr-md'
+                <div className={`relative w-full overflow-x-auto rounded-2xl px-4 py-2 text-[15px] leading-relaxed transition-all duration-300 ${msg.role === 'user'
+                    ? 'bg-azure text-white rounded-tr-sm shadow-md hover:shadow-lg hover:-translate-y-0.5'
                     : msg.status === 'failed'
-                        ? 'bg-red-950/30 border border-red-800/40 text-red-300 rounded-tl-md'
-                        : 'bg-surface-2 text-text-primary rounded-tl-md'
+                        ? 'bg-red-500/10 border border-red-500/20 text-red-200 rounded-tl-sm'
+                        : 'bg-surface-1/40 border border-border/40 text-text-primary rounded-tl-sm hover:bg-surface-1/60 hover:border-border/60 hover:-translate-y-0.5 shadow-sm hover:shadow-md'
                     }`}>
                     {msg.status === 'queued' ? (
                         <span className="text-text-muted text-sm italic py-0.5 block">Queued…</span>
@@ -1241,8 +1241,9 @@ function ChatContent() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-8 py-8 flex flex-col gap-8 min-h-0">
-                {messages.length === 0 && (
+            <div className={`flex-1 overflow-y-auto px-6 py-8 flex flex-col gap-8 min-h-0 ${!openArtifactData ? 'items-center' : ''}`}>
+                <div className={`flex flex-col gap-8 w-full ${!openArtifactData ? 'max-w-3xl' : ''}`}>
+                    {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-10 gap-2 mx-auto w-full max-w-2xl animate-in fade-in duration-700">
                         {/* Brand mark — idle breathe at rest, working pulse while listening */}
                         <div className={`relative flex items-center justify-center transition-all duration-500 mb-2 ${
@@ -1341,22 +1342,23 @@ function ChatContent() {
                     </div>
                 )}
 
-                {messages.map((msg) => (
-                    <MessageBubble
-                        key={msg.id}
-                        msg={msg}
-                        userInitial={userInitial}
-                        onExecute={executeConfirmedAction}
-                        onCancel={cancelAction}
-                        onOpenAsset={(taskId, asset) => {
-                            setOpenArtifactData({ asset, taskId })
-                        }}
-                        onSelectCategory={(id, cat) => setMessages((prev) => prev.map((m) =>
-                            m.id === id ? { ...m, selectedCategory: cat } : m
-                        ))}
-                    />
-                ))}
-                <div ref={bottomRef} />
+                    {messages.map((msg) => (
+                        <MessageBubble
+                            key={msg.id}
+                            msg={msg}
+                            userInitial={userInitial}
+                            onExecute={executeConfirmedAction}
+                            onCancel={cancelAction}
+                            onOpenAsset={(taskId, asset) => {
+                                setOpenArtifactData({ asset, taskId })
+                            }}
+                            onSelectCategory={(id, cat) => setMessages((prev) => prev.map((m) =>
+                                m.id === id ? { ...m, selectedCategory: cat } : m
+                            ))}
+                        />
+                    ))}
+                    <div ref={bottomRef} />
+                </div>
             </div>
 
             {/* Error banner */}
@@ -1438,197 +1440,217 @@ function ChatContent() {
             )}
 
             {/* Input area */}
-            <div className="shrink-0 flex flex-col gap-3 px-8 pt-5 pb-6 border-t border-border bg-surface-1/30">
-                {/* Pasted file previews (images, SVG, PDF) */}
-                {pastedImages.length > 0 && (
-                    <div className="flex flex-wrap gap-2 px-1">
-                        {pastedImages.map((img) => (
-                            <div key={img.id} className="relative group">
-                                {img.kind === 'image' ? (
-                                    <>
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img
-                                            src={img.dataUrl}
-                                            alt={img.name}
-                                            className="h-20 w-20 rounded-lg border border-border object-cover"
-                                        />
-                                    </>
-                                ) : (
-                                    <div className="h-20 w-28 rounded-lg border border-zinc-600/60 bg-surface-2/60 flex flex-col items-center justify-center gap-1 px-2">
-                                        <FileText className="h-6 w-6 text-azure shrink-0" />
-                                        <span className="text-[10px] text-text-muted font-bold uppercase tracking-wide">{img.kind}</span>
-                                        <span className="text-[10px] text-text-secondary truncate max-w-full px-1 text-center leading-tight">{img.name}</span>
-                                    </div>
-                                )}
-                                <button
-                                    onClick={() => removeImage(img.id)}
-                                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-surface-2 border border-zinc-600 flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-red hover:border-red-400 transition-all opacity-0 group-hover:opacity-100"
-                                    aria-label="Remove attachment"
-                                >
-                                    <X className="h-3 w-3" />
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {/* Pasted doc pills */}
-                {pastedDocs.length > 0 && (
-                    <div className="flex flex-wrap gap-2 px-1">
-                        {pastedDocs.map((doc) => (
-                            <div key={doc.id} className="relative group flex items-center gap-2 rounded-lg border border-border bg-surface-2/60 px-3 py-2 text-xs text-text-secondary max-w-[320px]">
-                                <FileText className="h-3.5 w-3.5 shrink-0 text-azure" />
-                                <div className="min-w-0 flex-1">
-                                    <p className="font-medium truncate leading-tight">{doc.name}</p>
-                                    <p className="text-text-muted text-[10px] leading-tight">{doc.lineCount} lines · {(doc.charCount / 1000).toFixed(1)}k chars</p>
+            <div className={`shrink-0 flex flex-col items-center gap-3 px-6 pt-5 pb-6 border-t border-border bg-surface-1/5 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] backdrop-blur-md`}>
+                <div className={`flex flex-col gap-3 w-full ${!openArtifactData ? 'max-w-3xl' : ''}`}>
+                    {/* Pasted file previews (images, SVG, PDF) */}
+                    {pastedImages.length > 0 && (
+                        <div className="flex flex-wrap gap-2 px-1">
+                            {pastedImages.map((img) => (
+                                <div key={img.id} className="relative group">
+                                    {img.kind === 'image' ? (
+                                        <>
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img
+                                                src={img.dataUrl}
+                                                alt={img.name}
+                                                className="h-20 w-20 rounded-lg border border-border object-cover"
+                                            />
+                                        </>
+                                    ) : (
+                                        <div className="h-20 w-28 rounded-lg border border-zinc-600/60 bg-surface-2/60 flex flex-col items-center justify-center gap-1 px-2">
+                                            <FileText className="h-6 w-6 text-azure shrink-0" />
+                                            <span className="text-[10px] text-text-muted font-bold uppercase tracking-wide">{img.kind}</span>
+                                            <span className="text-[10px] text-text-secondary truncate max-w-full px-1 text-center leading-tight">{img.name}</span>
+                                        </div>
+                                    )}
+                                    <button
+                                        onClick={() => removeImage(img.id)}
+                                        className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-surface-2 border border-zinc-600 flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-red hover:border-red-400 transition-all opacity-0 group-hover:opacity-100"
+                                        aria-label="Remove attachment"
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={() => setPastedDocs((prev) => prev.filter(d => d.id !== doc.id))}
-                                    className="shrink-0 h-5 w-5 rounded-full bg-zinc-700 border border-zinc-600 flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-red hover:border-red-400 transition-all opacity-0 group-hover:opacity-100 ml-1"
-                                    aria-label="Remove document"
-                                >
-                                    <X className="h-3 w-3" />
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {/* Input row */}
-                <div className="flex gap-2 items-end">
-                    {/* Mic button */}
-                    {voice.supported && (
-                        <button
-                            id="voice-input-btn"
-                            onClick={() => isListening ? voice.stop() : void voice.start()}
-                            disabled={sending}
-                            title={isListening ? 'Stop recording' : 'Voice input'}
-                            className={`flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 transition-all duration-200 ${isListening
-                                ? 'bg-red/20 border border-red-500/40 text-red shadow-[0_0_16px_rgba(239,68,68,0.3)] animate-pulse'
-                                : 'border border-border text-text-muted hover:text-text-secondary hover:border-zinc-500 bg-surface-1'
-                                } disabled:opacity-40 disabled:cursor-not-allowed`}
-                            aria-label={isListening ? 'Stop recording' : 'Start voice input'}
-                        >
-                            {isListening
-                                ? <MicOff className="h-4 w-4" />
-                                : <Mic className="h-4 w-4" />
-                            }
-                        </button>
+                            ))}
+                        </div>
                     )}
 
-                    {/* File attach button (images, SVG, PDF) */}
-                    <button
-                        id="image-attach-btn"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={sending || isListening}
-                        title="Attach image, SVG, or PDF"
-                        className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 border border-border text-text-muted hover:text-text-secondary hover:border-zinc-500 bg-surface-1 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                        aria-label="Attach file"
-                    >
-                        <ImageIcon className="h-4 w-4" />
-                    </button>
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*,image/svg+xml,application/pdf"
-                        multiple
-                        className="hidden"
-                        onChange={handleFileInput}
-                    />
+                    {/* Pasted doc pills */}
+                    {pastedDocs.length > 0 && (
+                        <div className="flex flex-wrap gap-2 px-1">
+                            {pastedDocs.map((doc) => (
+                                <div key={doc.id} className="relative group flex items-center gap-2 rounded-lg border border-border bg-surface-2/60 px-3 py-2 text-xs text-text-secondary max-w-[320px]">
+                                    <FileText className="h-3.5 w-3.5 shrink-0 text-azure" />
+                                    <div className="min-w-0 flex-1">
+                                        <p className="font-medium truncate leading-tight">{doc.name}</p>
+                                        <p className="text-text-muted text-[10px] leading-tight">{doc.lineCount} lines · {(doc.charCount / 1000).toFixed(1)}k chars</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setPastedDocs((prev) => prev.filter(d => d.id !== doc.id))}
+                                        className="shrink-0 h-5 w-5 rounded-full bg-zinc-700 border border-zinc-600 flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-red hover:border-red-400 transition-all opacity-0 group-hover:opacity-100 ml-1"
+                                        aria-label="Remove document"
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
 
-                    {/* Prompt optimizer trigger */}
-                    <button
-                        id="optimize-prompt-btn"
-                        onClick={() => {
-                            if (input.trim()) {
-                                // Send the current draft through the optimizer flow
-                                const draft = input.trim()
-                                setInput('')
-                                void sendMessageWith(`Optimize this prompt for me: ${draft}`)
-                            } else {
-                                // Seed the textarea so the user knows what to type
-                                setInput('Optimize this prompt for me: ')
-                                setTimeout(() => inputRef.current?.focus(), 10)
+                    {/* Input row */}
+                    <div className="flex gap-2 items-end">
+                        {/* Mic button */}
+                        {voice.supported && (
+                            <button
+                                id="voice-input-btn"
+                                onClick={() => isListening ? voice.stop() : void voice.start()}
+                                disabled={sending}
+                                title={isListening ? 'Stop recording' : 'Voice input'}
+                                className={`flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 transition-all duration-200 ${isListening
+                                    ? 'bg-red/20 border border-red-500/40 text-red shadow-[0_0_16px_rgba(239,68,68,0.3)] animate-pulse'
+                                    : 'border border-border text-text-muted hover:text-text-secondary hover:border-zinc-500 bg-surface-1'
+                                    } disabled:opacity-40 disabled:cursor-not-allowed`}
+                                aria-label={isListening ? 'Stop recording' : 'Start voice input'}
+                            >
+                                {isListening
+                                    ? <MicOff className="h-4 w-4" />
+                                    : <Mic className="h-4 w-4" />
+                                }
+                            </button>
+                        )}
+
+                        {/* File attach button (images, SVG, PDF) */}
+                        <button
+                            id="image-attach-btn"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={sending || isListening}
+                            title="Attach image, SVG, or PDF"
+                            className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 border border-border text-text-muted hover:text-text-secondary hover:border-zinc-500 bg-surface-1 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            aria-label="Attach file"
+                        >
+                            <ImageIcon className="h-4 w-4" />
+                        </button>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*,image/svg+xml,application/pdf"
+                            multiple
+                            className="hidden"
+                            onChange={handleFileInput}
+                        />
+
+                        {/* Prompt optimizer trigger */}
+                        <button
+                            id="optimize-prompt-btn"
+                            onClick={() => {
+                                if (input.trim()) {
+                                    // Send the current draft through the optimizer flow
+                                    const draft = input.trim()
+                                    setInput('')
+                                    void sendMessageWith(`Optimize this prompt for me: ${draft}`)
+                                } else {
+                                    // Seed the textarea so the user knows what to type
+                                    setInput('Optimize this prompt for me: ')
+                                    setTimeout(() => inputRef.current?.focus(), 10)
+                                }
+                            }}
+                            disabled={sending || isListening}
+                            title={input.trim() ? 'Optimize this prompt' : 'Start prompt optimizer'}
+                            className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 border border-border text-text-muted hover:text-azure hover:border-azure/40 hover:bg-azure/5 bg-surface-1 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+                            aria-label="Optimize prompt"
+                        >
+                            <Sparkles className="h-4 w-4" />
+                        </button>
+
+                        <textarea
+                            ref={inputRef}
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            onPaste={handlePaste}
+                            onDrop={handleDrop}
+                            onDragOver={(e) => e.preventDefault()}
+                            placeholder={isListening ? 'Listening…' : pastedImages.length > 0 ? 'Add a message or just send the image…' : pastedDocs.length > 0 ? 'Add a note or just send the document…' : 'Message your agent… (paste images, Enter to send)'}
+                            rows={1}
+                            disabled={sending || isListening}
+                            className="flex-1 resize-none rounded-xl border border-border bg-surface-1/80 px-4 py-3 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-azure/60 focus:ring-4 focus:ring-azure/5 disabled:opacity-50 max-h-32 leading-relaxed transition-all shadow-sm"
+                            style={{ minHeight: '48px' }}
+                        />
+
+                        <button
+                            id="send-btn"
+                            onClick={() => void sendMessage()}
+                            disabled={sending || (!input.trim() && pastedImages.length === 0 && pastedDocs.length === 0) || isListening}
+                            className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl bg-azure p-3 text-text-primary hover:bg-azure/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-lg shadow-azure/20"
+                            aria-label="Send"
+                        >
+                            {sending
+                                ? <RefreshCw className="h-4 w-4 animate-spin" />
+                                : <Send className="h-4 w-4" />
                             }
-                        }}
-                        disabled={sending || isListening}
-                        title={input.trim() ? 'Optimize this prompt' : 'Start prompt optimizer'}
-                        className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 border border-border text-text-muted hover:text-azure hover:border-azure/40 hover:bg-azure/5 bg-surface-1 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
-                        aria-label="Optimize prompt"
-                    >
-                        <Sparkles className="h-4 w-4" />
-                    </button>
-
-                    <textarea
-                        ref={inputRef}
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        onPaste={handlePaste}
-                        onDrop={handleDrop}
-                        onDragOver={(e) => e.preventDefault()}
-                        placeholder={isListening ? 'Listening…' : pastedImages.length > 0 ? 'Add a message or just send the image…' : pastedDocs.length > 0 ? 'Add a note or just send the document…' : 'Message your agent… (paste images, Enter to send)'}
-                        rows={1}
-                        disabled={sending || isListening}
-                        className="flex-1 resize-none rounded-xl border border-border bg-surface-1 px-4 py-3 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:outline-none disabled:opacity-50 max-h-32 leading-relaxed transition-colors"
-                        style={{ minHeight: '48px' }}
-                    />
-
-                    <button
-                        id="send-btn"
-                        onClick={() => void sendMessage()}
-                        disabled={sending || (!input.trim() && pastedImages.length === 0 && pastedDocs.length === 0) || isListening}
-                        className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl bg-azure p-3 text-text-primary hover:bg-azure/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                        aria-label="Send"
-                    >
-                        {sending
-                            ? <RefreshCw className="h-4 w-4 animate-spin" />
-                            : <Send className="h-4 w-4" />
-                        }
-                    </button>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
     )
 
     return (
-        <div className="flex flex-col h-full max-w-7xl mx-auto w-full overflow-hidden p-4 md:p-6 lg:p-8">
-            <div className="flex-1 overflow-hidden flex flex-col bg-surface-1 backdrop-blur-md border border-border/80 rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.3)] relative">
-                <div className="absolute inset-0 bg-gradient-to-br from-azure/5 via-transparent to-transparent pointer-events-none" />
+        <div className="flex h-full w-full overflow-hidden bg-canvas relative">
+            <div className={`flex-1 flex flex-col min-w-0 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${openArtifactData ? 'max-w-[420px] lg:max-w-[480px] border-r border-border/60' : 'w-full'}`}>
                 {codeMode ? (
-                    <CodeModeShell
-                        workspaceId={WS_ID}
-                        taskId={lastRunningTaskId}
-                        isTaskRunning={!!lastRunningTaskId}
-                        context={codeModeContext}
-                        onRepoSelect={(sel) => {
-                            setCodeModeContext({ repo: sel.repo, branch: sel.branch, isNew: sel.isNew })
-                        }}
-                        onRerunTest={(testNames) => {
-                            const text = testNames.length === 1
-                                ? `Re-run the failing test: ${testNames[0]}`
-                                : `Re-run these failing tests: ${testNames.join(', ')}`
-                            void sendMessageWith(text)
-                        }}
-                        onClose={() => setCodeMode(false)}
-                        bottomTab={bottomTab}
-                        setBottomTab={setBottomTab}
-                        showBottom={showBottom}
-                        setShowBottom={setShowBottom}
-                        previewPath={previewPath}
-                        setPreviewPath={setPreviewPath}
-                    >
-                        {chatPanel}
-                    </CodeModeShell>
+                    <div className="flex-1 flex flex-col overflow-hidden bg-surface-1/40">
+                         <CodeModeShell
+                            workspaceId={WS_ID}
+                            taskId={lastRunningTaskId}
+                            isTaskRunning={!!lastRunningTaskId}
+                            context={codeModeContext}
+                            onRepoSelect={(sel) => {
+                                setCodeModeContext({ repo: sel.repo, branch: sel.branch, isNew: sel.isNew })
+                            }}
+                            onRerunTest={(testNames) => {
+                                const text = testNames.length === 1
+                                    ? `Re-run the failing test: ${testNames[0]}`
+                                    : `Re-run these failing tests: ${testNames.join(', ')}`
+                                void sendMessageWith(text)
+                            }}
+                            onClose={() => setCodeMode(false)}
+                            bottomTab={bottomTab}
+                            setBottomTab={setBottomTab}
+                            showBottom={showBottom}
+                            setShowBottom={setShowBottom}
+                            previewPath={previewPath}
+                            setPreviewPath={setPreviewPath}
+                        >
+                            {chatPanel}
+                        </CodeModeShell>
+                    </div>
                 ) : (
-                    chatPanel
+                    <div className="flex-1 flex flex-col overflow-hidden">
+                        {chatPanel}
+                    </div>
                 )}
-                <ArtifactPanel 
-                    asset={openArtifactData?.asset ?? null} 
-                    taskId={openArtifactData?.taskId}
+            </div>
+
+            {/* Artifact Panel in side-by-side mode */}
+            {openArtifactData && (
+                <div className="flex-1 min-w-0 h-full bg-canvas/40 animate-in slide-in-from-right fade-in duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]">
+                    <ArtifactPanel 
+                        asset={openArtifactData.asset} 
+                        taskId={openArtifactData.taskId}
+                        onClose={() => setOpenArtifactData(null)}
+                        mode="docked"
+                    />
+                </div>
+            )}
+
+            {/* Legacy/Overlay Artifact Panel (for when mode is managed elsewhere or we want a fallback) */}
+            {!openArtifactData && (
+                 <ArtifactPanel 
+                    asset={null}
                     onClose={() => setOpenArtifactData(null)}
                 />
-            </div>
+            )}
         </div>
     )
 }
