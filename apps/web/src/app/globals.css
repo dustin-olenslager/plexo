@@ -88,10 +88,9 @@
   background: theme(--color-text-muted);
 }
 
-/* Focus visible */
+/* Global focus-visible outline removed per user request (hated the blue box) */
 *:focus-visible {
-  outline: 2px solid theme(--color-azure);
-  outline-offset: 2px;
+  outline: none;
 }
 
 /* Smooth transitions globally */

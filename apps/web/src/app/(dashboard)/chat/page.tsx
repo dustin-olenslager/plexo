@@ -1575,7 +1575,7 @@ function ChatContent() {
                         placeholder={isListening ? 'Listening…' : pastedImages.length > 0 ? 'Add a message or just send the image…' : pastedDocs.length > 0 ? 'Add a note or just send the document…' : 'Message your agent… (paste images, Enter to send)'}
                         rows={1}
                         disabled={sending || isListening}
-                        className="flex-1 resize-none rounded-xl border border-border bg-surface-1 px-4 py-3 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:border-azure focus:outline-none disabled:opacity-50 max-h-32 leading-relaxed transition-colors"
+                        className="flex-1 resize-none rounded-xl border border-border bg-surface-1 px-4 py-3 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:outline-none disabled:opacity-50 max-h-32 leading-relaxed transition-colors"
                         style={{ minHeight: '48px' }}
                     />
 
