@@ -7,6 +7,7 @@ import { SystemHealth } from './_components/system-health'
 import { QuickSend } from './_components/quick-send'
 import { RSIProposalsPanel } from './_components/rsi-proposals-panel'
 import { DashboardRouter } from './_components/dashboard-router'
+import { Greeting } from './_components/greeting'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -28,33 +29,28 @@ export default async function HomePage() {
 
     return (
         <DashboardRouter defaultContent={
-            <div>
-                {/* Header */}
-                <div className="mb-6">
-                    <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
-                    <p className="mt-1 text-sm text-text-muted">Your AI agent — live</p>
+            <div className="flex flex-col gap-8 pb-10">
+                {/* Claude-style Hero Section */}
+                <div className="flex flex-col items-center justify-center pt-8 md:pt-16 pb-4">
+                    <Greeting />
+                    <div className="w-full max-w-3xl">
+                        <QuickSend />
+                    </div>
                 </div>
 
-                <RSIProposalsPanel />
-
-                {/* User-focused overview: projects, tasks, blockers, approvals */}
-                <CommandCenter />
-
-                {/* Quick Send */}
-                <div className="mt-6">
-                    <QuickSend />
-                </div>
-
-                {/* System Health — collapsible, below the user-focused overview */}
-                <div className="mt-6">
+                {/* Dashboard Widgets below the fold */}
+                <div className="grid grid-cols-1 gap-6 w-full max-w-5xl mx-auto">
+                    <RSIProposalsPanel />
+                    <CommandCenter />
                     <SystemHealth />
                 </div>
 
                 {/* Version */}
-                <p className="mt-6 text-center text-[10px] text-zinc-700">
+                <p className="mt-8 text-center text-[10px] text-zinc-700">
                     v{process.env.NEXT_PUBLIC_APP_VERSION ?? '0.8.0-beta.1'}{process.env.NODE_ENV === 'development' ? ' · dev' : ''}
                 </p>
             </div>
         } />
     )
 }
+
