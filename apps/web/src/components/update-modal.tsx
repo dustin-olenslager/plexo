@@ -15,6 +15,7 @@ import {
     Clock,
     X,
     RefreshCw,
+    RotateCw,
 } from 'lucide-react'
 import { PlexoMark } from '@web/components/plexo-logo'
 
@@ -50,6 +51,13 @@ export function UpdateModal() {
     const [logs, setLogs] = useState<UpdateLog[]>([])
     const [copied, setCopied] = useState(false)
     const logEndRef = useRef<HTMLDivElement>(null)
+
+    // Restart-and-refresh polling state
+    const [awaitingRestart, setAwaitingRestart] = useState(false)
+    const [restartSeconds, setRestartSeconds] = useState(0)
+    const [restartTimedOut, setRestartTimedOut] = useState(false)
+    const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    const restartStartRef = useRef<number>(0)
 
     const lastSeenLatest = useRef<string | null>(null)
 
@@ -178,6 +186,46 @@ export function UpdateModal() {
             setUpdating(false)
         }
     }, [])
+
+    const startRestartAndRefresh = useCallback(() => {
+        if (!versionInfo) { window.location.reload(); return }
+        const snapshotVersion = versionInfo.current
+        const TIMEOUT_MS = 3 * 60 * 1000 // 3 min max
+        setAwaitingRestart(true)
+        setRestartSeconds(0)
+        setRestartTimedOut(false)
+        restartStartRef.current = Date.now()
+
+        // Ticker: update elapsed seconds in UI
+        const ticker = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - restartStartRef.current) / 1000)
+            setRestartSeconds(elapsed)
+            if (elapsed * 1000 >= TIMEOUT_MS) {
+                clearInterval(ticker)
+                setRestartTimedOut(true)
+                setAwaitingRestart(false)
+            }
+        }, 1000)
+
+        // Poller: check version every 5s until it changes
+        const poller = setInterval(async () => {
+            try {
+                const res = await fetch(`${API_URL}/v1/system/version`)
+                if (!res.ok) return
+                const data = await res.json() as VersionInfo
+                if (data.current !== snapshotVersion) {
+                    clearInterval(ticker)
+                    clearInterval(poller)
+                    window.location.reload()
+                }
+            } catch { /* ignore — server may briefly be unreachable during restart */ }
+        }, 5000)
+
+        pollIntervalRef.current = poller
+
+        // Cleanup on unmount
+        return () => { clearInterval(ticker); clearInterval(poller) }
+    }, [versionInfo])
 
     const manualCommands = `git pull\ndocker compose -f docker/compose.yml up -d --build`
 
@@ -350,11 +398,20 @@ export function UpdateModal() {
 
                     {/* Result states */}
                     {done && (
-                        <div className="flex items-center gap-2 p-3 rounded-lg bg-azure/5 border border-azure/20">
-                            <CheckCircle2 className="h-4 w-4 text-azure shrink-0" />
-                            <p className="text-sm text-azure">
-                                {versionInfo.dockerEnabled ? 'Update complete — reload the page to use the new version.' : 'Update pulled. Server may restart automatically.'}
-                            </p>
+                        <div className="rounded-lg bg-azure/5 border border-azure/20 p-3 space-y-2">
+                            <div className="flex items-center gap-2">
+                                <CheckCircle2 className="h-4 w-4 text-azure shrink-0" />
+                                <p className="text-sm text-azure font-medium">Update triggered successfully</p>
+                            </div>
+                            {versionInfo.dockerEnabled && (
+                                <p className="text-xs text-text-secondary pl-6">
+                                    {awaitingRestart
+                                        ? `Waiting for the instance to restart… ${restartSeconds}s`
+                                        : restartTimedOut
+                                            ? 'Instance is taking longer than expected. Try refreshing manually.'
+                                            : 'Containers are rebuilding in the background (≈1–2 min).'}
+                                </p>
+                            )}
                         </div>
                     )}
                     {failed && !done && (
@@ -379,12 +436,29 @@ export function UpdateModal() {
                         )}
                         <div className="flex gap-2 ml-auto">
                             {done ? (
-                                <button
-                                    onClick={() => window.location.reload()}
-                                    className="h-8 px-3 text-xs rounded-lg bg-azure hover:bg-azure/90 text-white font-medium transition-colors"
-                                >
-                                    Reload Page
-                                </button>
+                                versionInfo.dockerEnabled ? (
+                                    // Docker: poll until container comes back up, then auto-reload
+                                    <button
+                                        onClick={() => { if (!awaitingRestart) startRestartAndRefresh() }}
+                                        disabled={awaitingRestart && !restartTimedOut}
+                                        className="h-8 px-3 text-xs rounded-lg bg-azure hover:bg-azure/90 text-white font-medium transition-colors flex items-center gap-1.5 disabled:opacity-75 disabled:cursor-wait"
+                                    >
+                                        {awaitingRestart && !restartTimedOut ? (
+                                            <><RotateCw className="h-3.5 w-3.5 animate-spin" /> Waiting… {restartSeconds}s</>
+                                        ) : restartTimedOut ? (
+                                            <><RefreshCw className="h-3.5 w-3.5" /> Refresh Now</>
+                                        ) : (
+                                            <><RotateCw className="h-3.5 w-3.5" /> Restart &amp; Refresh</>
+                                        )}
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => window.location.reload()}
+                                        className="h-8 px-3 text-xs rounded-lg bg-azure hover:bg-azure/90 text-white font-medium transition-colors"
+                                    >
+                                        Reload Page
+                                    </button>
+                                )
                             ) : (
                                 <>
                                     <button
