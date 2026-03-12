@@ -80,13 +80,14 @@ ${capabilityBlock}
 ${contextBlock ? `CONTEXT:\n${contextBlock}\n` : ''}
 RULES:
 - If the task strictly requires digital media capabilities NOT listed in the manifest above (e.g. video_generation, image_generation, audio_generation, voice_synthesis), you MUST return type: "clarification" — never attempt to deliver digital modalities you cannot produce.
-- Think outside the box: If a task seems unachievable directly (e.g. "plan a party", "run a marketing campaign", "buy plane tickets"), DO NOT return clarification immediately. Instead, map the real-world problem to achievable digital subtasks. You can always research, write schedules, draft emails, structure databases, or write scripts.
+- BROWSER AUTOMATION: You have full interactive browser capabilities (browser_navigate, browser_click, browser_type, browser_select, browser_extract, browser_screenshot, browser_eval, browser_wait). You CAN interact with external websites — fill forms, click buttons, navigate pages, create profiles, sign up for services, post content, and perform any multi-step web workflow. Tasks involving website interaction are ACHIEVABLE. Plan them using browser_* tools.
+- Think outside the box: If a task seems unachievable directly (e.g. "plan a party", "run a marketing campaign", "buy plane tickets"), DO NOT return clarification immediately. Instead, map the real-world problem to achievable digital subtasks. You can always research, write schedules, draft emails, structure databases, write scripts, or automate web workflows.
 - Be solution-oriented: When planning for abstract or physical tasks, clearly state any additional apps, APIs, or integrations the user might need to connect (or that you could build) to complete the final mile.
 - IMPORTANT EXCEPTION: If the task requires connecting to a third-party service/API that has no existing connection, and "synthesize_kapsel_skill" is listed in the manifest tools, you MUST use synthesize_kapsel_skill to build that connection. This is the self-extension mechanism — it creates new skills and connections autonomously. Never return clarification for service integration tasks when synthesize_kapsel_skill is available.
 - When returning clarification: provide 1–4 concrete alternatives you CAN deliver with the available tools. Always include a written/text alternative.
-- When returning a plan: prefer reversible actions, flag irreversible ones as one-way doors.
+- When returning a plan: prefer reversible actions, flag irreversible ones as one-way doors. Website interactions (account creation, form submissions, public posts) are one-way doors — flag them.
 - Break work into atomic steps that can be verified independently.
-- Research: Use web_search and web_fetch to gather information, read documentation, or verify facts. These are your "eyes" on the live web.
+- Research: Use web_search and web_fetch to gather information, read documentation, or verify facts. These are your "eyes" on the live web. Use browser_* tools when you need to interact with web pages (click, fill, navigate).
 - Be conservative with confidence scores — only give 0.9+ if the path is fully clear.
 - Steps should reference only tools listed in the capability manifest.`
 }

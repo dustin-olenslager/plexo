@@ -476,18 +476,18 @@ function ChatContent() {
     const [pastedImages, setPastedImages] = useState<PastedImage[]>([])
     const [pastedDocs, setPastedDocs] = useState<PastedDocument[]>([])
     const [sending, setSending] = useState(false)
+
     const [error, setError] = useState<string | null>(null)
     const [agentModel, setAgentModel] = useState<string | null>(null)
     const [showVoiceSetupPrompt, setShowVoiceSetupPrompt] = useState(false)
-    const [isLiveMode, setIsLiveMode] = useState(false)
+    const searchParams = useSearchParams()
+    const [isLiveMode, setIsLiveMode] = useState(searchParams.get('live') === '1')
     const bottomRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const sessionId = useRef(`session-${Date.now()}`)
     const [isDraggingOver, setIsDraggingOver] = useState(false)
-    /** Counter tracks nested dragenter/dragleave so child elements don't flicker the overlay */
     const dragCounterRef = useRef(0)
-    const searchParams = useSearchParams()
     const taskIdAttached = useRef(false)
 
     // ── Code Mode state ───────────────────────────────────────────────────────

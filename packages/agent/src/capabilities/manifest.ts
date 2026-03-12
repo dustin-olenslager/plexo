@@ -118,6 +118,15 @@ const BUILTIN_TOOLS = [
     'web_fetch',
     'web_screenshot',
     'image_search',
+    // Interactive browser automation (Playwright)
+    'browser_navigate',
+    'browser_click',
+    'browser_type',
+    'browser_select',
+    'browser_extract',
+    'browser_screenshot',
+    'browser_eval',
+    'browser_wait',
 ]
 
 

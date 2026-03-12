@@ -61,6 +61,7 @@
     "diff": "^8.0.3",
     "drizzle-orm": "^0.39.3",
     "ollama-ai-provider": "^1.2.0",
+    "playwright": "^1.58.2",
     "pino": "^9",
     "redis": "^4",
     "ulid": "^2.3",

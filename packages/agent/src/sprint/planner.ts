@@ -109,7 +109,7 @@ export async function planSprint(params: {
     let capabilityNote = ''
     try {
         const manifest = await buildCapabilityManifest(workspaceId)
-        capabilityNote = '\n\n' + manifestToPromptBlock(manifest) + '\n\nIMPORTANT: Only plan tasks achievable with the above capabilities. If a requested task would require video_generation, image_generation, audio_generation, or any connection not listed, substitute it with a text/document deliverable instead (e.g. "video script" instead of "video").'
+        capabilityNote = '\n\n' + manifestToPromptBlock(manifest) + '\n\nIMPORTANT: Only plan tasks achievable with the above capabilities. If a requested task would require video_generation, image_generation, audio_generation, or voice_synthesis and no tool/connection supports it, substitute with a text/document deliverable instead (e.g. "video script" instead of "video"). NOTE: Interactive browser automation (browser_navigate, browser_click, browser_type, etc.) IS available — tasks involving website interaction, form filling, account creation, or web workflows are achievable.'
     } catch { /* non-fatal */ }
 
     const PLANNER_TIMEOUT_MS = 3 * 60 * 1000 // 3 minutes — fail fast rather than hanging

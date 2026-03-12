@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation'
 import { useWorkspace } from '@web/context/workspace'
 import { 
     Code2, Search, Server, BarChart2, Send, RefreshCw, PenLine, Plus, 
-    ArrowRight, Megaphone, FolderOpen, Mic, MicOff, ImageIcon, FileText, X, FileUp, Sparkles
+    ArrowRight, Megaphone, FolderOpen, Mic, MicOff, ImageIcon, FileText, X, FileUp, Sparkles, Volume2
 } from 'lucide-react'
 import { useSpeechInput } from '@web/hooks/use-speech-input'
 import { VoiceWaveform } from '@web/components/voice-waveform'
@@ -29,6 +29,7 @@ export function QuickSend() {
     const [showVoiceSetupPrompt, setShowVoiceSetupPrompt] = useState(false)
     const [wantsAttachment, setWantsAttachment] = useState(false)
     const [suggestion, setSuggestion] = useState<{ suggestedModel: string; reason: string } | null>(null)
+    const [isLiveMode, setIsLiveMode] = useState(false)
     const inputRef = useRef<HTMLTextAreaElement>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -128,6 +129,7 @@ export function QuickSend() {
             // Navigate to chat — code mode if the user selected Code chip
             const params = new URLSearchParams({ taskId: data.id })
             if (selectedCategory === 'code') params.set('codeMode', '1')
+            if (isLiveMode) params.set('live', '1')
             router.push(`/chat?${params.toString()}`)
         } catch {
             setStatus('error')
@@ -230,13 +232,41 @@ export function QuickSend() {
                     </div>
                 )}
 
+                <div className="absolute top-4 right-4 z-10">
+                    <button
+                        onClick={() => {
+                            const next = !isLiveMode
+                            setIsLiveMode(next)
+                            if (next) {
+                                void voice.start()
+                            } else {
+                                voice.stop()
+                            }
+                        }}
+                        className={`group relative flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10px] font-medium transition-all ${
+                            isLiveMode
+                                ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20 hover:bg-amber-500/20'
+                                : 'text-text-muted hover:text-text-secondary border border-transparent hover:border-border'
+                        }`}
+                    >
+                        {isLiveMode && (
+                           <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                               <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                           </span>
+                        )}
+                        <Volume2 className={`h-3 w-3 ${isLiveMode ? 'animate-pulse' : ''}`} />
+                        <span>Live Mode</span>
+                    </button>
+                </div>
+
                 <textarea
                     ref={inputRef}
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={isListening ? "Listening..." : "Message your agent to start a task..."}
-                    className="flex-1 resize-none bg-transparent px-4 py-3 text-[16px] md:text-[15px] text-text-primary placeholder:text-text-muted focus:outline-none disabled:opacity-50 min-h-[64px] leading-relaxed"
+                    className="flex-1 resize-none bg-transparent px-4 pr-24 py-3 text-[16px] md:text-[15px] text-text-primary placeholder:text-text-muted focus:outline-none disabled:opacity-50 min-h-[64px] leading-relaxed"
                     disabled={status === 'sending' || isListening}
                     rows={2}
                 />

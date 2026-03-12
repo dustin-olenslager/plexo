@@ -22,6 +22,7 @@ import type { ExecutionContext, ExecutionPlan, ExecutionResult, StepResult } fro
 import type { WorkspaceAISettings } from '../providers/registry.js'
 import { judgeQuality } from './quality-judge.js'
 import type { JudgeMeta } from './quality-judge.js'
+import { buildBrowserTools, closeBrowser } from './browser.js'
 
 // ── Test output parser ────────────────────────────────────────
 
@@ -585,6 +586,8 @@ function buildTools(ctx: ExecutionContext) {
                 }
             },
         }),
+        // ── Interactive browser automation (Playwright) ─────────────
+        ...buildBrowserTools({ taskId: ctx.taskId }),
     }
 }
 
@@ -857,11 +860,14 @@ Do NOT push to main. Your branch is: ${ctx.sprintBranch ?? 'your assigned branch
     const identityLine = `Identity: running on ${resolvedMeta.provider} / ${resolvedMeta.id}. If asked what model, provider, or system you are, call self_reflect({focus:"identity"}) to get the accurate, live answer rather than guessing.`
 
     const browsingBlock = `
-WEB BROWSING CAPABILITY:
-You can search and read the public web.
+WEB BROWSING & BROWSER AUTOMATION:
+You can search, read, and INTERACT with the public web.
 - Call web_search for factual lookups, identifying current events, or finding documentation URLs.
 - Call web_fetch to read the content of a specific URL (documentation, blog posts, news, APIs).
-- Use these tools whenever your internal knowledge is insufficient or potentially outdated.`
+- Use browser_navigate, browser_click, browser_type, browser_select, browser_extract, browser_screenshot, browser_eval, browser_wait to INTERACT with websites — fill forms, click buttons, navigate multi-step flows, create accounts, post content, etc.
+- The browser tools use a full headless Chromium instance. You can perform any web workflow a human could.
+- Use browser_screenshot to verify page state visually when needed.
+- For simple content reading, prefer web_fetch. For interactive workflows (forms, multi-page flows), use browser_* tools.`
 
     const selfExtensionBlock = `
 
@@ -1144,6 +1150,9 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
         challengerId: variantAssignment.challengerId,
         qualityScore: verifiedQuality,
     }).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'recordVariantOutcome failed'))
+
+    // Clean up browser if it was used during this task
+    await closeBrowser().catch(() => {})
 
     return executionResult
 }

@@ -129,6 +129,7 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
     - **Interruption Support**: Manually activating the microphone or toggling Live Mode off immediately cancels any active speech synthesis via `window.speechSynthesis.cancel()`.
     - **Unified State**: Introduced `isLiveMode` in `ChatContent` as the single source of truth for conversational flow.
     - **UI Refinement**: Removed the "History" link from the header to reduce clutter. Added an amber pulse indicator to the Live Conversation button.
+    - **Home Dialogue Integration**: Added "Live Mode" toggle to the `QuickSend` dashboard component. Activating it starts the mic immediately; submission deep-links to the chat page with `?live=1` to maintain session continuity seamlessly.
 - **Lesson**: Conversational UI should aim for zero-latency turn-taking. The agent shouldn't just "talk"; it should "listen" automatically when it stops talking.
 
 ---
