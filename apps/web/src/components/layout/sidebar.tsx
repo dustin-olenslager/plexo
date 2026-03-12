@@ -350,6 +350,7 @@ function RecentChats({ collapsed, onNavClick }: { collapsed: boolean; onNavClick
 
 export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUser; onNavClick?: () => void; className?: string }) {
     const pathname = usePathname()
+    const { workspaceId } = useWorkspace()
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
         // SSR safe — defaultOpen values only
         const init: Record<string, boolean> = {}
@@ -382,7 +383,7 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
     const [capabilityWarning, setCapabilityWarning] = useState(false)
 
     const fetchCounts = useCallback(async () => {
-        const wsId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE
+        const wsId = workspaceId || process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE
         const api = typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001')
         if (!wsId) return
 
@@ -417,10 +418,10 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
                 setFailedCronJobs(failed)
             }
         } catch { /* ignore */ }
-    }, [])
+    }, [workspaceId])
 
     const fetchHealth = useCallback(async () => {
-        const wsId = process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE
+        const wsId = workspaceId || process.env.NEXT_PUBLIC_DEFAULT_WORKSPACE
         const api = typeof window !== 'undefined' ? '' : (process.env.INTERNAL_API_URL || 'http://localhost:3001')
         try {
             // Check System Health (AI Provider, DB, etc.)
@@ -451,7 +452,7 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
                 }
             }
         } catch { /* ignore */ }
-    }, [])
+    }, [workspaceId])
 
     useEffect(() => {
         void fetchCounts()
@@ -572,18 +573,19 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
                                         <div className="h-1.5 w-1.5 rounded-full bg-red animate-pulse" />
                                     </div>
                                 )}
-                                {/* Group header */}
+                                {/* Group header — always rendered in expanded sidebar */}
                                 {!sidebarCollapsed && (
                                     <div
                                         className={`flex items-center justify-between rounded-lg px-2 py-1.5 transition-colors hover:bg-surface-2 ${group.collapsible ? 'cursor-pointer' : ''}`}
                                         onClick={() => group.collapsible && toggleGroup(group.label)}
                                     >
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[11px] font-semibold text-text-muted group-hover:text-text-secondary uppercase tracking-tight">
+                                            <span className="text-[11px] font-semibold text-text-muted uppercase tracking-tight">
                                                 {group.label}
                                             </span>
+                                            {/* Pulse shown regardless of collapsed state — visible even when section is folded */}
                                             {getGroupStatus(group.label) && (
-                                                <div className="h-1 w-1 rounded-full bg-red animate-pulse" />
+                                                <div className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
                                             )}
                                         </div>
                                         {group.collapsible && (
