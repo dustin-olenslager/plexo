@@ -128,8 +128,9 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
     - **Autonomous Turn-Taking**: Linked the `useTTS` `onEnd` callback directly to the microphone activation (`voice.start()`). The agent speaks, finishes, and then immediately re-opens the mic for the user.
     - **Interruption Support**: Manually activating the microphone or toggling Live Mode off immediately cancels any active speech synthesis via `window.speechSynthesis.cancel()`.
     - **Unified State**: Introduced `isLiveMode` in `ChatContent` as the single source of truth for conversational flow.
-    - **UI Refinement**: Removed the "History" link from the header to reduce clutter. Added an amber pulse indicator to the Live Conversation button.
+    - **UI Refinement**: Removed the "History" link from the header. Moved the "Live Conversation" toggle from the top header to the message input area (near the microphone and attachment buttons) for better accessibility. Added an amber pulse indicator to the toggle.
     - **Home Dialogue Integration**: Added "Live Mode" toggle to the `QuickSend` dashboard component. Activating it starts the mic immediately; submission deep-links to the chat page with `?live=1` to maintain session continuity seamlessly.
+    - **Session Stability**: Refactored `useTTS` to use stable callbacks and refs for state tracking, ensuring that live conversation loops don't break during long-running agent tasks (preventing stale closures on the `speak` function). Added a 500ms auto-start watch to the mic when in Live Mode and idle.
 - **Lesson**: Conversational UI should aim for zero-latency turn-taking. The agent shouldn't just "talk"; it should "listen" automatically when it stops talking.
 
 ---
@@ -493,3 +494,19 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 - **Root cause 4 (Broken Conversation Loop)**: The `message` handler was missing the logic to return a synchronous reply for `CONVERSATION` intents, instead defaulting to a "Confirm to continue" response.
 - **Fix 4**: Implemented the synchronous `withFallback -> generateText` flow for `CONVERSATION` intents within the `POST /api/chat/message` handler.
 - **Lesson**: `sql` templates with `?` are a landmine in Drizzle. Always use `@>` or escape `??` if the driver supports it. Secondly, interactive specialized behaviors (like prompt optimization) MUST be conversations, not tasks, to allow for the feedback loop.
+### 2026-03 — UI: Artifact Workbench & Split-Pane Layout
+
+- **Status**: Implemented.
+- **Problem**: Code-related interactions (terminals, file trees, diffs) felt disruptive to the chat flow. Users had to toggle modes or look at bottom tabs, losing context of the conversation.
+- **Solution**: Implemented a "Split-Pane" architecture with a persistent but retractable "Artifact Workbench" on the right side of the chat.
+- **Features**:
+    - **Split-Pane Layout**: Flexible 60/40 split between Chat and Workbench. Supports pinning (side-by-side) or overlay (mobile/floating) modes.
+    - **Global Mode Switcher**: Moved mode selection (Chat, Code, Insights) to a new global Header for easier multi-tasking.
+    - **Condensed Thought Traces**: Replaced verbose tool-call logs in chat with compact, horizontal pill-based progress indicators ("steps"). Clicking a step focuses the relevant context in the Workbench.
+    - **Unified Context**: The Workbench maintains separate tabs for a Terminal, File Tree, Test Results, and Live Previews, all synced to the active agent task.
+    - **Traceability**: Enhanced agent "thinking" transparency by showing granular status (queued/running/complete/failed) for every sub-step in real-time.
+- **Architecture**:
+    - Introduced `ArtifactWorkbench` as the primary sidecar component.
+    - Added `ModeSwitcher` and global `Header` to the dashboard layout.
+    - Refactored `ChatPage` to manage the workbench state (`isWorkbenchOpen`, `isPinned`, `workbenchContext`).
+- **Lesson**: Complex agentic workflows require a secondary "surface" for technical context. The chat remains the place for intent and dialogue, while the Workbench handles the heavy lifting of code visualization and execution feedback.

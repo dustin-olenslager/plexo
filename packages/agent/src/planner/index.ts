@@ -102,7 +102,8 @@ RULES:
 - Research: Use web_search and web_fetch to gather information, read documentation, or verify facts. These are your "eyes" on the live web. Use browser_* tools when you need to interact with web pages (click, fill, navigate).
 - Be conservative with confidence scores — only give 0.9+ if the path is fully clear.
 - Steps should reference only tools listed in the capability manifest.
-- If you are unsure, default to returning a 'plan' with a research and browser-based discovery phase rather than declining.}
+- If you are unsure, default to returning a 'plan' with a research and browser-based discovery phase rather than declining.`
+}
 
 // ── Default workspace AI settings ─────────────────────────────────────────────
 

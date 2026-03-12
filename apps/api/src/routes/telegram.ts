@@ -168,9 +168,32 @@ function historyKey(channelId: string, chatId: string): string {
     return `${channelId}:${chatId}`
 }
 
-/** Stable session ID for a Telegram chat — used as conversations.session_id */
+/**
+ * Session ID for a Telegram chat — used as conversations.session_id.
+ *
+ * Sessions auto-split after SESSION_GAP_MS of inactivity so that each
+ * distinct conversation appears as a separate entry in the conversations list.
+ * The epoch counter resets when there's a long silence between messages.
+ */
+const SESSION_GAP_MS = 30 * 60 * 1000 // 30 minutes
+const sessionState = new Map<string, { epoch: number; lastActivity: number }>()
+
 function telegramSessionId(channelId: string, chatId: string): string {
-    return `telegram:${channelId}:${chatId}`
+    const key = `${channelId}:${chatId}`
+    const now = Date.now()
+    let state = sessionState.get(key)
+    if (!state) {
+        state = { epoch: 0, lastActivity: now }
+        sessionState.set(key, state)
+    } else if (now - state.lastActivity > SESSION_GAP_MS) {
+        state.epoch++
+        state.lastActivity = now
+        // Clear chat history so the AI starts fresh for the new session
+        chatHistory.delete(key)
+    } else {
+        state.lastActivity = now
+    }
+    return `telegram:${channelId}:${chatId}:${state.epoch}`
 }
 
 function addToHistory(channelId: string, chatId: string, role: 'user' | 'assistant', content: string): void {
@@ -286,13 +309,27 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
 
                     await sendMessage(token, chatId, `⏳ Queueing Task… _(${taskId.slice(0, 8)})_`)
 
+                    captureLifecycleEvent('channel.task_created', 'info', {
+                        channel: 'telegram',
+                        taskId,
+                        workspaceId: action.workspaceId,
+                        sessionId: telegramSessionId(channelId, chatId),
+                        conversationId: action.conversationId || undefined,
+                        chatId,
+                    })
+
                     const unsub = onAgentEvent(async (event) => {
                         if (event.taskId !== taskId) return
+                        // Notify user when task transitions from queued to running
+                        if (event.type === 'task_started') {
+                            sendMessage(token, chatId, `🚀 Task is running…`).catch(() => null)
+                            return // don't unsub — wait for completion
+                        }
                         if (event.type === 'task_complete') {
                             unsub()
                             const result = (event.summary as string | undefined) ?? (event.result as string | undefined) ?? 'Done.'
                             const assets = (event.assets as string[] | undefined) ?? []
-                            
+
                             const publicUrl = process.env.PUBLIC_URL || 'http://localhost:3000'
                             const assetAttachments = assets.filter(f => /\.(png|jpg|jpeg|gif|webp)$/i.test(f)).map(f => ({
                                 url: `${publicUrl}/api/v1/tasks/${taskId}/assets/${f}`,
@@ -301,7 +338,6 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                             }))
 
                             if (assetAttachments.length > 0) {
-                                // Send the first image with the result as caption
                                 await fetch(`${TELEGRAM_API}${token}/sendPhoto`, {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
@@ -317,7 +353,6 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                             }
 
                             addToHistory(channelId, chatId, 'assistant', result)
-                            // Record the completion turn in conversations
                             recordConversation({
                                 workspaceId,
                                 sessionId: telegramSessionId(channelId, chatId),
@@ -333,7 +368,7 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                         } else if (event.type === 'task_failed' || event.type === 'task_blocked') {
                             unsub()
                             const reason = (event.error as string | undefined) ?? (event.reason as string | undefined) ?? 'Unknown error'
-                            sendMessage(token, chatId, `❌ ${reason}`).catch(() => null)
+                            sendMessage(token, chatId, `❌ Task failed: ${reason}`).catch(() => null)
                             recordConversation({
                                 workspaceId,
                                 sessionId: telegramSessionId(channelId, chatId),
@@ -347,7 +382,8 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                             }).catch(() => null)
                         }
                     })
-                    setTimeout(() => unsub(), 5 * 60 * 1000)
+                    // 2 hour timeout — tasks that take longer than this are anomalous
+                    setTimeout(() => unsub(), 2 * 60 * 60 * 1000)
 
                     emitToWorkspace(action.workspaceId, { type: 'task_queued_via_telegram', taskId, chatId, text: action.description.slice(0, 200) })
                 } catch (err) {
@@ -358,13 +394,24 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
             } else if (action.intent === 'PROJECT') {
                 try {
                     const id = ulid()
+                    // Generate an AI-powered name for the project
+                    let projectName = action.description.slice(0, 80)
+                    try {
+                        const nameResult = await chatWithAI(action.workspaceId, [
+                            { role: 'user', content: action.description },
+                        ], 'Create a short, descriptive project name (max 6 words) for this request. Return ONLY the name, no quotes. Example: "Q2 Social Media Campaign"')
+                        if (nameResult.text && nameResult.text.length > 2 && nameResult.text.length < 100) {
+                            projectName = nameResult.text.replace(/^["']|["']$/g, '').trim()
+                        }
+                    } catch { /* fallback to truncated raw text */ }
+
                     const [sprint] = await db.insert(sprints).values({
                         id,
                         workspaceId: action.workspaceId,
                         request: action.description,
                         category: 'general',
                         status: 'planning',
-                        metadata: {},
+                        metadata: { name: projectName, source: 'telegram' },
                     }).returning()
 
                     // Link sprint to conversation
@@ -372,42 +419,51 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                         await linkTaskToConversation(action.conversationId, sprint.id).catch(() => null)
                     }
 
-                    await sendMessage(token, chatId, `✅ Project created: _${sprint!.id}_. You can view it in the dashboard.`)
+                    await sendMessage(token, chatId, `✅ Project created: *${projectName}*\n\nYou can view it in the dashboard.`)
 
                     // Subscribe to sprint lifecycle events so we notify Telegram on completion/failure
                     const sprintId = sprint!.id
                     const unsub = onAgentEvent(async (event) => {
-                        if (event.type !== 'sprint_status' || event.sprintId !== sprintId) return
-                        const status = event.status as string
-                        if (status === 'complete') {
+                        // Sprint status events (complete, failed, cancelled)
+                        if (event.type === 'sprint_status' && event.sprintId === sprintId) {
+                            const status = event.status as string
+                            if (status === 'complete') {
+                                unsub()
+                                const msg = `✅ Project completed.`
+                                sendMessage(token, chatId, msg).catch(() => null)
+                                recordConversation({
+                                    workspaceId: action.workspaceId,
+                                    sessionId: telegramSessionId(channelId, chatId),
+                                    source: 'telegram',
+                                    message: '[Project completed]',
+                                    reply: msg,
+                                    status: 'complete',
+                                    intent: 'PROJECT',
+                                    channelRef: { channel: 'telegram', channelId, chatId },
+                                }).catch(() => null)
+                            } else if (status === 'failed') {
+                                unsub()
+                                const reason = (event.error as string) ?? (event.message as string) ?? 'Unknown error'
+                                const msg = `❌ Project failed: ${reason}`
+                                sendMessage(token, chatId, msg).catch(() => null)
+                                recordConversation({
+                                    workspaceId: action.workspaceId,
+                                    sessionId: telegramSessionId(channelId, chatId),
+                                    source: 'telegram',
+                                    message: '[Project failed]',
+                                    errorMsg: reason,
+                                    status: 'failed',
+                                    intent: 'PROJECT',
+                                    channelRef: { channel: 'telegram', channelId, chatId },
+                                }).catch(() => null)
+                            } else if (status === 'cancelled') {
+                                unsub()
+                                sendMessage(token, chatId, `🚫 Project was cancelled.`).catch(() => null)
+                            }
+                        }
+                        // Sprint deleted event (hard delete from dashboard)
+                        if (event.type === 'sprint_deleted' && event.sprintId === sprintId) {
                             unsub()
-                            const msg = `✅ Project _${sprintId}_ completed.`
-                            sendMessage(token, chatId, msg).catch(() => null)
-                            recordConversation({
-                                workspaceId: action.workspaceId,
-                                sessionId: telegramSessionId(channelId, chatId),
-                                source: 'telegram',
-                                message: '[Project completed]',
-                                reply: msg,
-                                status: 'complete',
-                                intent: 'PROJECT',
-                                channelRef: { channel: 'telegram', channelId, chatId },
-                            }).catch(() => null)
-                        } else if (status === 'failed') {
-                            unsub()
-                            const reason = (event.error as string) ?? (event.message as string) ?? 'Unknown error'
-                            const msg = `❌ Project _${sprintId}_ failed: ${reason}`
-                            sendMessage(token, chatId, msg).catch(() => null)
-                            recordConversation({
-                                workspaceId: action.workspaceId,
-                                sessionId: telegramSessionId(channelId, chatId),
-                                source: 'telegram',
-                                message: '[Project failed]',
-                                errorMsg: reason,
-                                status: 'failed',
-                                intent: 'PROJECT',
-                                channelRef: { channel: 'telegram', channelId, chatId },
-                            }).catch(() => null)
                         }
                     })
                     // Auto-cleanup after 24h
@@ -606,7 +662,11 @@ Critical rules — follow without exception:
         return
     }
 
-    // TASK or PROJECT: generate a concise summary title and ask for confirmation
+    // TASK or PROJECT: start a fresh session epoch so this action gets its own conversation thread
+    const chatKey = `${channelId}:${chatId}`
+    const st = sessionState.get(chatKey)
+    if (st) { st.epoch++; st.lastActivity = Date.now() }
+
     const actionId = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
 
     // AI-generate a meaningful title (max ~8 words) from the raw user input

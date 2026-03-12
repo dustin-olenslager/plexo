@@ -14,7 +14,6 @@ import { emitTaskOutcome } from './telemetry/events.js'
 import { captureException, captureLifecycleEvent } from './sentry.js'
 import type { WorkspaceAISettings, ProviderKey } from '@plexo/agent/providers/registry'
 import { logger } from './logger.js'
-import { emit } from './sse-emitter.js'
 
 import { loadDecryptedAIProviders } from './routes/ai-provider-creds.js'
 import { claimBatch, releaseSlot } from './parallel-executor.js'
@@ -219,7 +218,8 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
     const taskStartMs = Date.now()
 
     logger.info({ taskId: task.id, type: task.type }, 'Task claimed')
-    emit({ type: 'task_started', taskId: task.id, taskType: task.type })
+    // Use workspace-scoped emit so SSE and channel adapters receive it
+    emitToWorkspace(task.workspaceId ?? (task as Record<string, unknown>)['workspace_id'] as string ?? '', { type: 'task_started', taskId: task.id, taskType: task.type })
 
     // claimTask uses raw SQL (RETURNING *) which returns snake_case column names,
     // not camelCase Drizzle mappings. Handle both to be safe.
@@ -229,7 +229,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
     const { credential, aiSettings } = await loadWorkspaceAISettings(taskWorkspaceId ?? '')
     if (!credential) {
         await blockTask(task.id, 'No AI credential configured for workspace')
-        emit({ type: 'task_blocked', taskId: task.id, reason: 'No AI credential' })
+        emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_blocked', taskId: task.id, reason: 'No AI credential' })
         captureLifecycleEvent('task.blocked', 'warning', { taskId: task.id, reason: 'no_ai_credential', workspaceId: taskWorkspaceId })
         logger.warn({ taskId: task.id, workspaceId: taskWorkspaceId }, 'No credential — task blocked')
         await releaseSlot(task.id)
@@ -247,7 +247,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
 
         if (costRow && costRow.costUsd >= costRow.ceilingUsd) {
             await blockTask(task.id, `Workspace weekly cost ceiling reached: $${costRow.costUsd.toFixed(4)} / $${costRow.ceilingUsd.toFixed(2)}`)
-            emit({ type: 'task_blocked', taskId: task.id, reason: 'WORKSPACE_COST_CEILING' })
+            emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_blocked', taskId: task.id, reason: 'WORKSPACE_COST_CEILING' })
             captureLifecycleEvent('task.blocked', 'warning', { taskId: task.id, reason: 'cost_ceiling', costUsd: costRow.costUsd, ceilingUsd: costRow.ceilingUsd, workspaceId: taskWorkspaceId })
             logger.warn({ taskId: task.id, costUsd: costRow.costUsd, ceilingUsd: costRow.ceilingUsd }, 'Workspace ceiling — task blocked')
             await releaseSlot(task.id)
@@ -445,7 +445,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             ?? (taskContext.message as string)
             ?? JSON.stringify(taskContext)
 
-        emit({ type: 'task_planning', taskId: task.id })
+        emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_planning', taskId: task.id })
         const plannerResult = await planTask(ctx, description, taskContext, aiSettings ?? undefined)
 
         // Phase D: capability pre-flight — planner returned a clarification request
@@ -457,7 +457,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             await db.update(tasks).set({
                 context: sql`context || ${JSON.stringify({ _clarification: plannerResult })}::jsonb`,
             }).where(eq(tasks.id, task.id))
-            emit({
+            emitToWorkspace(taskWorkspaceId ?? '', {
                 type: 'task_clarification_needed' as 'task_blocked',
                 taskId: task.id,
                 reason: plannerResult.message,
@@ -467,7 +467,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
 
         const plan = plannerResult.plan
         logger.info({ taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore }, 'Plan ready')
-        emit({ type: 'task_planned', taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore })
+        emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_planned', taskId: task.id, steps: plan.steps.length, confidence: plan.confidenceScore })
 
         if (plan.oneWayDoors.length > 0) {
             logger.warn({ taskId: task.id, doors: plan.oneWayDoors.length }, 'One-way doors detected — auto-approving in Phase 2')
@@ -603,7 +603,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             }
         } catch { /* skip */ }
 
-        emit({
+        emitToWorkspace(taskWorkspaceId ?? '', {
             type: 'task_complete',
             taskId: task.id,
             qualityScore: result.qualityScore,
@@ -652,7 +652,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             logger.warn({ err: stErr, taskId: task.id }, 'Failed to update sprint_tasks status (fail) — non-fatal')
         }
 
-        emit({ type: 'task_failed', taskId: task.id, error: message })
+        emitToWorkspace(taskWorkspaceId ?? '', { type: 'task_failed', taskId: task.id, error: message })
         captureLifecycleEvent('task.failed', 'error', {
             taskId: task.id,
             type: task.type,

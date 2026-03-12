@@ -466,7 +466,7 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
 
     return (
         <>
-        <aside className={`hidden md:flex h-screen shrink-0 flex-col border-r border-border-subtle bg-canvas transition-all duration-300 ${sidebarCollapsed ? 'w-[68px]' : 'w-[220px]'}`}>
+        <aside className={`hidden md:flex flex-col shrink-0 border-r border-border-subtle bg-canvas transition-all duration-300 ${sidebarCollapsed ? 'w-[68px]' : 'w-[220px]'}`}>
             <div className={`relative group/collapse ${sidebarCollapsed ? 'border-b border-border-subtle' : ''}`}>
                 <WorkspaceSwitcher collapsed={sidebarCollapsed} className={!sidebarCollapsed ? 'border-b border-border-subtle' : ''} />
                 {!sidebarCollapsed && (
@@ -616,51 +616,6 @@ export function Sidebar({ user, onNavClick, className = '' }: { user?: SessionUs
             </div>
         </aside>
 
-        {/* Mobile Top Header */}
-        <header 
-            className="md:hidden fixed top-0 left-0 right-0 z-40 flex items-center border-b border-border/60 bg-canvas/90 backdrop-blur-xl"
-            style={{ 
-                height: 'calc(56px + env(safe-area-inset-top))',
-                paddingTop: 'env(safe-area-inset-top)'
-            }}
-        >
-            <div className="flex-1 w-full max-w-[240px]">
-                <WorkspaceSwitcher />
-            </div>
-            <ThemeToggle className="mr-3 shrink-0" />
-        </header>
-
-        {/* Mobile Bottom Tab Bar */}
-        <nav 
-            className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around border-t border-border/60 bg-canvas/90 backdrop-blur-xl px-1"
-            style={{ 
-                height: 'calc(72px + env(safe-area-inset-bottom))',
-                paddingBottom: 'env(safe-area-inset-bottom)'
-            }}
-        >
-            {[
-                { label: 'Home', href: '/', icon: Home, exact: true },
-                { label: 'Overview', href: '/overview', icon: LayoutDashboard },
-                { label: 'Chat', href: '/chat', icon: MessagesSquare, exact: false },
-                { label: 'Tasks', href: '/tasks', icon: CheckSquare, exact: false },
-                { label: 'Settings', href: '/settings', icon: SettingsIcon, exact: false },
-            ].map(({ label, href, icon: Icon, exact }) => {
-                const active = isActive(href, exact)
-                return (
-                    <Link
-                        key={href}
-                        href={href}
-                        className={`flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${active ? 'text-azure' : 'text-text-muted hover:text-text-secondary'
-                            }`}
-                    >
-                        <div className={`flex items-center justify-center rounded-full p-1.5 ${active ? 'bg-azure/10' : 'bg-transparent'}`}>
-                            <Icon className="h-[22px] w-[22px]" />
-                        </div>
-                        <span className="text-[10px] font-medium">{label}</span>
-                    </Link>
-                )
-            })}
-        </nav>
         </>
     )
 }

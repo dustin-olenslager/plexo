@@ -28,6 +28,7 @@ import {
     FileUp,
     Sparkles,
     X,
+    Layout,
     Copy,
     Check,
     Code2,
@@ -43,7 +44,7 @@ import {
     ArrowRight,
     Monitor,
 } from 'lucide-react'
-import { CodeModeShell, type CodeModeContext } from './_code-mode/code-mode-shell'
+import { ArtifactWorkbench, type WorkbenchContext } from '@web/components/workbench/artifact-workbench'
 import Link from 'next/link'
 import { useWorkspace } from '@web/context/workspace'
 import { getModelCapabilities, recommendModelForInput, checkAttachmentPrompt } from '@web/lib/models'
@@ -92,6 +93,12 @@ interface Message {
     technicalDetail?: string
     // Assets produced by the agent's write_asset tool
     assets?: TaskAsset[]
+    steps?: Array<{
+        id: string
+        label: string
+        icon?: string
+        status: 'running' | 'complete' | 'failed'
+    }>
     at: number
 }
 
@@ -237,6 +244,28 @@ function MessageBubble({
             <div className={`relative flex flex-col gap-1 max-w-[85%] md:max-w-[80%] ${msg.role === 'user' ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
                 {imageStrip}
                 {docStrip}
+                
+                {/* Condensed Thought Traces (Steps) */}
+                {msg.role === 'agent' && msg.steps && msg.steps.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-1.5">
+                        {msg.steps.map((step) => (
+                            <div 
+                                key={step.id} 
+                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-medium transition-all ${
+                                    step.status === 'running' 
+                                        ? 'bg-azure/10 border-azure/30 text-azure animate-pulse' 
+                                        : 'bg-zinc-800/40 border-border/20 text-text-muted'
+                                }`}
+                            >
+                                {step.status === 'running' && <Loader2 className="w-3 h-3 animate-spin" />}
+                                {step.status === 'complete' && <CheckCircle2 className="w-3 h-3 text-azure" />}
+                                {step.status === 'failed' && <XCircle className="w-3 h-3 text-red" />}
+                                <span className="truncate max-w-[120px]">{step.label}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 <div className={`relative w-full overflow-x-auto rounded-2xl px-4 py-2 text-[15px] leading-relaxed transition-all duration-300 ${msg.role === 'user'
                     ? 'bg-azure text-white rounded-tr-sm shadow-md hover:shadow-lg hover:-translate-y-0.5'
                     : msg.status === 'failed'
@@ -413,13 +442,14 @@ function StatusChip({ status }: { status: Message['status'] }) {
 
 function useTTS(options?: { onEnd?: () => void; enabled?: boolean }) {
     const [speaking, setSpeaking] = useState(false)
-    const enabled = options?.enabled ?? true
+    const enabledRef = useRef(options?.enabled ?? true)
+    enabledRef.current = options?.enabled ?? true
     const utterRef = useRef<SpeechSynthesisUtterance | null>(null)
     const onEndRef = useRef(options?.onEnd)
     onEndRef.current = options?.onEnd
 
     const speak = useCallback((text: string) => {
-        if (!enabled || typeof window === 'undefined' || !window.speechSynthesis) return
+        if (!enabledRef.current || typeof window === 'undefined' || !window.speechSynthesis) return
         window.speechSynthesis.cancel()
         const utterance = new SpeechSynthesisUtterance(text)
         utterance.rate = 1.05
@@ -441,14 +471,14 @@ function useTTS(options?: { onEnd?: () => void; enabled?: boolean }) {
             onEndRef.current?.()
         }
         window.speechSynthesis.speak(utterance)
-    }, [enabled])
+    }, [])
 
     const stop = useCallback(() => {
         window.speechSynthesis?.cancel()
         setSpeaking(false)
     }, [])
 
-    return { speaking, enabled, speak, stop }
+    return { speaking, enabled: enabledRef.current, speak, stop }
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -490,16 +520,23 @@ function ChatContent() {
     const dragCounterRef = useRef(0)
     const taskIdAttached = useRef(false)
 
-    // ── Code Mode state ───────────────────────────────────────────────────────
-    const [codeMode, setCodeMode] = useState(false)
-    const [codeModeContext, setCodeModeContext] = useState<CodeModeContext>({})
+    // ── Workbench / Layout state ──────────────────────────────────────────────
+    const [isWorkbenchOpen, setIsWorkbenchOpen] = useState(searchParams.get('mode') === 'code')
+    const [isPinned, setIsPinned] = useState(true) // Start pinned for "Code" mode
+    const [workbenchContext, setWorkbenchContext] = useState<WorkbenchContext>({})
     const [previewPath, setPreviewPath] = useState('index.html')
-    const [bottomTab, setBottomTab] = useState<'terminal' | 'tests' | 'diff' | 'preview'>('terminal')
+    const [activeTab, setActiveTab] = useState<'terminal' | 'tests' | 'diff' | 'preview'>('terminal')
     const [showBottom, setShowBottom] = useState(true)
+
     // Track last running task's taskId for Code Mode streaming
     const lastRunningTaskId = messages.find((m) => m.status === 'running')?.taskId
-
     const [openArtifactData, setOpenArtifactData] = useState<{ asset: TaskAsset, taskId: string } | null>(null)
+
+    // Sync mode with URL
+    useEffect(() => {
+        const mode = searchParams.get('mode')
+        if (mode === 'code') setIsWorkbenchOpen(true)
+    }, [searchParams])
 
     // Fetch the active agent model
     useEffect(() => {
@@ -645,6 +682,20 @@ function ChatContent() {
         onResult: handleVoiceResult,
         onSetupNeeded: () => setShowVoiceSetupPrompt(true),
     })
+    const isListening = voice.status === 'listening' || voice.status === 'processing'
+
+    // Auto-start microphone when in Live Mode and idle
+    useEffect(() => {
+        if (isLiveMode && !sending && !isListening && !tts.speaking) {
+            // Give a tiny delay for voice synthesis to initialize or cleanup
+            const timer = setTimeout(() => {
+                if (isLiveMode && !sending && !isListening && !tts.speaking) {
+                    void voice.start()
+                }
+            }, 500)
+            return () => clearTimeout(timer)
+        }
+    }, [isLiveMode, sending, isListening, tts.speaking, voice])
 
     // Stream live progress from the agent via SSE
     const pollReply = useCallback(async (taskId: string, msgId: string): Promise<void> => {
@@ -654,24 +705,37 @@ function ChatContent() {
 
             const cleanup = () => es.close()
 
-            // Progress tick — update the bubble in place
-            es.addEventListener('tick', (e) => {
+            // Progress tick — update the bubble with condensed steps
+            es.addEventListener('tick', (ev) => {
                 try {
-                    const d = JSON.parse(e.data) as {
+                    const d = JSON.parse(ev.data) as {
                         status: string
                         elapsed: number
                         stepCount: number
                         lastAction: string | null
                     }
-                    const elapsed = d.elapsed < 60
-                        ? `${d.elapsed}s`
-                        : `${Math.floor(d.elapsed / 60)}m ${d.elapsed % 60}s`
-                    const lines: string[] = [`Working… (${elapsed})`]
-                    if (d.stepCount > 0) lines.push(`Step ${d.stepCount}`)
-                    if (d.lastAction) lines.push(d.lastAction)
-                    setMessages((prev) => prev.map((m) =>
-                        m.id === msgId ? { ...m, status: 'running', content: lines.join(' · ') } : m
-                    ))
+                    
+                    setMessages((prev) => prev.map((m) => {
+                        if (m.id !== msgId) return m
+                        
+                        // Treat each lastAction as a new step if it changed
+                        const lastStep = m.steps?.[m.steps.length - 1]
+                        let nextSteps = m.steps || []
+                        
+                        if (d.lastAction && lastStep?.label !== d.lastAction) {
+                            nextSteps = [
+                                ...nextSteps.map(s => ({ ...s, status: 'complete' as const })),
+                                { id: `step-${Date.now()}`, label: d.lastAction, status: 'running' as const }
+                            ]
+                        }
+
+                        return {
+                            ...m,
+                            status: 'running',
+                            content: d.status, // Keep status text but steps render as pills
+                            steps: nextSteps,
+                        }
+                    }))
                 } catch { /* ignore parse errors */ }
             })
 
@@ -721,12 +785,12 @@ function ChatContent() {
     // When arriving from the dashboard after a task was queued, immediately
     // show a running bubble and start streaming the task — no extra click needed.
     const taskIdParam = searchParams.get('taskId')
-    const codeModeParam = searchParams.get('codeMode')
+    const modeParam = searchParams.get('mode')
     useEffect(() => {
         if (!taskIdParam || taskIdAttached.current) return
         taskIdAttached.current = true
 
-        if (codeModeParam === '1') setCodeMode(true)
+        if (modeParam === 'code') setIsWorkbenchOpen(true)
 
         const msgId = `a-${Date.now()}`
         setMessages([{
@@ -739,7 +803,7 @@ function ChatContent() {
         }])
         setSending(true)
         void pollReply(taskIdParam, msgId)
-    }, [taskIdParam, codeModeParam, pollReply])
+    }, [taskIdParam, modeParam, pollReply])
 
 
     async function executeConfirmedAction(msgId: string, intent: 'TASK' | 'PROJECT' | 'CONVERSATION', description: string, category?: string) {
@@ -1056,10 +1120,10 @@ function ChatContent() {
                     workspaceId: WS_ID,
                     message: textWithAttachments,
                     sessionId: sessionId.current,
-                    // Inject Code Mode repo context if active
-                    ...(codeMode && codeModeContext.repo ? {
-                        repo: codeModeContext.repo,
-                        branch: codeModeContext.branch,
+                    // Inject Workbench repo context if active
+                    ...(isWorkbenchOpen && workbenchContext.repo ? {
+                        repo: workbenchContext.repo,
+                        branch: workbenchContext.branch,
                     } : {}),
                     // If the user selected a chip during chatting, treat as project creation intent natively
                     ...(selectedCategory ? {
@@ -1187,7 +1251,6 @@ function ChatContent() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [handleVoiceResult])
 
-    const isListening = voice.status === 'listening' || voice.status === 'processing'
 
     const modelToUse = agentModel ?? 'claude-sonnet-4-5'
     const caps = getModelCapabilities(modelToUse)
@@ -1212,8 +1275,8 @@ function ChatContent() {
                     </div>
                 </div>
             )}
-            {/* Header */}
 
+            {/* Header */}
             <div className="flex items-center justify-between px-8 py-4 border-b border-border shrink-0 bg-surface-1/20">
                 <div>
                     <div className="flex items-center gap-3">
@@ -1233,33 +1296,6 @@ function ChatContent() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => {
-                            const next = !isLiveMode
-                            setIsLiveMode(next)
-                            if (!next) {
-                                tts.stop()
-                                voice.stop()
-                            }
-                        }}
-                        className={`group relative flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
-                            isLiveMode
-                                ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20 hover:bg-amber-500/20'
-                                : 'text-text-muted hover:text-text-secondary border border-transparent hover:border-border'
-                        }`}
-                    >
-                        {isLiveMode && (
-                           <span className="absolute -top-1 -right-1 flex h-2 w-2">
-                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                               <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-                           </span>
-                        )}
-                        <Volume2 className={`h-3.5 w-3.5 ${isLiveMode ? 'animate-pulse' : ''}`} />
-                        <span>Live Conversation</span>
-                    </button>
-
-
-
                     {messages.length > 0 && (
                         <button
                             onClick={() => { setMessages([]); tts.stop() }}
@@ -1269,124 +1305,121 @@ function ChatContent() {
                         </button>
                     )}
 
-                    {/* Code Mode toggle */}
+                    {/* Workbench Toggle (Visual only, state managed via mode switcher or auto-open) */}
                     <button
-                        id="code-mode-toggle"
-                        onClick={() => setCodeMode((v) => !v)}
-                        title={codeMode ? 'Exit code mode' : 'Enter code mode'}
+                        id="workbench-toggle"
+                        onClick={() => setIsWorkbenchOpen((v) => !v)}
+                        title={isWorkbenchOpen ? 'Hide Workbench' : 'Show Workbench'}
                         className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all ${
-                            codeMode
+                            isWorkbenchOpen
                                 ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20'
                                 : 'text-text-muted hover:text-text-secondary border border-transparent hover:border-border'
                         }`}
                     >
-                        <CodeIcon className="h-3.5 w-3.5" />
-                        <span>Code</span>
+                        <Layout className="h-3.5 w-3.5" />
+                        <span>Workbench</span>
                     </button>
                 </div>
             </div>
 
             {/* Messages */}
-            <div className={`flex-1 overflow-y-auto px-6 py-8 flex flex-col gap-8 min-h-0 ${!openArtifactData ? 'items-center' : ''}`}>
-                <div className={`flex flex-col gap-8 w-full ${!openArtifactData ? 'max-w-3xl' : ''}`}>
+            <div className={`flex-1 overflow-y-auto px-6 py-8 flex flex-col gap-8 min-h-0 ${(!isWorkbenchOpen || !isPinned) ? 'items-center' : ''}`}>
+                <div className={`flex flex-col gap-8 w-full ${(!isWorkbenchOpen || !isPinned) ? 'max-w-3xl' : ''}`}>
                     {messages.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-10 gap-2 mx-auto w-full max-w-2xl animate-in fade-in duration-700">
-                        {/* Brand mark — idle breathe at rest, working pulse while listening */}
-                        <div className={`relative flex items-center justify-center transition-all duration-500 mb-2 ${
-                            isListening
-                                ? 'drop-shadow-[0_0_28px_rgba(99,102,241,0.6)]'
-                                : 'drop-shadow-[0_0_12px_rgba(99,102,241,0.2)]'
-                        }`}>
-                            <PlexoMark
-                                className="h-14 w-14"
-                                idle={!isListening}
-                                working={isListening}
-                            />
+                        <div className="flex flex-col items-center justify-center py-10 gap-2 mx-auto w-full max-w-2xl animate-in fade-in duration-700">
+                            <div className={`relative flex items-center justify-center transition-all duration-500 mb-2 ${
+                                isListening
+                                    ? 'drop-shadow-[0_0_28px_rgba(99,102,241,0.6)]'
+                                    : 'drop-shadow-[0_0_12px_rgba(99,102,241,0.2)]'
+                            }`}>
+                                <PlexoMark
+                                    className="h-14 w-14"
+                                    idle={!isListening}
+                                    working={isListening}
+                                />
+                                {isListening && (
+                                    <div className="absolute inset-0 rounded-full border border-azure/40 animate-ping" />
+                                )}
+                            </div>
+                            <div className="text-center mb-6">
+                                <h1 className="text-2xl md:text-[28px] font-serif font-medium text-text-primary tracking-tight mb-2 text-transparent bg-clip-text bg-gradient-to-br from-zinc-100 to-zinc-400">
+                                    {isListening 
+                                        ? 'Listening…' 
+                                        : (() => {
+                                            const h = new Date().getHours()
+                                            const time = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
+                                            return userName ? `${time}, ${userName.split(' ')[0]}` : time
+                                        })()
+                                    }
+                                </h1>
+                                <p className="text-sm md:text-base text-text-muted">
+                                    {isListening
+                                        ? 'Speak now — I\'ll send when you\'re done.'
+                                        : 'What are we working on today?'
+                                    }
+                                </p>
+                            </div>
+                            {!isListening && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+                                    {[
+                                        { id: 'code', icon: Code2, label: 'Code', desc: 'Build or modify features', prompt: 'Write a React component that...' },
+                                        { id: 'research', icon: Search, label: 'Research', desc: 'Synthesize information', prompt: 'Research the latest developments in...' },
+                                        { id: 'ops', icon: Server, label: 'Ops', desc: 'Infrastructure & deployment', prompt: 'Audit all production servers for...' },
+                                        { id: 'data', icon: BarChart2, label: 'Data', desc: 'Query and analyze', prompt: 'Identify all users who converted...' },
+                                        { id: 'writing', icon: PenLine, label: 'Writing', desc: 'Draft and generate content', prompt: 'Write a technical blog post explaining...' },
+                                        { id: 'marketing', icon: Megaphone, label: 'Marketing', desc: 'Plan growth campaigns', prompt: 'Plan a product launch campaign for...' },
+                                        { id: 'general', icon: FolderOpen, label: 'General', desc: 'Other complex requests', prompt: 'Help me organize my upcoming...' },
+                                    ].map((item) => {
+                                        const Icon = item.icon
+                                        const isSelected = selectedCategory === item.id
+                                        return (
+                                            <button
+                                                key={item.label}
+                                                onClick={() => {
+                                                    if (isSelected) {
+                                                        setSelectedCategory(null)
+                                                        setInput('')
+                                                    } else {
+                                                        setSelectedCategory(item.id)
+                                                        setInput(item.prompt)
+                                                        if (item.id === 'code') setIsWorkbenchOpen(true)
+                                                        setTimeout(() => inputRef.current?.focus(), 10)
+                                                    }
+                                                }}
+                                                className={`group flex flex-col items-start gap-1.5 rounded-2xl border bg-surface-1/40 px-5 py-4 text-left transition-all duration-300 hover:border-azure/40 hover:bg-surface-2/60 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(99,102,241,0.2)] ${isSelected ? 'border-azure bg-azure/10 ring-1 ring-azure/30 shadow-[0_0_20px_-5px_rgba(99,102,241,0.15)]' : 'border-zinc-700/40'}`}
+                                            >
+                                                <div className="flex items-center gap-2.5 mb-0.5">
+                                                    <div className={`rounded-lg p-1.5 transition-colors shadow-sm border ${isSelected ? 'bg-azure text-canvas border-azure shadow-md' : 'bg-zinc-800/80 text-text-secondary border-zinc-700/50 group-hover:text-azure group-hover:bg-azure/10'}`}>
+                                                        <Icon className="h-4 w-4" />
+                                                    </div>
+                                                    <span className={`text-[13px] font-semibold transition-colors tracking-wide ${isSelected ? 'text-azure' : 'text-text-secondary group-hover:text-text-primary'}`}>{item.label}</span>
+                                                </div>
+                                                <span className={`text-[13px] leading-relaxed max-w-[90%] ${isSelected ? 'text-azure/80' : 'text-text-muted'}`}>{item.desc}</span>
+                                            </button>
+                                        )
+                                    })}
+                                    <Link
+                                        href="/projects/new"
+                                        className="group flex flex-col items-start gap-1.5 rounded-2xl border border-dashed border-zinc-700/40 bg-surface-1/20 px-5 py-4 text-left transition-all duration-300 hover:border-azure/40 hover:bg-azure/5 hover:shadow-[0_8px_30px_-12px_rgba(99,102,241,0.15)]"
+                                    >
+                                        <div className="flex items-center gap-2.5 mb-0.5 w-full">
+                                            <div className="rounded-lg bg-zinc-800/40 p-1.5 text-text-secondary group-hover:text-azure transition-colors border border-transparent group-hover:border-azure/20">
+                                                <Plus className="h-4 w-4" />
+                                            </div>
+                                            <span className="text-[13px] font-semibold text-text-secondary group-hover:text-text-primary transition-colors tracking-wide flex-1">More Options</span>
+                                            <ArrowRight className="h-4 w-4 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity translate-x-1 group-hover:translate-x-0" />
+                                        </div>
+                                        <span className="text-[13px] text-text-muted leading-relaxed max-w-[90%]">Start a complex project</span>
+                                    </Link>
+                                </div>
+                            )}
                             {isListening && (
-                                <div className="absolute inset-0 rounded-full border border-azure/40 animate-ping" />
+                                <div className="mt-4">
+                                    <VoiceWaveform active={isListening} level={voice.level} />
+                                </div>
                             )}
                         </div>
-                        <div className="text-center mb-6">
-                            <h1 className="text-2xl md:text-[28px] font-serif font-medium text-text-primary tracking-tight mb-2 text-transparent bg-clip-text bg-gradient-to-br from-zinc-100 to-zinc-400">
-                                {isListening 
-                                    ? 'Listening…' 
-                                    : (() => {
-                                        const h = new Date().getHours()
-                                        const time = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
-                                        return userName ? `${time}, ${userName.split(' ')[0]}` : time
-                                    })()
-                                }
-                            </h1>
-                            <p className="text-sm md:text-base text-text-muted">
-                                {isListening
-                                    ? 'Speak now — I\'ll send when you\'re done.'
-                                    : 'What are we working on today?'
-                                }
-                            </p>
-                        </div>
-                        {!isListening && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
-                {[
-                    { id: 'code', icon: Code2, label: 'Code', desc: 'Build or modify features', prompt: 'Write a React component that...' },
-                    { id: 'research', icon: Search, label: 'Research', desc: 'Synthesize information', prompt: 'Research the latest developments in...' },
-                    { id: 'ops', icon: Server, label: 'Ops', desc: 'Infrastructure & deployment', prompt: 'Audit all production servers for...' },
-                    { id: 'data', icon: BarChart2, label: 'Data', desc: 'Query and analyze', prompt: 'Identify all users who converted...' },
-                    { id: 'writing', icon: PenLine, label: 'Writing', desc: 'Draft and generate content', prompt: 'Write a technical blog post explaining...' },
-                    { id: 'marketing', icon: Megaphone, label: 'Marketing', desc: 'Plan growth campaigns', prompt: 'Plan a product launch campaign for...' },
-                    { id: 'general', icon: FolderOpen, label: 'General', desc: 'Other complex requests', prompt: 'Help me organize my upcoming...' },
-                ].map((item) => {
-                                    const Icon = item.icon
-                                    const isSelected = selectedCategory === item.id
-                                    return (
-                                        <button
-                                            key={item.label}
-                                            onClick={() => {
-                                                if (isSelected) {
-                                                    setSelectedCategory(null)
-                                                    setInput('')
-                                                    if (item.id === 'code') setCodeMode(false)
-                                                } else {
-                                                    setSelectedCategory(item.id)
-                                                    setInput(item.prompt)
-                                                    if (item.id === 'code') setCodeMode(true)
-                                                    setTimeout(() => inputRef.current?.focus(), 10)
-                                                }
-                                            }}
-                                            className={`group flex flex-col items-start gap-1.5 rounded-2xl border bg-surface-1/40 px-5 py-4 text-left transition-all duration-300 hover:border-azure/40 hover:bg-surface-2/60 hover:-translate-y-0.5 hover:shadow-[0_8px_30px_-12px_rgba(99,102,241,0.2)] ${isSelected ? 'border-azure bg-azure/10 ring-1 ring-azure/30 shadow-[0_0_20px_-5px_rgba(99,102,241,0.15)]' : 'border-zinc-700/40'}`}
-                                        >
-                                            <div className="flex items-center gap-2.5 mb-0.5">
-                                                <div className={`rounded-lg p-1.5 transition-colors shadow-sm border ${isSelected ? 'bg-azure text-canvas border-azure shadow-md' : 'bg-zinc-800/80 text-text-secondary border-zinc-700/50 group-hover:text-azure group-hover:bg-azure/10'}`}>
-                                                    <Icon className="h-4 w-4" />
-                                                </div>
-                                                <span className={`text-[13px] font-semibold transition-colors tracking-wide ${isSelected ? 'text-azure' : 'text-text-secondary group-hover:text-text-primary'}`}>{item.label}</span>
-                                            </div>
-                                            <span className={`text-[13px] leading-relaxed max-w-[90%] ${isSelected ? 'text-azure/80' : 'text-text-muted'}`}>{item.desc}</span>
-                                        </button>
-                                    )
-                                })}
-                                {/* 6th Slot - Start a Project */}
-                                <Link
-                                    href="/projects/new"
-                                    className="group flex flex-col items-start gap-1.5 rounded-2xl border border-dashed border-zinc-700/40 bg-surface-1/20 px-5 py-4 text-left transition-all duration-300 hover:border-azure/40 hover:bg-azure/5 hover:shadow-[0_8px_30px_-12px_rgba(99,102,241,0.15)]"
-                                >
-                                    <div className="flex items-center gap-2.5 mb-0.5 w-full">
-                                        <div className="rounded-lg bg-zinc-800/40 p-1.5 text-text-secondary group-hover:text-azure transition-colors border border-transparent group-hover:border-azure/20">
-                                            <Plus className="h-4 w-4" />
-                                        </div>
-                                        <span className="text-[13px] font-semibold text-text-secondary group-hover:text-text-primary transition-colors tracking-wide flex-1">More Options</span>
-                                        <ArrowRight className="h-4 w-4 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity translate-x-1 group-hover:translate-x-0" />
-                                    </div>
-                                    <span className="text-[13px] text-text-muted leading-relaxed max-w-[90%]">Start a complex project</span>
-                                </Link>
-                            </div>
-                        )}
-                        {isListening && (
-                            <div className="mt-4">
-                                <VoiceWaveform active={isListening} level={voice.level} />
-                            </div>
-                        )}
-                    </div>
-                )}
+                    )}
 
                     {messages.map((msg) => (
                         <MessageBubble
@@ -1409,38 +1442,9 @@ function ChatContent() {
 
             {/* Error banner */}
             {error && (
-                <div className="shrink-0 flex items-center gap-2 rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2 text-sm text-red mb-2">
+                <div className="shrink-0 flex items-center gap-2 rounded-lg border border-red-800/50 bg-red-950/20 px-3 py-2 text-sm text-red mb-2 mx-6">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     {error}
-                </div>
-            )}
-
-            {/* Voice setup prompt — shown on first click if Deepgram not configured */}
-            {showVoiceSetupPrompt && !voice.deepgramConfigured && (
-                <div className="shrink-0 flex items-start gap-3 mb-2 rounded-xl border border-azure/30 bg-azure-500/8 px-4 py-3">
-                    <Mic className="h-4 w-4 shrink-0 mt-0.5 text-azure" />
-                    <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-azure-200">Get better voice accuracy with Deepgram</p>
-                        <p className="text-xs text-text-muted mt-0.5 leading-relaxed">
-                            Currently using browser speech recognition. Deepgram&apos;s Nova-3 model is significantly more accurate
-                            and works across all channels including Telegram. Free $200 in credits.
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0 mt-0.5">
-                        <Link
-                            href="/settings/voice"
-                            className="rounded-lg bg-azure-dim hover:bg-azure/90/30 border border-azure/20 px-3 py-1.5 text-xs font-medium text-azure transition-colors whitespace-nowrap"
-                        >
-                            Set up →
-                        </Link>
-                        <button
-                            onClick={() => setShowVoiceSetupPrompt(false)}
-                            className="rounded-lg p-1.5 text-text-muted hover:text-text-secondary transition-colors"
-                            aria-label="Dismiss"
-                        >
-                            <X className="h-3.5 w-3.5" />
-                        </button>
-                    </div>
                 </div>
             )}
 
@@ -1455,7 +1459,7 @@ function ChatContent() {
 
             {/* Real-time Input Ingestion Helpers */}
             {(suggestion || wantsAttachment) && !sending && !isListening && (
-                <div className="shrink-0 flex flex-col gap-2 mb-3 px-2">
+                <div className="shrink-0 flex flex-col gap-2 mb-3 px-8">
                     {suggestion && (
                         <div className="flex items-start gap-3 rounded-xl border border-azure/30 bg-azure-dim px-4 py-3 text-sm text-azure shadow-sm shadow-azure-500/5 transition-all">
                             <Sparkles className="h-4 w-4 shrink-0 mt-0.5 text-azure" />
@@ -1487,21 +1491,18 @@ function ChatContent() {
 
             {/* Input area */}
             <div className={`shrink-0 flex flex-col items-center gap-3 px-6 pt-5 pb-6 border-t border-border bg-surface-1/5 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] backdrop-blur-md`}>
-                <div className={`flex flex-col gap-3 w-full ${!openArtifactData ? 'max-w-3xl' : ''}`}>
-                    {/* Pasted file previews (images, SVG, PDF) */}
-                    {pastedImages.length > 0 && (
+                <div className={`flex flex-col gap-3 w-full ${(!isWorkbenchOpen || !isPinned) ? 'max-w-3xl' : ''}`}>
+                    {/* Pasted file previews */}
+                    {(pastedImages.length > 0 || pastedDocs.length > 0) && (
                         <div className="flex flex-wrap gap-2 px-1">
                             {pastedImages.map((img) => (
                                 <div key={img.id} className="relative group">
                                     {img.kind === 'image' ? (
-                                        <>
-                                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                                            <img
-                                                src={img.dataUrl}
-                                                alt={img.name}
-                                                className="h-20 w-20 rounded-lg border border-border object-cover"
-                                            />
-                                        </>
+                                        <img
+                                            src={img.dataUrl}
+                                            alt={img.name}
+                                            className="h-20 w-20 rounded-lg border border-border object-cover"
+                                        />
                                     ) : (
                                         <div className="h-20 w-28 rounded-lg border border-zinc-600/60 bg-surface-2/60 flex flex-col items-center justify-center gap-1 px-2">
                                             <FileText className="h-6 w-6 text-azure shrink-0" />
@@ -1511,30 +1512,19 @@ function ChatContent() {
                                     )}
                                     <button
                                         onClick={() => removeImage(img.id)}
-                                        className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-surface-2 border border-zinc-600 flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-red hover:border-red-400 transition-all opacity-0 group-hover:opacity-100"
-                                        aria-label="Remove attachment"
+                                        className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-surface-2 border border-zinc-600 flex items-center justify-center text-text-secondary hover:text-text-primary transition-all opacity-0 group-hover:opacity-100"
                                     >
                                         <X className="h-3 w-3" />
                                     </button>
                                 </div>
                             ))}
-                        </div>
-                    )}
-
-                    {/* Pasted doc pills */}
-                    {pastedDocs.length > 0 && (
-                        <div className="flex flex-wrap gap-2 px-1">
                             {pastedDocs.map((doc) => (
-                                <div key={doc.id} className="relative group flex items-center gap-2 rounded-lg border border-border bg-surface-2/60 px-3 py-2 text-xs text-text-secondary max-w-[320px]">
+                                <div key={doc.id} className="relative group flex items-center gap-2 rounded-lg border border-border bg-surface-2/60 px-3 py-2 text-xs text-text-secondary">
                                     <FileText className="h-3.5 w-3.5 shrink-0 text-azure" />
-                                    <div className="min-w-0 flex-1">
-                                        <p className="font-medium truncate leading-tight">{doc.name}</p>
-                                        <p className="text-text-muted text-[10px] leading-tight">{doc.lineCount} lines · {(doc.charCount / 1000).toFixed(1)}k chars</p>
-                                    </div>
+                                    <p className="font-medium truncate max-w-[120px]">{doc.name}</p>
                                     <button
                                         onClick={() => setPastedDocs((prev) => prev.filter(d => d.id !== doc.id))}
-                                        className="shrink-0 h-5 w-5 rounded-full bg-zinc-700 border border-zinc-600 flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-red hover:border-red-400 transition-all opacity-0 group-hover:opacity-100 ml-1"
-                                        aria-label="Remove document"
+                                        className="h-5 w-5 rounded-full bg-zinc-700 flex items-center justify-center opacity-0 group-hover:opacity-100"
                                     >
                                         <X className="h-3 w-3" />
                                     </button>
@@ -1545,74 +1535,39 @@ function ChatContent() {
 
                     {/* Input row */}
                     <div className="flex gap-2 items-end">
-                        {/* Mic button */}
                         {voice.supported && (
                             <button
-                                id="voice-input-btn"
-                                onClick={() => {
-                                    if (isListening) {
-                                        voice.stop()
-                                    } else {
-                                        tts.stop()
-                                        void voice.start()
-                                    }
-                                }}
+                                onClick={() => isListening ? voice.stop() : (tts.stop(), void voice.start())}
                                 disabled={sending}
-                                title={isListening ? 'Stop recording' : 'Voice input'}
-                                className={`flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 transition-all duration-200 ${isListening
-                                    ? 'bg-red/20 border border-red-500/40 text-red shadow-[0_0_16px_rgba(239,68,68,0.3)] animate-pulse'
-                                    : 'border border-border text-text-muted hover:text-text-secondary hover:border-zinc-500 bg-surface-1'
-                                    } disabled:opacity-40 disabled:cursor-not-allowed`}
-                                aria-label={isListening ? 'Stop recording' : 'Start voice input'}
+                                className={`flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 transition-all ${
+                                    isListening ? 'bg-red/20 text-red animate-pulse' : 'border border-border bg-surface-1 text-text-muted'
+                                }`}
                             >
-                                {isListening
-                                    ? <MicOff className="h-4 w-4" />
-                                    : <Mic className="h-4 w-4" />
-                                }
+                                {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                             </button>
                         )}
-
-                        {/* File attach button (images, SVG, PDF) */}
                         <button
-                            id="image-attach-btn"
                             onClick={() => fileInputRef.current?.click()}
                             disabled={sending || isListening}
-                            title="Attach image, SVG, or PDF"
-                            className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 border border-border text-text-muted hover:text-text-secondary hover:border-zinc-500 bg-surface-1 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                            aria-label="Attach file"
+                            className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 border border-border bg-surface-1 text-text-muted"
                         >
                             <ImageIcon className="h-4 w-4" />
                         </button>
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*,image/svg+xml,application/pdf"
-                            multiple
-                            className="hidden"
-                            onChange={handleFileInput}
-                        />
+                        <input ref={fileInputRef} type="file" accept="image/*,image/svg+xml,application/pdf" multiple className="hidden" onChange={handleFileInput} />
 
-                        {/* Prompt optimizer trigger */}
                         <button
-                            id="optimize-prompt-btn"
                             onClick={() => {
-                                if (input.trim()) {
-                                    // Send the current draft through the optimizer flow
-                                    const draft = input.trim()
-                                    setInput('')
-                                    void sendMessageWith(`Optimize this prompt for me: ${draft}`)
-                                } else {
-                                    // Seed the textarea so the user knows what to type
-                                    setInput('Optimize this prompt for me: ')
-                                    setTimeout(() => inputRef.current?.focus(), 10)
-                                }
+                                const next = !isLiveMode
+                                setIsLiveMode(next)
+                                if (!next) { tts.stop(); voice.stop() }
+                                else if (!sending && !isListening) void voice.start()
                             }}
-                            disabled={sending || isListening}
-                            title={input.trim() ? 'Optimize this prompt' : 'Start prompt optimizer'}
-                            className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 border border-border text-text-muted hover:text-azure hover:border-azure/40 hover:bg-azure/5 bg-surface-1 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
-                            aria-label="Optimize prompt"
+                            className={`relative flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl p-3 border transition-all ${
+                                isLiveMode ? 'bg-amber-500/10 border-amber-500/40 text-amber-500' : 'border-border bg-surface-1 text-text-muted'
+                            }`}
                         >
-                            <Sparkles className="h-4 w-4" />
+                            <Volume2 className={`h-4 w-4 ${isLiveMode ? 'animate-pulse' : ''}`} />
+                            {isLiveMode && <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" />}
                         </button>
 
                         <textarea
@@ -1623,7 +1578,7 @@ function ChatContent() {
                             onPaste={handlePaste}
                             onDrop={handleDrop}
                             onDragOver={(e) => e.preventDefault()}
-                            placeholder={isListening ? 'Listening…' : pastedImages.length > 0 ? 'Add a message or just send the image…' : pastedDocs.length > 0 ? 'Add a note or just send the document…' : 'Message your agent… (paste images, Enter to send)'}
+                            placeholder={isListening ? 'Listening…' : 'Message your agent…'}
                             rows={1}
                             disabled={sending || isListening}
                             className="flex-1 resize-none rounded-xl border border-border bg-surface-1/80 px-4 py-3 text-[16px] md:text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-azure/60 focus:ring-4 focus:ring-azure/5 disabled:opacity-50 max-h-32 leading-relaxed transition-all shadow-sm"
@@ -1631,63 +1586,57 @@ function ChatContent() {
                         />
 
                         <button
-                            id="send-btn"
                             onClick={() => void sendMessage()}
                             disabled={sending || (!input.trim() && pastedImages.length === 0 && pastedDocs.length === 0) || isListening}
-                            className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl bg-azure p-3 text-text-primary hover:bg-azure/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-lg shadow-azure/20"
-                            aria-label="Send"
+                            className="flex shrink-0 items-center justify-center min-h-[44px] min-w-[44px] rounded-xl bg-azure p-3 text-text-primary hover:bg-azure/90 disabled:opacity-40 shadow-lg"
                         >
-                            {sending
-                                ? <RefreshCw className="h-4 w-4 animate-spin" />
-                                : <Send className="h-4 w-4" />
-                            }
+                            {sending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                         </button>
                     </div>
                 </div>
             </div>
         </div>
-    )
+    );
 
     return (
         <div className="flex h-full w-full overflow-hidden bg-canvas relative">
-            <div className={`flex-1 flex flex-col min-w-0 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${openArtifactData ? 'max-w-[420px] lg:max-w-[480px] border-r border-border/60' : 'w-full'}`}>
-                {codeMode ? (
-                    <div className="flex-1 flex flex-col overflow-hidden bg-surface-1/40">
-                         <CodeModeShell
-                            workspaceId={WS_ID}
-                            taskId={lastRunningTaskId}
-                            isTaskRunning={!!lastRunningTaskId}
-                            context={codeModeContext}
-                            onRepoSelect={(sel) => {
-                                setCodeModeContext({ repo: sel.repo, branch: sel.branch, isNew: sel.isNew })
-                            }}
-                            onRerunTest={(testNames) => {
-                                const text = testNames.length === 1
-                                    ? `Re-run the failing test: ${testNames[0]}`
-                                    : `Re-run these failing tests: ${testNames.join(', ')}`
-                                void sendMessageWith(text)
-                            }}
-                            onClose={() => setCodeMode(false)}
-                            bottomTab={bottomTab}
-                            setBottomTab={setBottomTab}
-                            showBottom={showBottom}
-                            setShowBottom={setShowBottom}
-                            previewPath={previewPath}
-                            setPreviewPath={setPreviewPath}
-                        >
-                            {chatPanel}
-                        </CodeModeShell>
-                    </div>
-                ) : (
-                    <div className="flex-1 flex flex-col overflow-hidden">
-                        {chatPanel}
-                    </div>
-                )}
+            <div className={`flex-1 flex flex-col min-w-0 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                isWorkbenchOpen && isPinned ? 'max-w-[40%] lg:max-w-[50%] xl:max-w-[60%] border-r border-border/60' : 'w-full'
+            }`}>
+                <div className="flex-1 flex flex-col overflow-hidden">
+                    {chatPanel}
+                </div>
             </div>
 
-            {/* Artifact Panel in side-by-side mode */}
-            {openArtifactData && (
-                <div className="flex-1 min-w-0 h-full bg-canvas/40 animate-in slide-in-from-right fade-in duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]">
+            {/* Artifact Workbench */}
+            {isWorkbenchOpen && (
+                <ArtifactWorkbench
+                    workspaceId={WS_ID}
+                    taskId={lastRunningTaskId}
+                    isTaskRunning={!!lastRunningTaskId}
+                    context={workbenchContext}
+                    onRepoSelect={(sel) => setWorkbenchContext({ repo: sel.repo, branch: sel.branch, isNew: sel.isNew })}
+                    onRerunTest={(testNames) => {
+                        const text = testNames.length === 1
+                            ? `Re-run the failing test: ${testNames[0]}`
+                            : `Re-run these failing tests: ${testNames.join(', ')}`
+                        void sendMessageWith(text)
+                    }}
+                    onClose={() => setIsWorkbenchOpen(false)}
+                    isPinned={isPinned}
+                    onTogglePin={() => setIsPinned((v) => !v)}
+                    activeTab={activeTab}
+                    setActiveTab={setActiveTab}
+                    showBottom={showBottom}
+                    setShowBottom={setShowBottom}
+                    previewPath={previewPath}
+                    setPreviewPath={setPreviewPath}
+                />
+            )}
+
+            {/* Floating Artifact Preview (Alternative for single assets if workbench is closed) */}
+            {openArtifactData && !isWorkbenchOpen && (
+                <div className="absolute inset-4 left-auto w-[600px] z-50 bg-zinc-900/80 backdrop-blur-xl rounded-2xl border border-border/40 shadow-2xl animate-in slide-in-from-right fade-in duration-500">
                     <ArtifactPanel 
                         asset={openArtifactData.asset} 
                         taskId={openArtifactData.taskId}
@@ -1695,14 +1644,6 @@ function ChatContent() {
                         mode="docked"
                     />
                 </div>
-            )}
-
-            {/* Legacy/Overlay Artifact Panel (for when mode is managed elsewhere or we want a fallback) */}
-            {!openArtifactData && (
-                 <ArtifactPanel 
-                    asset={null}
-                    onClose={() => setOpenArtifactData(null)}
-                />
             )}
         </div>
     )

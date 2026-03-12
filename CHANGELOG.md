@@ -5,9 +5,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 
 ## [Unreleased]
 
+### Added
+- **Artifact Workbench** — Introduced a sidecar interface (`ArtifactWorkbench`) for technical context: Terminal logs, File trees, and Test results. Supports split-pane docking and floating overlay modes.
+- **Global Header & Mode Switcher** — New persistent navigation for switching between Chat, Code, and Insights across the dashboard.
+- **Task Event Scoping** — Updated `agent-loop` to use `emitToWorkspace`, ensuring real-time status updates are isolated to the active workspace.
+- **Telegram Project Lifecycle** — Enhanced Telegram notifications for project-level events (cancellation, deletion, completion) with conversation epoch tracking.
+
 ### Changed
-- **Integrated Canvas Chat UI** — Redesigned the chat interface for a more fluid workspace. Removed restrictive "box in a box" borders in favor of a side-by-side flex layout for artifacts.
-- **Live Conversation Mode** — Overhauled the voice interaction system into a unified "Live Mode." Features autonomous turn-taking (agent speaks → mic opens), interruption support via manual override, and a pulsing amber activity indicator. Integrated directly into the Dashboard QuickSend dialogue with `?live=1` deep-linking to maintain session continuity.
+- **Split-Pane Architecture** — Redesigned the chat layout to support side-by-side artifact viewing with 60/40 responsive distribution.
+- **Condensed Thought Traces** — Replaced verbose tool-call logs with compact horizontal progress pills. Clicking a pill focuses the corresponding event in the Artifact Workbench.
+- **Integrated Canvas Chat UI** — Redesigned the chat interface for a more fluid workspace. Removed restrictive "box in a box" borders in favor of the side-by-side flex layout.
+- **Live Conversation Mode** — Overhauled the voice interaction system into a unified "Live Mode." Features autonomous turn-taking (agent speaks → mic opens), interruption support via manual override, and a pulsing amber activity indicator. Integrated directly into the Dashboard QuickSend dialogue and moved to the chat input area for better accessibility. Includes stable closure tracking to prevent loop breaks during complex tasks.
 - **Modern Chat Bubble Aesthetics** — Message bubbles now use subtle transparency, lifted hover states, and smooth slide-in entrance animations.
 - **Enhanced Repository Setup** — Added a searchable branch selection dropdown to the Workspace Configuration dialog. Users can now pick existing branches from their connected GitHub repositories or specify a new branch to create, with automatic defaulting to the repository's primary branch.
 - **Translucent Artifact Panel** — The artifact panel now utilizes glassmorphism (`backdrop-blur-xl`) and a canvas-integrated background when docked, creating a cohesive "Integrated Canvas" feel.
