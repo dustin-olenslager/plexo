@@ -23,6 +23,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - **Shared TaskType Definition** — Centralized the `TaskType` union in `packages/db` and exported it to `packages/queue` and `packages/agent`, eliminating type duplication and ensuring cross-package consistency.
 
 ### Fixed
+- **Agent: Browser tool usage awareness** — Updated the `CapabilityManifest` and `planner` system prompts to explicitly highlight that Web Automation is enabled. Instructed the agent to prioritize browser interaction for any website or service not listed in the "Active Connections," preventing false task rejections for common web workflows.
 - **P0: OpenAI Responses API rejection** — Fixed a critical issue where OpenAI would reject `anyOf` / `discriminatedUnion` schemas in the planning phase. Replaced `generateObject` with `generateText` + explicit JSON prompting across all providers for universal compatibility.
 - **P0: API Crash on Model Consultation** — Resolved a Drizzle SQL conflict where the `?` operator was incorrectly interpreted as a bind parameter placeholder. Replaced with the `@>` JSONB containment operator.
 - **P0: Memory System Failure** — Fixed a silent crash in the self-improvement cycle caused by empty LLM proposals. Implemented robust Zod defaults and forced pattern recognition in the consolidation prompt.

@@ -149,6 +149,18 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
 
 ---
 
+### 2026-03 — Agent: Browser Tools & Capability Awareness
+
+- **Status**: Implemented.
+- **Problem**: The agent was declining simple web-based requests (e.g., "Set up social media profiles") because it didn't see specific integrations for those services in the "Active Connections" list, despite having access to a full browser.
+- **Solution**: 
+    - **Capability Manifest**: Updated `manifestToPromptBlock` to explicitly state "Web Automation: ENABLED" and clarify that browser tools can be used for any website interaction.
+    - **Planner rules**: Added mandatory rules to the planner's system prompt forbidding task rejection based on missing service listings.
+    - **Robust Fallbacks**: Guaranteed that `browser_*` tools are always present in the planner's fallback manifest if the database connection fails.
+- **Lesson**: Don't let the existence of specific "high-level" integrations (APIs) blind the agent to its "low-level" capabilities (Browser). Browser automation is the ultimate universal fallback.
+
+---
+
 ### 2026-03 — P0: Every Task Failed — OpenAI Responses API Rejects discriminatedUnion Schema
 
 - **Root cause**: `planTask()` in `packages/agent/src/planner/index.ts` called `generateObject()` with a Zod `discriminatedUnion` schema (`anyOf` in JSON Schema). OpenAI's Responses API (`@ai-sdk/openai@3.x` default) requires the top-level schema to be `type: "object"` — a discriminated union produces `type: null` ("None"), which the API rejects with HTTP 400: `Invalid schema for response_format 'response': schema must be a JSON Schema of 'type: "object"', got 'type: "None"'`.

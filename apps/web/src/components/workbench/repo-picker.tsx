@@ -306,7 +306,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
 
                     <div className="space-y-4">
                         {tab === 'local' ? (
-                            <div className="space-y-1.5 relative z-10">
+                            <div className="space-y-1.5 relative z-20">
                                 <label className="text-xs font-semibold uppercase tracking-wider text-text-muted ml-1">
                                     Directory Path
                                 </label>
@@ -329,7 +329,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                             </div>
                         ) : (
                             <>
-                                <div className="space-y-1.5 relative z-20">
+                                <div className="space-y-1.5 relative z-30">
                                     <label className="text-xs font-semibold uppercase tracking-wider text-text-muted ml-1">
                                         {tab === 'existing' ? 'Repository' : 'Project Name'}
                                     </label>
@@ -440,7 +440,7 @@ export function RepoPicker({ workspaceId, onSelect, onClose, className = '' }: R
                                     )}
                                 </div>
 
-                                <div className="space-y-1.5 relative z-10">
+                                <div className="space-y-1.5 relative z-20">
                                     <div className="flex items-center justify-between ml-1">
                                         <label className="text-xs font-semibold uppercase tracking-wider text-text-muted">
                                             {isCreatingNewBranch ? 'New Branch Name' : 'Target Branch'}
