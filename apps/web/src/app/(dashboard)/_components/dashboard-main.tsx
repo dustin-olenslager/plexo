@@ -15,7 +15,7 @@ export function DashboardMain({ children }: { children: React.ReactNode }) {
     return (
         <main 
             className={cn(
-                "flex-1 relative z-0 hide-scrollbar",
+                "flex-1 relative z-0",
                 isFullBleed 
                     ? "overflow-hidden" // Child handles its own scroll (Chat / Workbench)
                     : "overflow-auto p-4 md:p-6 pb-[calc(72px+1rem+var(--safe-bottom))] md:pb-[calc(1.5rem+var(--safe-bottom))]"

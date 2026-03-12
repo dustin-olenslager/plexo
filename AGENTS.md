@@ -554,3 +554,15 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
     - **Insights Layout**: Restructured `/insights` into a high-density two-column layout. Moved "Improvement Proposals" to a dedicated premium sidebar with filtered "Needs Review" pulses.
     - **Real-time Count Tracking**: Updated the sidebar's `fetchCounts` loop to fetch and deduplicate counts for all new indicator types.
 - **Lesson**: Attention is a finite resource. If the system "needs" something from the user, it should signal that intent globally across the nav rather than waiting for the user to stumble upon the relevant page.
+
+---
+
+### 2026-03 — UI/UX: Full-Bleed Chat & Workbench Layout
+
+- **Status**: Implemented.
+- **Problem**: The Chat and Workbench interface felt constrained by the standard dashboard padding, reducing usable screen real estate.
+- **Solution**: 
+    - Introduced `DashboardMain` wrapper in `apps/web/src/app/(dashboard)/layout.tsx` that dynamically removes padding and overflow-scrolling when the current route is `/chat`.
+    - Modified `chat/page.tsx` to use edge-to-edge layout, reducing horizontal padding and ensuring the fixed input area respects mobile safe areas.
+    - Result: Chat and Workbench now occupy 100% of the space between the sidebar and browser edges, top to bottom.
+- **Lesson**: High-density interfaces (like chat/code) benefit from escaping standard container paddings that serve general-purpose data views.
