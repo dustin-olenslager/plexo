@@ -6,6 +6,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 ## [Unreleased]
 
 ### Added
+- **Full-Bleed Chat & Workbench** — The Chat and Workbench interface now dynamically expands to fill 100% of the available screen space (edge-to-edge) on the `/chat` route. Outer paddings and body-level scrolling are automatically removed to maximize usable real estate for conversation and code interaction.
+- **Dynamic Dashboard Main** — Introduced a smart layout wrapper (`DashboardMain`) that adapts its presentation logic (padding, overflow) based on the active application route.
 - **Artifact Workbench** — Introduced a sidecar interface (`ArtifactWorkbench`) for technical context: Terminal logs, File trees, and Test results. Supports split-pane docking and floating overlay modes.
 - **Sidebar Notification Indicators** — Introduced real-time attention indicators for critical system states. Navigation items now display count badges for blocked tasks, failed cron jobs, pending memory improvements, and RSI anomalies.
 - **Attention-Aware Grouping** — Sidebar group headers (Work, Capabilities, System) now pulse when items within them require user input. Indicators condense to notification dots when the sidebar is collapsed.
