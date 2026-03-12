@@ -32,12 +32,22 @@ const PlanStepSchema = z.object({
     isOneWayDoor: z.boolean(),
 })
 
-const OneWayDoorSchema = z.object({
-    description: z.string(),
-    type: z.enum(['data_write', 'external_call', 'destructive', 'state_change']),
-    reversibility: z.string(),
-    requiresApproval: z.boolean(),
-})
+// Lenient: accept either a full object or a bare string from the LLM.
+// Smaller models (llama, groq) often return string[] instead of object[].
+const OneWayDoorSchema = z.union([
+    z.object({
+        description: z.string(),
+        type: z.enum(['data_write', 'external_call', 'destructive', 'state_change']),
+        reversibility: z.string(),
+        requiresApproval: z.boolean(),
+    }),
+    z.string().transform((s) => ({
+        description: s,
+        type: 'state_change' as const,
+        reversibility: 'unknown',
+        requiresApproval: true,
+    })),
+])
 
 const ExecutionPlanShape = z.object({
     type: z.literal('plan'),

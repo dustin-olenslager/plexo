@@ -101,3 +101,30 @@ export function captureException(err: unknown, context?: Record<string, unknown>
         } catch { /* never crash */ }
     }
 }
+
+/**
+ * Capture a lifecycle event (task started, completed, failed, etc.)
+ * as a Sentry message for observability.
+ *
+ * This gives operators a timeline of all task/sprint/conversation events
+ * in their Sentry project, even when there's no error.
+ */
+export function captureLifecycleEvent(
+    eventName: string,
+    level: 'info' | 'warning' | 'error',
+    context?: Record<string, unknown>,
+): void {
+    const hint: EventHint | undefined = context ? { data: context } : undefined
+
+    if (centralClient && getTelemetryConfig().enabled) {
+        try {
+            centralClient.captureMessage(eventName, level, hint)
+        } catch { /* never crash */ }
+    }
+
+    if (operatorClient) {
+        try {
+            operatorClient.captureMessage(eventName, level, hint)
+        } catch { /* never crash */ }
+    }
+}

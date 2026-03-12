@@ -20,7 +20,7 @@ import { loadWorkspaceAISettings, cancelActiveTask } from '../agent-loop.js'
 import { logSprintEvent } from '@plexo/agent/sprint/logger'
 import { logger } from '../logger.js'
 import { emitToWorkspace } from '../sse-emitter.js'
-import { captureException } from '../sentry.js'
+import { captureException, captureLifecycleEvent } from '../sentry.js'
 import { emitSprintOutcome } from '../telemetry/events.js'
 
 export const sprintRunnerRouter: RouterType = Router()
@@ -78,6 +78,11 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
             metadata: { reason: 'NO_CREDENTIAL' },
         })
         emitToWorkspace(workspaceId, { type: 'sprint_status', sprintId, status: 'failed' })
+        captureLifecycleEvent('sprint.failed', 'error', {
+            sprintId,
+            workspaceId,
+            reason: 'NO_CREDENTIAL',
+        })
         res.status(402).json({
             error: {
                 code: 'NO_AI_CREDENTIAL',
@@ -95,10 +100,34 @@ sprintRunnerRouter.post('/:id/run', async (req, res) => {
         category: sprint.category ?? 'code',
         request: sprint.request,
         aiSettings,
-        onComplete: (meta) => emitSprintOutcome(meta),
+        onComplete: (meta) => {
+            emitSprintOutcome(meta)
+            const status = meta.success ? 'complete' : 'failed'
+            emitToWorkspace(workspaceId, { type: 'sprint_status', sprintId, status })
+            captureLifecycleEvent(`sprint.${status}`, meta.success ? 'info' : 'error', {
+                sprintId,
+                workspaceId,
+                category: sprint.category,
+                taskCount: meta.taskCount,
+                waveCount: meta.waveCount,
+                durationMs: meta.durationMs,
+            })
+        },
     }).catch((err: unknown) => {
         logger.error({ err, sprintId }, 'Sprint run failed')
         captureException(err, { sprintId, workspaceId, category: sprint.category })
+        emitToWorkspace(workspaceId, {
+            type: 'sprint_status',
+            sprintId,
+            status: 'failed',
+            error: err instanceof Error ? err.message : String(err),
+        })
+        captureLifecycleEvent('sprint.failed', 'error', {
+            sprintId,
+            workspaceId,
+            category: sprint.category,
+            error: err instanceof Error ? err.message : String(err),
+        })
     })
 
     res.status(202).json({ sprintId, status: 'started', message: 'Sprint execution started — follow progress via SSE' })

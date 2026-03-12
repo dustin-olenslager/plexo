@@ -11,6 +11,7 @@ import type { AnthropicCredential, ExecutionContext } from '@plexo/agent/types'
 import { emitToWorkspace } from './sse-emitter.js'
 import { registerCodeContext, unregisterCodeContext } from './routes/code.js'
 import { emitTaskOutcome } from './telemetry/events.js'
+import { captureException, captureLifecycleEvent } from './sentry.js'
 import type { WorkspaceAISettings, ProviderKey } from '@plexo/agent/providers/registry'
 import { logger } from './logger.js'
 import { emit } from './sse-emitter.js'
@@ -607,6 +608,14 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
             summary: result.outcomeSummary,
             assets,
         })
+        captureLifecycleEvent('task.complete', 'info', {
+            taskId: task.id,
+            type: task.type,
+            source: task.source,
+            durationMs: Date.now() - taskStartMs,
+            costUsd: result.totalCostUsd,
+            qualityScore: result.qualityScore,
+        })
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         logger.error({ taskId: task.id, err }, 'Task failed')
@@ -640,6 +649,13 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
         }
 
         emit({ type: 'task_failed', taskId: task.id, error: message })
+        captureLifecycleEvent('task.failed', 'error', {
+            taskId: task.id,
+            type: task.type,
+            source: task.source,
+            durationMs: Date.now() - taskStartMs,
+            error: message.slice(0, 500),
+        })
     } finally {
         activeTasks.delete(task.id)
         

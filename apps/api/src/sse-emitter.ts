@@ -28,16 +28,19 @@ export interface AgentEvent {
 /** Emit an event to all connected clients for a workspace */
 export function emitToWorkspace(workspaceId: string, event: AgentEvent): void {
     const workspace = clients.get(workspaceId)
-    if (!workspace) return
-
-    const data = `data: ${JSON.stringify(event)}\n\n`
-    for (const [id, res] of workspace) {
-        try {
-            res.write(data)
-        } catch {
-            workspace.delete(id)
+    if (workspace) {
+        const data = `data: ${JSON.stringify(event)}\n\n`
+        for (const [id, res] of workspace) {
+            try {
+                res.write(data)
+            } catch {
+                workspace.delete(id)
+            }
         }
     }
+    // Always notify internal subscribers (Telegram, Slack adapters) regardless
+    // of whether any SSE clients are connected.
+    notifyInternal(event)
 }
 
 /** Emit an event to all connected clients across all workspaces */

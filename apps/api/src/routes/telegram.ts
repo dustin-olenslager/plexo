@@ -370,6 +370,45 @@ async function handleUpdate(channelId: string, entry: ChannelEntry, update: Tele
                     }
 
                     await sendMessage(token, chatId, `✅ Project created: _${sprint!.id}_. You can view it in the dashboard.`)
+
+                    // Subscribe to sprint lifecycle events so we notify Telegram on completion/failure
+                    const sprintId = sprint!.id
+                    const unsub = onAgentEvent(async (event) => {
+                        if (event.type !== 'sprint_status' || event.sprintId !== sprintId) return
+                        const status = event.status as string
+                        if (status === 'complete') {
+                            unsub()
+                            const msg = `✅ Project _${sprintId}_ completed.`
+                            sendMessage(token, chatId, msg).catch(() => null)
+                            recordConversation({
+                                workspaceId: action.workspaceId,
+                                sessionId: telegramSessionId(channelId, chatId),
+                                source: 'telegram',
+                                message: '[Project completed]',
+                                reply: msg,
+                                status: 'complete',
+                                intent: 'PROJECT',
+                                channelRef: { channel: 'telegram', channelId, chatId },
+                            }).catch(() => null)
+                        } else if (status === 'failed') {
+                            unsub()
+                            const reason = (event.error as string) ?? (event.message as string) ?? 'Unknown error'
+                            const msg = `❌ Project _${sprintId}_ failed: ${reason}`
+                            sendMessage(token, chatId, msg).catch(() => null)
+                            recordConversation({
+                                workspaceId: action.workspaceId,
+                                sessionId: telegramSessionId(channelId, chatId),
+                                source: 'telegram',
+                                message: '[Project failed]',
+                                errorMsg: reason,
+                                status: 'failed',
+                                intent: 'PROJECT',
+                                channelRef: { channel: 'telegram', channelId, chatId },
+                            }).catch(() => null)
+                        }
+                    })
+                    // Auto-cleanup after 24h
+                    setTimeout(() => unsub(), 24 * 60 * 60 * 1000)
                 } catch (err) {
                     logger.error({ err, chatId }, 'Failed to create Telegram project')
                     await sendMessage(token, chatId, '❌ Failed to create project. Please try again.')
@@ -562,9 +601,21 @@ Critical rules — follow without exception:
         return
     }
 
-    // TASK or PROJECT: ask for confirmation with inline buttons
+    // TASK or PROJECT: generate a concise summary title and ask for confirmation
     const actionId = 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
-    const replyText = `Ready to create a **${intent === 'TASK' ? 'Task' : 'Project'}**.\n\nDescription: _${text.slice(0, 100)}${text.length > 100 ? '...' : ''}_\n\nProceed?`
+
+    // AI-generate a meaningful title (max ~8 words) from the raw user input
+    let summaryTitle = text.slice(0, 80)
+    try {
+        const titleResult = await chatWithAI(workspaceId, [
+            { role: 'user', content: text },
+        ], 'Summarise the user message into a short, descriptive title (max 8 words). Return ONLY the title, no quotes, no punctuation at the end. Example: "Create social media profiles for Plexo"')
+        if (titleResult.text && titleResult.text.length > 2 && titleResult.text.length < 120) {
+            summaryTitle = titleResult.text.replace(/^["']|["']$/g, '').trim()
+        }
+    } catch { /* fallback to truncated raw text */ }
+
+    const replyText = `Ready to create a **${intent === 'TASK' ? 'Task' : 'Project'}**.\n\nDescription: _${summaryTitle}_\n\nProceed?`
 
     // Record the proposal as a conversation turn BEFORE sending the confirm prompt
     // so we can link the task/project ID back to it on confirmation.
