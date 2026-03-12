@@ -62,6 +62,7 @@ An autonomous agent with write-access to your codebase and production systems is
 ### Verifiable Safety Rails
 *   **The One-Way Door (OWD) Protocol:** Any destructive operation (modifying schemas, pushing commits, spending >$X) triggers a hard execution pause. The system requests explicit authorization via a real-time SSE push to your dashboard or Slack thread.
 *   **Capability-Gated Execution:** Plugins cannot arbitrarily access the host network. Permissions (`storage:write`, `connections:github`) must be explicitly granted per-workspace.
+*   **Memory Shorthand:** To prevent context bloat and "hallucination," Plexo uses AI to asynchronously summarize every memory into a dense shorthand of principles, facts, and outcomes. The agent retrieves these summarized heuristics during planning rather than wading through raw logs, maximizing performance and reducing token costs.
 *   **Hard Boundaries:** Hard-coded limits on consecutive tool calls, execution wall-clock time, and API token spend per task.
 
 ### The Stack
@@ -79,6 +80,9 @@ Plexo is built on a modern, typed, and scalable foundation:
 ## ⚙️ Agent Behavior Configuration
 
 Agent behavior is not a document — it is a **structured, layered graph** of rules with inheritance, overrides, and scoped applicability.
+
+*   **Autonomous Intent Classification:** Before taking action, Plexo's classifier analyzes your message to distinguish between `CONVERSATION`, `TASK`, `PROJECT`, or `MEMORY`. It auto-queues simple tasks immediately while proposing structured "Sprints" for multi-step engineering goals.
+*   **Description Synthesis:** When a task is queued via chat, a background synthesizer LLM call crafts a clean, third-person task description from the full conversation context, ensuring the agent's goal is precise regardless of short user utterances.
 
 ```
 Platform Defaults (read-only)
@@ -119,6 +123,7 @@ Plexo features an automatic transmission for language models, optimizing for cos
 
 A platform's survival depends on its ecosystem. Plexo natively adheres to [**Kapsel**](https://github.com/joeybuilt-official/kapsel), the definitive open standard for AI agent extensions. This is the App Store model for AI—decentralized, host-agnostic, and secure by default.
 
+*   **Live Conversation Mode:** A unified "always-listening" mode for hands-free voice interaction. It features autonomous turn-taking (linked to TTS completion), interruption support, and sub-500ms latency for a natural dialogue flow.
 *   **Persistent Sandboxes:** Extensions run in their own persistent `worker_threads`. Zero cold-start overhead. Crashes are caught, isolated, and respawned without affecting the host.
 *   **Write Once, Run Anywhere:** A Kapsel plugin written for Plexo runs on any other Kapsel-compliant host.
 *   **Omni-Channel Native:** Native adapters for Slack, Discord, and Telegram. Agents live where your team communicates.
