@@ -31,6 +31,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 - **Task Type Validation** — Added missing `writing`, `marketing`, `data`, and `general` categories to the database enum, agent union, and quality rubrics, preventing runtime validation errors when these intents are classified.
 - **Double-Counting in Cost Ledger** — Eliminated a 2x cost duplication bug where both the executor and agent-loop were writing to the `work_ledger` and `api_cost_tracking` tables. The executor is now the single source of truth for task accounting.
 - **Shadow Update Loop** — Fixed an infinite rebuild loop on the VPS caused by clock skew and Docker build-arg interpolation failures. The system now uses explicit SHA-based source verification via a baked-in `.source-commit` file.
+- **UI: Repository Picker z-index** — Fixed an issue where the branch selection dropdown appeared behind the "Connect Repository" button due to conflicting stacking contexts.
 - **Security: Hardcoded Credentials** — Removed hardcoded development database passwords from one-off scripts. Scripts migrated to `scripts/internal/` and updated to use `DATABASE_URL`.
 - **Security: Sensitive Asset Exposure** — Moved screenshots and visual assets to `images/internal/` (ignored) to prevent accidental exposure of private workspace states.
 - **Security: Local Path Sanitization** — Sanitized `fix.sh` and other utility scripts to remove absolute `/home/dustin/` path references.
