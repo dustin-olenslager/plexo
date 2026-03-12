@@ -537,6 +537,7 @@ async function buildTaskContext(task: typeof tasks.$inferSelect): Promise<void> 
                 toolsUsed: [],  // executor doesn't currently expose tool list in result
                 qualityScore: result.qualityScore,
                 notes: result.outcomeSummary?.slice(0, 300),
+                aiSettings: aiSettings ?? undefined,
             })
         } catch (memErr) {
             logger.warn({ err: memErr, taskId: task.id }, 'recordTaskMemory failed — non-fatal')

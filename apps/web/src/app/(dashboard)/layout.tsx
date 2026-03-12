@@ -3,7 +3,7 @@
 
 import { auth } from '@web/auth'
 import { Sidebar } from '@web/components/layout/sidebar'
-import { Header } from '@web/components/layout/header'
+import { MobileHeader } from '@web/components/layout/mobile-header'
 import { DashboardRefresher } from './_components/dashboard-refresher'
 import { WorkspaceProvider } from '@web/context/workspace'
 import { UpdateModal } from '@web/components/update-modal'
@@ -32,9 +32,9 @@ export default async function DashboardLayout({
     return (
         <WorkspaceProvider initialId={workspaceId ?? undefined} initialName={workspaceName} initialUserName={session?.user?.name ?? undefined}>
             <div className="flex h-screen flex-col overflow-hidden bg-canvas">
-                <Header />
-                <div className="flex flex-1 overflow-hidden pt-[56px] md:pt-[64px]">
-                    <Sidebar user={session?.user} />
+                <MobileHeader user={session?.user ?? undefined} />
+                <div className="flex flex-1 overflow-hidden">
+                    <Sidebar user={session?.user ?? undefined} />
                     <main 
                         className="flex-1 overflow-auto relative z-0 p-4 pb-[calc(72px+1rem+var(--safe-bottom))] md:p-6 md:pb-[calc(1.5rem+var(--safe-bottom))]"
                         style={{

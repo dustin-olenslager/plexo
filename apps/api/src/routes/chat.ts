@@ -443,7 +443,7 @@ chatRouter.post('/message', async (req, res) => {
         if (intent === 'MEMORY') {
             try {
                 // Store as a high-confidence pattern in memory_entries
-                await rememberInstruction({ workspaceId, instruction: trimmedMsg, source: 'chat' })
+                await rememberInstruction({ workspaceId, instruction: trimmedMsg, source: 'chat', aiSettings: aiSettings ?? undefined })
 
                 // Also write to workspace_preferences under a unique key per instruction
                 // so multiple "remember X" instructions accumulate rather than overwrite

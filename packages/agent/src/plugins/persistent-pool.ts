@@ -140,6 +140,7 @@ async function dispatchSdkCall(pluginName: string, method: string, args: Record<
             return results.map((r) => ({
                 id: r.id,
                 content: r.content,
+                shorthand: r.shorthand,
                 tags: (r.metadata as Record<string, unknown>)?.tags ?? [],
                 metadata: r.metadata,
                 similarity: r.similarity,

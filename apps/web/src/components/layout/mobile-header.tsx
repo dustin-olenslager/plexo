@@ -18,7 +18,10 @@ export function MobileHeader({ user }: { user?: SessionUser }) {
     return (
         <>
             {/* Mobile Sticky Header */}
-            <div className="flex md:hidden sticky top-0 z-40 w-full items-center justify-between border-b border-border bg-canvas/80 p-4 backdrop-blur-md shrink-0">
+            <div 
+                className="flex md:hidden sticky top-0 z-40 w-full items-center justify-between border-b border-border bg-canvas/80 p-4 backdrop-blur-md shrink-0"
+                style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}
+            >
                 <button
                     onClick={() => setOpen(true)}
                     className="flex h-10 w-10 items-center justify-center rounded-lg text-text-secondary hover:bg-surface-2 hover:text-text-primary transition-colors"

@@ -716,7 +716,7 @@ export async function executeTask(
         })
         if (priorMemory.length > 0) {
             const entries = priorMemory
-                .map((m) => `- ${m.content.split('\n').slice(0, 3).join(' | ')}`)
+                .map((m) => `- ${m.shorthand || m.content.split('\n').slice(0, 3).join(' | ')}`)
                 .join('\n')
             memoryBlock = `\n\nPRIOR WORK CONTEXT (from memory):\n${entries}`
         }
@@ -1121,6 +1121,7 @@ MANDATORY OUTPUT REQUIREMENT: You MUST call write_asset at least once before cal
             toolsUsed,
             qualityScore: verifiedQuality,
             durationMs: executionResult.totalDurationMs,
+            aiSettings: settings,
         })
     ).catch((err) => memLogger.warn({ err, taskId: ctx.taskId }, 'recordTaskMemory failed'))
 

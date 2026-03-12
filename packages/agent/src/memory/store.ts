@@ -14,8 +14,10 @@
  * - Otherwise: store content without embedding (text-only fallback via ILIKE search)
  */
 import pino from 'pino'
+import { generateText } from 'ai'
 import { db, eq, and, desc, sql } from '@plexo/db'
 import { memoryEntries } from '@plexo/db'
+import { resolveModelFromEnv, resolveModel, type WorkspaceAISettings } from '../providers/registry.js'
 
 const logger = pino({ name: 'memory' })
 
@@ -26,6 +28,7 @@ export interface MemoryEntry {
     workspaceId: string
     type: MemoryType
     content: string
+    shorthand?: string
     metadata: Record<string, unknown>
     createdAt: Date
 }
@@ -108,6 +111,53 @@ async function embed(text: string): Promise<number[] | null> {
     }
 }
 
+// ── Summarization ────────────────────────────────────────────────────────────
+
+const SHORTHAND_SYSTEM_PROMPT = `You are a memory compression engine.
+Compress agent memories into a dense "shorthand" format to minimize token usage while preserving all critical facts and principles.
+
+Format:
+F: <comma-separated key facts>
+P: <comma-separated behavioral principles or "lessons learned" - actionable>
+S: <extremely concise summary (~5-7 words)>
+
+Rules:
+- Use abbreviations (e.g. mktg, succ, err, impl, ws).
+- No filler words (the, a, is, for).
+- Keep it extremely dense.
+- Principles should be actionable in future tasks.`
+
+async function summarizeMemory(params: {
+    content: string,
+    workspaceId: string,
+    aiSettings?: WorkspaceAISettings
+}): Promise<string | null> {
+    const { content, workspaceId, aiSettings } = params
+    
+    try {
+        let model: any
+        if (aiSettings) {
+            const resolved = await resolveModel('summarization', aiSettings, workspaceId)
+            model = resolved.model
+        } else {
+            model = resolveModelFromEnv('claude-haiku-4-5')
+        }
+
+        const { text } = await generateText({
+            model,
+            system: SHORTHAND_SYSTEM_PROMPT,
+            messages: [{ role: 'user', content }],
+            // @ts-ignore - maxTokens is part of AI SDK v6 but type inference is failing here
+            maxTokens: 150,
+        })
+        
+        return text.trim() || null
+    } catch (err) {
+        logger.warn({ err }, 'Memory summarization failed')
+        return null
+    }
+}
+
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 export async function storeMemory(params: {
@@ -115,12 +165,13 @@ export async function storeMemory(params: {
     type: MemoryType
     content: string
     metadata?: Record<string, unknown>
+    aiSettings?: WorkspaceAISettings
 }): Promise<string> {
-    const { workspaceId, type, content, metadata = {} } = params
+    const { workspaceId, type, content, metadata = {}, aiSettings } = params
 
     const id = crypto.randomUUID()
 
-    // Insert without embedding first (non-blocking)
+    // Insert without embedding/shorthand first (non-blocking)
     await db.insert(memoryEntries).values({
         id,
         workspaceId,
@@ -131,6 +182,14 @@ export async function storeMemory(params: {
 
     // Invalidate search cache on every write
     void invalidateSearchCache(workspaceId)
+
+    // Generate shorthand async
+    summarizeMemory({ content, workspaceId, aiSettings }).then(async (shorthand) => {
+        if (!shorthand) return
+        await db.update(memoryEntries)
+            .set({ shorthand })
+            .where(eq(memoryEntries.id, id))
+    }).catch(err => logger.error({ err, id }, 'Failed to update shorthand'))
 
     // Generate embedding async — don't await in hot path
     embed(content).then(async (vector) => {
@@ -183,10 +242,11 @@ export async function searchMemory(params: {
             type: string
             content: string
             metadata: Record<string, unknown>
+            shorthand: string | null
             created_at: Date
             similarity: number
         }>(sql`
-      SELECT id, workspace_id, type, content, metadata, created_at,
+      SELECT id, workspace_id, type, content, shorthand, metadata, created_at,
              1 - (embedding <=> ${vecStr}::vector) AS similarity
       FROM memory_entries
       WHERE workspace_id = ${workspaceId}::uuid
@@ -201,6 +261,7 @@ export async function searchMemory(params: {
             workspaceId: r.workspace_id,
             type: r.type as MemoryType,
             content: r.content,
+            shorthand: r.shorthand ?? undefined,
             metadata: r.metadata,
             createdAt: r.created_at,
             similarity: r.similarity,
@@ -227,6 +288,7 @@ export async function searchMemory(params: {
             workspaceId: r.workspaceId,
             type: r.type,
             content: r.content,
+            shorthand: r.shorthand ?? undefined,
             metadata: r.metadata as Record<string, unknown>,
             createdAt: r.createdAt,
             similarity: 0.5, // unknown without vector
@@ -257,8 +319,9 @@ export async function recordTaskMemory(params: {
     qualityScore?: number
     durationMs?: number
     notes?: string
+    aiSettings?: WorkspaceAISettings
 }): Promise<void> {
-    const { workspaceId, taskId, description, outcome, toolsUsed, qualityScore, durationMs, notes } = params
+    const { workspaceId, taskId, description, outcome, toolsUsed, qualityScore, durationMs, notes, aiSettings } = params
 
     const content = [
         `Task: ${description}`,
@@ -273,6 +336,7 @@ export async function recordTaskMemory(params: {
         type: 'task',
         content,
         metadata: { taskId, outcome, toolsUsed, qualityScore, durationMs },
+        aiSettings,
     })
 
     logger.debug({ taskId, outcome, workspaceId }, 'Task memory recorded')
@@ -285,8 +349,9 @@ export async function rememberInstruction(params: {
     workspaceId: string
     instruction: string
     source?: 'chat' | 'api' | 'telegram'
+    aiSettings?: WorkspaceAISettings
 }): Promise<string> {
-    const { workspaceId, instruction, source = 'chat' } = params
+    const { workspaceId, instruction, source = 'chat', aiSettings } = params
 
     const id = await storeMemory({
         workspaceId,
@@ -297,6 +362,7 @@ export async function rememberInstruction(params: {
             userInstruction: true,
             recordedAt: new Date().toISOString(),
         },
+        aiSettings,
     })
 
     // Also invalidate prefs cache since this may affect behavior

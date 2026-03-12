@@ -519,6 +519,11 @@ export const memoryEntries = pgTable('memory_entries', {
         .references(() => workspaces.id, { onDelete: 'cascade' }),
     type: memoryTypeEnum('type').notNull(),
     content: text('content').notNull(),
+    /** 
+     * AI-generated shorthand/facts/principles extraction. 
+     * Minimizes token consumption when injected into agent prompts.
+     */
+    shorthand: text('shorthand'),
     // pgvector column — raw SQL needed until drizzle-orm has native vector support
     // embedding: vector(1536) — added via custom migration SQL
     metadata: jsonb('metadata').default('{}').notNull(),
