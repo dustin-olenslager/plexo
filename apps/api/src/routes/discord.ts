@@ -22,11 +22,10 @@
  */
 import { Router, type Router as RouterType } from 'express'
 import { createVerify } from 'crypto'
-import { db, eq } from '@plexo/db'
-import { installedConnections } from '@plexo/db'
-import { push as pushTask, completeTask } from '@plexo/queue'
+import { push as pushTask } from '@plexo/queue'
 import { logger } from '../logger.js'
 import { captureLifecycleEvent } from '../sentry.js'
+import { recordConversation, type ChannelRef } from '../conversation-log.js'
 import { generateText } from 'ai'
 import { buildModel } from '@plexo/agent/providers/registry'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
@@ -188,6 +187,11 @@ function addToHistory(threadId: string, role: 'user' | 'assistant', content: str
     chatHistory.set(threadId, hist)
 }
 
+/** Stable session ID for a Discord thread/channel */
+function discordSessionId(guildId: string, channelId: string): string {
+    return `discord:${guildId}:${channelId}`
+}
+
 // ── POST /api/channels/discord/interactions ───────────────────────────────────
 
 discordRouter.post('/interactions', async (req: Request, res: Response) => {
@@ -265,34 +269,24 @@ Critical rules — follow without exception:
                 addToHistory(threadId, 'assistant', replyText)
                 await sendFollowUp(interaction.application_id, interaction.token, replyText)
 
-                try {
-                    const taskId = await pushTask({
-                        workspaceId,
-                        type: 'online',
-                        source: 'discord',
-                        status: 'complete',
-                        context: {
-                            description,
-                            channel: 'discord',
-                            guildId: interaction.guild_id,
-                            channelId: interaction.channel_id,
-                            userId: user?.id,
-                            username,
-                        },
-                        priority: 2,
-                    })
-                    await completeTask(taskId, {
-                        qualityScore: 1,
-                        outcomeSummary: replyText,
-                        tokensIn: 0,
-                        tokensOut: 0,
-                        costUsd: 0,
-                    })
-                    emitToWorkspace(workspaceId, { type: 'task_complete', taskId, source: 'discord' })
-                } catch (err) {
-                    logger.error({ err }, 'Failed to log Discord conversation to DB')
-                    captureLifecycleEvent('channel.error', 'error', { channel: 'discord', error: 'conversation_log_failed' })
-                }
+                const sessionId = discordSessionId(interaction.guild_id ?? '', interaction.channel_id ?? '')
+                const channelRef: ChannelRef = { channel: 'discord', channelId: interaction.channel_id ?? '', chatId: user?.id ?? '' }
+                await recordConversation({
+                    workspaceId,
+                    sessionId,
+                    source: 'discord',
+                    message: description,
+                    reply: replyText,
+                    status: result.error ? 'failed' : 'complete',
+                    errorMsg: result.error ? `AI error: ${result.error}` : null,
+                    intent: intent === 'PROJECT' ? 'PROJECT' : 'CONVERSATION',
+                    channelRef,
+                }).catch((err: Error) => logger.warn({ err }, 'Failed to record Discord conversation'))
+                emitToWorkspace(workspaceId, { type: 'conversation_updated', sessionId, source: 'discord' })
+                captureLifecycleEvent('channel.conversation_turn', 'info', {
+                    channel: 'discord', workspaceId, sessionId,
+                    intent: intent === 'PROJECT' ? 'PROJECT' : 'CONVERSATION',
+                })
                 return
             }
 
@@ -313,11 +307,25 @@ Critical rules — follow without exception:
                     },
                 })
 
-                await sendFollowUp(
-                    interaction.application_id,
-                    interaction.token,
-                    `✅ Task queued (ID: \`${taskId.slice(0, 8)}\`)\n> ${description}`,
-                )
+                const discordReply = `✅ Task queued (ID: \`${taskId.slice(0, 8)}\`)\n> ${description}`
+                await sendFollowUp(interaction.application_id, interaction.token, discordReply)
+
+                const sessionId = discordSessionId(interaction.guild_id ?? '', interaction.channel_id ?? '')
+                const channelRef: ChannelRef = { channel: 'discord', channelId: interaction.channel_id ?? '', chatId: user?.id ?? '' }
+                await recordConversation({
+                    workspaceId,
+                    sessionId,
+                    source: 'discord',
+                    message: description,
+                    reply: discordReply,
+                    status: 'complete',
+                    intent: 'TASK',
+                    taskId,
+                    channelRef,
+                }).catch((err: Error) => logger.warn({ err }, 'Failed to record Discord task conversation'))
+                captureLifecycleEvent('channel.task_created', 'info', {
+                    channel: 'discord', taskId, workspaceId, sessionId,
+                })
 
                 logger.info({ taskId, workspaceId, username }, 'Discord /task queued')
             } catch (err) {

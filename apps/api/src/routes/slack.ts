@@ -17,10 +17,11 @@
  */
 import { Router, type Router as RouterType, type Request, type Response } from 'express'
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import { push as pushTask, completeTask } from '@plexo/queue'
+import { push as pushTask } from '@plexo/queue'
 import { logger } from '../logger.js'
 import { captureLifecycleEvent } from '../sentry.js'
 import { emitToWorkspace } from '../sse-emitter.js'
+import { recordConversation, type ChannelRef } from '../conversation-log.js'
 import { generateText } from 'ai'
 import { buildModel } from '@plexo/agent/providers/registry'
 import { loadWorkspaceAISettings } from '../agent-loop.js'
@@ -147,6 +148,11 @@ function addToHistory(threadId: string, role: 'user' | 'assistant', content: str
     hist.push({ role, content })
     if (hist.length > 20) hist.splice(0, hist.length - 20)
     chatHistory.set(threadId, hist)
+}
+
+/** Stable session ID for a Slack thread */
+function slackSessionId(teamId: string, channel: string, threadTs: string): string {
+    return `slack:${teamId}:${channel}:${threadTs}`
 }
 
 // ── Event types ───────────────────────────────────────────────────────────────
@@ -327,33 +333,26 @@ Critical rules — follow without exception:
             await postMessage(event.channel, replyText, event.ts)
         }
 
-        // Log as a completed task so it appears in the Conversations list
-        try {
-            const taskId = await pushTask({
-                workspaceId,
-                type: 'online',
-                source: 'slack',
-                status: 'complete',
-                context: {
-                    description: text,
-                    channel: 'slack',
-                    slackChannel: event.channel,
-                    slackUser: event.user,
-                    threadTs: event.thread_ts ?? event.ts,
-                },
-                priority: 2,
-            })
-            await completeTask(taskId, {
-                qualityScore: 1,
-                outcomeSummary: replyText,
-                tokensIn: 0,
-                tokensOut: 0,
-                costUsd: 0,
-            })
-            emitToWorkspace(workspaceId, { type: 'task_complete', taskId, source: 'slack' })
-        } catch (err) {
-            logger.error({ err, channel: event.channel }, 'Failed to log Slack conversation to DB')
-        }
+        const sessionId = slackSessionId(teamId, event.channel ?? '', event.thread_ts ?? event.ts ?? '')
+        const channelRef: ChannelRef = { channel: 'slack', channelId: event.channel ?? '', chatId: event.user ?? '' }
+        await recordConversation({
+            workspaceId,
+            sessionId,
+            source: 'slack',
+            message: text,
+            reply: replyText,
+            status: result.error ? 'failed' : 'complete',
+            errorMsg: result.error ? `AI error: ${result.error}` : null,
+            intent: intent === 'PROJECT' ? 'PROJECT' : 'CONVERSATION',
+            channelRef,
+        }).catch((err: Error) => logger.warn({ err }, 'Failed to record Slack conversation'))
+        emitToWorkspace(workspaceId, { type: 'conversation_updated', sessionId, source: 'slack' })
+        captureLifecycleEvent('channel.conversation_turn', 'info', {
+            channel: 'slack',
+            workspaceId,
+            sessionId,
+            intent: intent === 'PROJECT' ? 'PROJECT' : 'CONVERSATION',
+        })
 
         return
     }
@@ -373,13 +372,27 @@ Critical rules — follow without exception:
             priority: 2,
         })
 
+        const slackReply = `✅ Task queued (\`${taskId.slice(0, 8)}…\`)\n_I'll reply in this thread when done._`
         if (event.channel) {
-            await postMessage(
-                event.channel,
-                `✅ Task queued (\`${taskId.slice(0, 8)}…\`)\n_I'll reply in this thread when done._`,
-                event.ts,
-            )
+            await postMessage(event.channel, slackReply, event.ts)
         }
+
+        const sessionId = slackSessionId(teamId, event.channel ?? '', event.thread_ts ?? event.ts ?? '')
+        const channelRef: ChannelRef = { channel: 'slack', channelId: event.channel ?? '', chatId: event.user ?? '' }
+        await recordConversation({
+            workspaceId,
+            sessionId,
+            source: 'slack',
+            message: text,
+            reply: slackReply,
+            status: 'complete',
+            intent: 'TASK',
+            taskId,
+            channelRef,
+        }).catch((err: Error) => logger.warn({ err }, 'Failed to record Slack task conversation'))
+        captureLifecycleEvent('channel.task_created', 'info', {
+            channel: 'slack', taskId, workspaceId, sessionId,
+        })
 
         emitToWorkspace(workspaceId, {
             type: 'task_queued_via_slack',
