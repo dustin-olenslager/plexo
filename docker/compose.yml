@@ -180,10 +180,8 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp" # HTTP/3
+    # Ports removed for Coolify compatibility (Coolify provides its own reverse proxy on 80/443).
+    # Traffic binds to internal port 80 dynamically via Coolify's router.
     environment:
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN}
     volumes:
