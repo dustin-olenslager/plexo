@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Joeybuilt LLC
+
+# This is a shim for backward compatibility with existing deployment configurations (e.g. Coolify)
+# that expect the compose file to be located at docker/compose.yml.
+# It includes the main configuration from the project root.
+
+include:
+  - ../docker-compose.yml
