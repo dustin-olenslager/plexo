@@ -101,9 +101,8 @@ async function runMigrations() {
                 console.warn(`[migrate] Database does not exist yet (still initializing?). Waiting ${RETRY_DELAY_MS}ms...`)
             }
             else {
-                // Unexpected error — fail immediately
-                console.error('[migrate] UNEXPECTED FAILURE:', msg)
-                process.exit(1)
+                // For other errors, log them but continue retrying until MAX_RETRIES
+                console.warn(`[migrate] Connection error: ${msg}. Retrying...`)
             }
 
             await wait(RETRY_DELAY_MS)
