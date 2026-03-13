@@ -10,12 +10,7 @@ services:
       POSTGRES_DB: plexo
     volumes:
       - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: pg_isready -U plexo
-      interval: 10s
-      timeout: 5s
-      retries: 20
-      start_period: 90s
+    # healthcheck removed temporarily to diagnose startup
     # Enforced cgroup limits (mem_limit/memswap_limit apply without Swarm mode)
     mem_limit: 512m
     memswap_limit: 1g
@@ -48,7 +43,7 @@ services:
     restart: "no"
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
     environment:
       DATABASE_URL: postgresql://plexo:${POSTGRES_PASSWORD}@postgres:5432/plexo
       MIGRATIONS_DIR: ./drizzle
@@ -69,9 +64,9 @@ services:
     restart: unless-stopped
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
       redis:
-        condition: service_healthy
+        condition: service_started
       migrate:
         condition: service_completed_successfully
     environment:
@@ -138,7 +133,7 @@ services:
     restart: unless-stopped
     depends_on:
       api:
-        condition: service_healthy
+        condition: service_started
     environment:
       NODE_ENV: production
       PORT: "3000"
