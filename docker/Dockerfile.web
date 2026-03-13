@@ -5,9 +5,15 @@ FROM base AS deps
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY apps/web/package.json apps/web/
+COPY apps/api/package.json apps/api/
 COPY packages/ui/package.json packages/ui/
 COPY packages/logger/package.json packages/logger/
 COPY packages/db/package.json packages/db/
+COPY packages/agent/package.json packages/agent/
+COPY packages/queue/package.json packages/queue/
+COPY packages/sdk/package.json packages/sdk/
+COPY packages/storage/package.json packages/storage/
+
 RUN pnpm install --frozen-lockfile --filter @plexo/web...
 
 FROM base AS builder

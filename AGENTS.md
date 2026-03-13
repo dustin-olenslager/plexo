@@ -567,3 +567,18 @@ Do not introduce dependencies with licenses incompatible with AGPL-3.0 (e.g., pr
     - Modified `chat/page.tsx` to use edge-to-edge layout, reducing horizontal padding and ensuring the fixed input area respects mobile safe areas.
     - Result: Chat and Workbench now occupy 100% of the space between the sidebar and browser edges, top to bottom.
 - **Lesson**: High-density interfaces (like chat/code) benefit from escaping standard container paddings that serve general-purpose data views.
+
+---
+
+### 2026-03 — P0 Fix: Migration Bottleneck (tsx missing in prod)
+
+- **Status**: Implemented.
+- **Problem**: The `migrate` service failed with `exit 1` because `tsx` was a `devDependency` in `@plexo/db` and was missing in the production runner stage of the Docker image.
+- **Solution**: 
+    - Moved `tsx` to `dependencies` in `packages/db/package.json`.
+    - Rewrote `docker/migrate.sh` to include a robust search for the `tsx` ESM entrypoint (`cli.mjs`) across hoisted `node_modules` paths.
+    - Added extensive diagnostics (PWD, USER, Paths) to `migrate.sh` stdout for easier debugging in Coolify logs.
+    - Simplified `migrate.ts` path resolution using `node:path`.
+    - Updated `Dockerfile.api` `CMD` to bypass the `.bin/tsx` shell wrapper for better stability.
+- **Lesson**: If you use a tool like `tsx` to run a script inside a Docker container's `entrypoint` or `CMD`, it must be in `dependencies`, not `devDependencies`.
+- **Deployment**: `git push origin main` → Trigger new deployment in Coolify.

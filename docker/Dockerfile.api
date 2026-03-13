@@ -9,11 +9,14 @@ WORKDIR /app
 # Workspace manifests first — maximise layer cache
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY apps/api/package.json              apps/api/
+COPY apps/web/package.json              apps/web/
 COPY packages/agent/package.json        packages/agent/
 COPY packages/db/package.json           packages/db/
 COPY packages/queue/package.json        packages/queue/
 COPY packages/sdk/package.json          packages/sdk/
 COPY packages/logger/package.json       packages/logger/
+COPY packages/storage/package.json      packages/storage/
+COPY packages/ui/package.json           packages/ui/
 
 RUN pnpm install --frozen-lockfile --filter @plexo/api...
 
