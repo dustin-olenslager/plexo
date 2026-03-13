@@ -54,6 +54,21 @@ See `.env.example` for the full list with descriptions.
 - `DISCORD_APP_ID/PUBLIC_KEY/BOT_TOKEN` — Discord slash commands
 - `GOOGLE_CLIENT_ID/SECRET` — Google Drive connection
 
+## Platform-Specific Deployments (Coolify, Portainer)
+
+When using a standard VPS, our `install.sh` script automatically generates cryptographically secure values for the required secrets (`POSTGRES_PASSWORD`, `SESSION_SECRET`, `ENCRYPTION_SECRET`), writes them to a `.env` file, and boots the stack.
+
+However, when deploying via PaaS solutions like **Coolify** or **Portainer**, they parse the `docker-compose.yml` directly and detect the required environment variables, but they **will leave the values blank by default**.
+
+If you attempt to boot without filling these out in the Coolify/Portainer Web UI:
+1. `POSTGRES_PASSWORD` will be evaluated as blank.
+2. The `postgres` container will refuse to start because it disables "trust" authentication by default for security, throwing `Error: Database is uninitialized and superuser password is not specified.`
+3. Because Postgres never boots, the `migrate` container gets stuck in a loop trying to look up the host (`EAI_AGAIN postgres`) and eventually times out with an `exit 1`.
+4. The deployment will be marked as "Failed".
+
+**The Fix:** Before clicking "Deploy" in your PaaS dashboard, navigate to the Environment Variables tab for your project, find these keys, and manually populate them with secure random strings.
+
+
 ## TLS
 
 Caddy handles TLS automatically via ACME (Let's Encrypt). Port 80 and 443 must be open on your server. Point your domain's A record to the server IP before starting.
