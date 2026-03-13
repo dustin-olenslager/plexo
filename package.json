@@ -22,7 +22,9 @@
     "db:studio": "pnpm --filter @plexo/db db:studio",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "clean": "turbo clean && rm -rf node_modules"
+    "clean": "turbo clean && rm -rf node_modules",
+    "sync-compose": "cp docker-compose.yml docker/compose.yml && cp docker-compose.override.yml docker/compose.override.yml",
+    "prebuild": "pnpm run sync-compose"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
