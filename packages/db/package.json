@@ -18,12 +18,12 @@
   "dependencies": {
     "drizzle-orm": "^0.39",
     "postgres": "^3.4",
-    "dotenv": "^16"
+    "dotenv": "^16",
+    "tsx": "^4"
   },
   "devDependencies": {
     "drizzle-kit": "^0.30",
     "typescript": "^5.7",
-    "tsx": "^4",
     "@types/node": "^22"
   },
   "license": "AGPL-3.0-only"

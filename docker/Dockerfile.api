@@ -67,4 +67,5 @@ RUN chown -R plexo:plexo /app
 USER plexo
 EXPOSE 3001
 
-CMD ["/app/apps/api/node_modules/.bin/tsx", "apps/api/src/index.ts"]
+CMD ["node", "--max-old-space-size=400", "/app/node_modules/tsx/dist/cli.mjs", "apps/api/src/index.ts"]
+

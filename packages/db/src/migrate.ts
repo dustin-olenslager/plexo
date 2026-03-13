@@ -2,7 +2,9 @@
 // Copyright (C) 2026 Joeybuilt LLC
 
 import 'dotenv/config'
+import path from 'node:path'
 import { readdirSync } from 'fs'
+
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import postgres from 'postgres'
@@ -36,9 +38,8 @@ async function runMigrations() {
     }
 
     const migrationsFolder = process.env.MIGRATIONS_DIR ?? './drizzle'
-    const absoluteMigrationsPath = migrationsFolder.startsWith('/') 
-        ? migrationsFolder 
-        : Buffer.from(process.cwd() + '/' + migrationsFolder).toString()
+    const absoluteMigrationsPath = path.resolve(process.cwd(), migrationsFolder)
+
 
     console.log(`[migrate] --- DIAGNOSTICS ---`)
     console.log(`[migrate] CWD: ${process.cwd()}`)
