@@ -138,6 +138,7 @@ services:
       NODE_ENV: production
       PORT: "3000"
       AUTH_URL: ${PUBLIC_URL}
+      AUTH_TRUST_HOST: "true"
       AUTH_SECRET: ${SESSION_SECRET}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
