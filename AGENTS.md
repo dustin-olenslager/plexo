@@ -47,9 +47,10 @@ plugins/core/*     → packages/sdk only (never packages/db or packages/agent)
 - The canonical repo is always the source of truth.
 - All changes go: local → `git push origin main` → server pulls from GitHub.
 - Never edit files directly on a production server.
-- Deploy: `export SOURCE_COMMIT=$(git rev-parse HEAD) && docker compose -f docker/compose.yml -f docker/compose.override.yml build <service> && docker compose -f docker/compose.yml -f docker/compose.override.yml up -d <service>`
-- `docker/compose.override.yml` is gitignored — operator customizations (external Postgres, custom ports) go there and survive `git pull`.
-- `/opt/plexo/docker/.env` is a symlink to `/opt/plexo/.env` — do not break this or `POSTGRES_PASSWORD` won't substitute.
+- Deploy: `export SOURCE_COMMIT=$(git rev-parse HEAD) && docker compose build <service> && docker compose up -d <service>` (uses root `docker-compose.yml`)
+- `docker-compose.override.yml` is gitignored — operator customizations (external Postgres, custom ports) go there and survive `git pull`.
+- `/opt/plexo/.env` is the single source of truth for secrets.
+- `docker/compose.yml` is deprecated; use root `docker-compose.yml`.
 
 ## Critical Rules
 - packages/sdk is a public API. Breaking changes require major version bump + migration guide.
@@ -70,7 +71,7 @@ plugins/core/*     → packages/sdk only (never packages/db or packages/agent)
 1. Commit locally
 2. `git push origin main`
 3. **STOP**: Ask for explicit user permission before deploying to the VPS.
-4. Single SSH command: `export SOURCE_COMMIT=$(git rev-parse HEAD) && docker compose -f docker/compose.yml -f docker/compose.override.yml build <service> && docker compose -f docker/compose.yml -f docker/compose.override.yml up -d <service>`
+4. Single SSH command: `export SOURCE_COMMIT=$(git rev-parse HEAD) && docker compose -f docker-compose.yml -f docker-compose.override.yml build <service> && docker compose -f docker-compose.yml -f docker-compose.override.yml up -d <service>`
 
 
 Rules:

@@ -27,7 +27,7 @@ AI provider keys (OpenAI, OpenRouter, Groq, etc.) are configured in-app via **Se
 Then start:
 
 ```bash
-docker compose -f docker/compose.yml up -d
+docker compose up -d
 ```
 
 Open your domain in a browser. The setup wizard guides you through the rest.
@@ -54,7 +54,7 @@ curl https://plexo.yourdomain.com/health
 
 ```bash
 git pull
-docker compose -f docker/compose.yml up -d --build
+docker compose up -d --build
 ```
 
 ## Backups
@@ -62,7 +62,7 @@ docker compose -f docker/compose.yml up -d --build
 Postgres data lives in a Docker volume. Back up with:
 
 ```bash
-docker compose -f docker/compose.yml exec postgres pg_dump -U plexo plexo > backup.sql
+docker compose exec postgres pg_dump -U plexo plexo > backup.sql
 ```
 
 ## Troubleshooting

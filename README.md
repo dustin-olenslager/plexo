@@ -16,7 +16,7 @@ A persistent, self-hosted AI workforce that autonomously handles software engine
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Docker](https://img.shields.io/badge/Deploy-Docker-2496ED?logo=docker&logoColor=white)](docker/compose.yml)
+[![Docker](https://img.shields.io/badge/Deploy-Docker-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![Kapsel](https://img.shields.io/badge/Kapsel-Full%20compliant-6C47FF)](https://github.com/joeybuilt-official/kapsel)
 
 </div>
@@ -47,7 +47,7 @@ cd plexo
 cp .env.example .env
 
 # Start the stack (Next.js, Express, Postgres, Valkey)
-docker compose -f docker/compose.yml up -d
+docker compose up -d
 ```
 > **Note:** First boot runs database migrations before the API starts. Caddy handles TLS automatically if `PUBLIC_DOMAIN` is set in your `.env`.
 

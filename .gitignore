@@ -4,8 +4,8 @@
 .env.*.local
 
 # Local Docker overrides — personal customizations stay local
-docker/compose.override.yml
-docker/compose.*.override.yml
+docker-compose.override.yml
+docker-compose.*.override.yml
 
 # Runtime
 node_modules/

@@ -93,7 +93,7 @@ async function runMigrations() {
                     console.error('[migrate] TROUBLESHOOTING:')
                     console.error('  1. Check if you changed POSTGRES_PASSWORD in .env while an existing pgdata volume exists.')
                     console.error('  2. If so, your DB still uses the OLD password. Use the old one or delete the volume (DANGEROUS).')
-                    console.error('  3. Verify DATABASE_URL format in docker/compose.yml matches your password.')
+                    console.error('  3. Verify DATABASE_URL format in docker-compose.yml matches your password.')
                 }
             }
             // Database does not exist yet (3D000)

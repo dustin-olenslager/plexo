@@ -365,9 +365,13 @@ systemRouter.post('/update', async (_req, res) => {
                 throw new Error('Could not determine host working directory. One-click update failed.')
             }
             
-            // e.g. /opt/plexo/docker -> /opt/plexo
-            const { dirname } = await import('node:path')
-            const hostRepoRoot = dirname(workingDir)
+            // Handle transition: if current containers are running from docker/ subdirectory,
+            // the root is one level up. If running from root, it is workingDir.
+            let hostRepoRoot = workingDir
+            if (workingDir.endsWith('/docker')) {
+                const { dirname } = await import('node:path')
+                hostRepoRoot = dirname(workingDir)
+            }
             
             send('status', { step: 'pull', message: 'Preparing updater framework (this may take a few seconds)…' })
             await pullImage('alpine:latest', () => { /* quiet pull logs */ })
@@ -380,7 +384,7 @@ systemRouter.post('/update', async (_req, res) => {
                     Image: 'alpine:latest',
                     Cmd: [
                         'sh', '-c',
-                        `apk add --no-cache git docker-cli docker-cli-compose && cd ${hostRepoRoot} && git fetch origin main && git reset --hard origin/main && export SOURCE_COMMIT=$(git rev-parse HEAD) && docker compose -f docker/compose.yml -f docker/compose.override.yml build api web migrate && docker compose -f docker/compose.yml -f docker/compose.override.yml up -d --remove-orphans`
+                        `apk add --no-cache git docker-cli docker-cli-compose && cd ${hostRepoRoot} && git fetch origin main && git reset --hard origin/main && export SOURCE_COMMIT=$(git rev-parse HEAD) && docker compose build api web migrate && docker compose up -d --remove-orphans`
                     ],
                     HostConfig: {
                         AutoRemove: true,

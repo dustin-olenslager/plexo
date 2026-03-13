@@ -234,7 +234,7 @@ export function UpdateModal() {
         }
     }, [done, versionInfo, awaitingRestart, restartTimedOut, startRestartAndRefresh])
 
-    const manualCommands = `git pull\ndocker compose -f docker/compose.yml up -d --build`
+    const manualCommands = `git pull\ndocker compose up -d --build`
 
     const copyCommands = () => {
         void navigator.clipboard.writeText(manualCommands)

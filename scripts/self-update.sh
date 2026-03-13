@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LOG_FILE="/tmp/plexo-update.log"
-COMPOSE_FILE="${COMPOSE_FILE:-docker/compose.yml}"
+COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
 
 log() { echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*" | tee -a "$LOG_FILE"; }
 
@@ -51,9 +51,9 @@ fi
 
 # Build compose arguments
 COMPOSE_ARGS="-f ${COMPOSE_FILE}"
-if [ -f "docker/compose.override.yml" ]; then
-    log "Using docker/compose.override.yml"
-    COMPOSE_ARGS="$COMPOSE_ARGS -f docker/compose.override.yml"
+if [ -f "docker-compose.override.yml" ]; then
+    log "Using docker-compose.override.yml"
+    COMPOSE_ARGS="$COMPOSE_ARGS -f docker-compose.override.yml"
 fi
 
 # Rebuild and restart via Docker Compose

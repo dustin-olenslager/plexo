@@ -27,7 +27,7 @@ cp .env.example .env
 # PUBLIC_DOMAIN, and generate ENCRYPTION_SECRET (openssl rand -hex 32)
 
 # 3. Start
-docker compose -f docker/compose.yml up -d
+docker compose up -d
 
 # 4. Smoke test
 curl https://your-domain.com/health | jq .
@@ -74,7 +74,7 @@ If you prefer nginx, point it at the same internal ports with equivalent proxy_p
 
 ```bash
 git pull origin main
-docker compose -f docker/compose.yml up -d --build
+docker compose up -d --build
 ```
 
 Migrations run automatically on restart via the `migrate` service.
@@ -85,7 +85,7 @@ Each git tag is a deployable version. To roll back:
 
 ```bash
 git checkout v1.0.0            # target version
-docker compose -f docker/compose.yml up -d --build
+docker compose up -d --build
 ```
 
 Database migrations are **additive only** — no columns are ever dropped in a patch release. Rolling back the code is always safe. Rolling back the DB schema requires manual intervention if you downgrade more than one minor version.

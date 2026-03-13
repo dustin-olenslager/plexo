@@ -22,7 +22,7 @@ cd /home/dustin/dev/plexo && git push origin main
 
 3. On the VPS — pull from GitHub, build changed service(s), restart:
 ```bash
-ssh -o StrictHostKeyChecking=no <VPS_USER>@<VPS_HOST> "cd /opt/plexo && git pull origin main && export SOURCE_COMMIT=$(git rev-parse HEAD) && docker compose -f docker/compose.yml -f docker/compose.override.yml build <service> && docker compose -f docker/compose.yml -f docker/compose.override.yml up -d <service>"
+ssh -o StrictHostKeyChecking=no <VPS_USER>@<VPS_HOST> "cd /opt/plexo && git pull origin main && export SOURCE_COMMIT=$(git rev-parse HEAD) && docker compose -f docker-compose.yml -f docker-compose.override.yml build <service> && docker compose -f docker-compose.yml -f docker-compose.override.yml up -d <service>"
 ```
 
 Replace `<service>` with the affected container(s): `web`, `api`, or both.
